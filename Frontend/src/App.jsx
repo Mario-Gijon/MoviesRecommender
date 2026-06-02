@@ -42,20 +42,21 @@ function App() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
-  useEffect(() => {
-    async function loadMovies() {
-      try {
-        setIsLoadingMovies(true)
-        setErrorMessage('')
-        const featuredMovies = await fetchFeaturedMovies()
-        setMovies(featuredMovies)
-      } catch {
-        setErrorMessage('Could not load featured movies from the backend.')
-      } finally {
-        setIsLoadingMovies(false)
-      }
+  async function loadMovies() {
+    try {
+      setIsLoadingMovies(true)
+      setErrorMessage('')
+      const featuredMovies = await fetchFeaturedMovies()
+      setMovies(featuredMovies)
+    } catch {
+      setMovies([])
+      setErrorMessage('Could not load featured movies. Check that the backend is running and the catalog is available.')
+    } finally {
+      setIsLoadingMovies(false)
     }
+  }
 
+  useEffect(() => {
     loadMovies()
   }, [])
 
@@ -113,18 +114,24 @@ function App() {
   const nextButtonLabel = activeStep === STEPS.length ? 'Stay here' : 'Next'
   const canGoBack = activeStep > 1
   const canGoNext = activeStep < STEPS.length
+  const statusLabel = isLoadingMovies
+    ? 'Loading featured movies...'
+    : errorMessage && movies.length === 0
+      ? 'Backend unavailable or catalog not loaded'
+      : 'Connected to local catalog'
+  const stepErrorMessage = activeStep === 1 && movies.length === 0 ? errorMessage : activeStep === 3 ? errorMessage : ''
 
   return (
     <AppLayout
       activeStep={activeStep}
       steps={STEPS}
-      statusLabel={isLoadingMovies ? 'Loading featured movies...' : 'Connected to placeholder catalog'}
+      statusLabel={statusLabel}
     >
       <StepShell
         eyebrow={activeStepMeta.eyebrow}
         title={activeStepMeta.title}
         description={activeStepMeta.description}
-        errorMessage={errorMessage}
+        errorMessage={stepErrorMessage}
       >
         {activeStep === 1 ? (
           <RateMoviesStep
@@ -132,7 +139,9 @@ function App() {
             ratings={ratings}
             ratedMoviesCount={ratedMoviesCount}
             isLoadingMovies={isLoadingMovies}
+            movieLoadError={movies.length === 0 ? errorMessage : ''}
             onRate={handleRate}
+            onRetryLoadMovies={loadMovies}
           />
         ) : null}
 
