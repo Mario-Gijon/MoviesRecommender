@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class MovieCoverage(BaseModel):
@@ -22,24 +22,6 @@ class Movie(BaseModel):
     genres: list[str]
     tags: list[str]
     coverage: MovieCoverage
-    availableForContent: bool = False
-    availableForCollaborative: bool = False
-
-    @model_validator(mode="before")
-    @classmethod
-    def populate_compatibility_fields(cls, data: object) -> object:
-        if not isinstance(data, dict):
-            return data
-
-        coverage = data.get("coverage")
-        if isinstance(coverage, dict):
-            data.setdefault("availableForContent", coverage.get("availableForContent", False))
-            data.setdefault(
-                "availableForCollaborative",
-                coverage.get("availableForCollaborative", False),
-            )
-
-        return data
 
 
 class CatalogStatus(BaseModel):

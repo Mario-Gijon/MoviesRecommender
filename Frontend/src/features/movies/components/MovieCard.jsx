@@ -9,8 +9,8 @@ function MovieCard({ movie, rating, onRate }) {
         </div>
         <p className="meta">{movie.genres.join(' • ')}</p>
         <p className="availability">
-          Content: {movie.availableForContent ? 'yes' : 'no'} | Collaborative:{' '}
-          {movie.availableForCollaborative ? 'yes' : 'no'}
+          Content: {movie.coverage.availableForContent ? 'yes' : 'no'} | Collaborative:{' '}
+          {movie.coverage.availableForCollaborative ? 'yes' : 'no'}
         </p>
         <div className="rating-row">
           {[1, 2, 3, 4, 5].map((value) => (
@@ -35,4 +35,3 @@ function MovieCard({ movie, rating, onRate }) {
 }
 
 export default MovieCard
-
