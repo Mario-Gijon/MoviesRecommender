@@ -16,6 +16,18 @@ Seed placeholder catalog:
 python -m app.scripts.seed_placeholder_catalog
 ```
 
+MovieLens development dataset download/extract:
+
+```bash
+python -m app.scripts.download_movielens_small
+```
+
+MovieLens development dataset inspection:
+
+```bash
+python -m app.scripts.inspect_movielens_small
+```
+
 Run API:
 
 ```bash
@@ -30,3 +42,9 @@ uvicorn app.main:app --reload --port 8014
 - No external API is used at runtime yet.
 - Placeholder external IDs remain `null` until the offline TMDB/MovieLens pipeline is implemented.
 - Real TMDB, MovieLens, and offline SQLite catalog build steps will replace the placeholder seed later.
+
+## MovieLens Development Dataset
+
+- `ml-latest-small` is used only for offline pipeline development and inspection.
+- The final catalog may later use `ml-25m` or a larger MovieLens dataset.
+- Raw and processed MovieLens files should not be committed.

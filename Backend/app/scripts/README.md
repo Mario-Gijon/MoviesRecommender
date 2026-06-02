@@ -2,5 +2,4 @@
 
 This folder will hold local helper scripts for catalog preparation and maintenance.
 
-No sync or ingestion scripts are implemented yet.
-
+Current scripts cover placeholder catalog seeding plus local MovieLens download and inspection helpers.
