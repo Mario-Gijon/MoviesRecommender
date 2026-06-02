@@ -18,16 +18,36 @@ class RecommendationRequest(BaseModel):
     ratings: list[RatingInput]
 
 
+MethodType = Literal["content", "collaborative", "popularity", "diversity"]
+ExplanationSignalType = Literal[
+    "content_match",
+    "collaborative_match",
+    "quality_signal",
+    "diversity_signal",
+    "coverage_note",
+]
+
+
+class MethodContribution(BaseModel):
+    method: MethodType
+    weight: float
+    score: float
+    label: str
+
+
 class ExplanationSignal(BaseModel):
+    type: ExplanationSignalType
     label: str
     value: str
+    weight: float | None = None
 
 
 class RecommendationItem(BaseModel):
     movie: Movie
     score: float
     matchPercentage: int
-    method: str
+    method: StrategyType
+    methodContributions: list[MethodContribution]
     explanationSummary: str
     explanationSignals: list[ExplanationSignal]
 
@@ -36,6 +56,7 @@ class UserProfile(BaseModel):
     ratedMoviesCount: int
     averageRating: float
     favoriteGenres: list[str]
+    favoriteTags: list[str]
     selectedStrategy: StrategyType
 
 
@@ -49,4 +70,3 @@ class RecommendationResponse(BaseModel):
     userProfile: UserProfile
     recommendations: list[RecommendationItem]
     explanation: RecommendationExplanation
-
