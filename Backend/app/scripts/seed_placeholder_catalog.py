@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.core.config import settings
 from app.infrastructure.catalog.catalog_models import (
     MovieCoverageNoteRecord,
@@ -5,7 +7,7 @@ from app.infrastructure.catalog.catalog_models import (
     MovieRecord,
     MovieTagRecord,
 )
-from app.infrastructure.catalog.catalog_repository import (
+from app.infrastructure.catalog.placeholder_catalog import (
     PLACEHOLDER_FEATURED_MOVIES,
     PLACEHOLDER_RECOMMENDATION_CANDIDATES,
 )
@@ -13,6 +15,7 @@ from app.infrastructure.database.session import Base, SessionLocal, engine
 
 
 def main() -> None:
+    _ensure_sqlite_directory()
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as session:
@@ -36,6 +39,18 @@ def main() -> None:
     print(f"Featured count: {len(PLACEHOLDER_FEATURED_MOVIES)}")
     print(f"Recommendation candidate count: {len(PLACEHOLDER_RECOMMENDATION_CANDIDATES)}")
     print(f"Database URL: {settings.database_url}")
+
+
+def _ensure_sqlite_directory() -> None:
+    sqlite_prefix = "sqlite:///"
+    if not settings.database_url.startswith(sqlite_prefix):
+        return
+
+    sqlite_path = settings.database_url[len(sqlite_prefix):]
+    if not sqlite_path or sqlite_path == ":memory:":
+        return
+
+    Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
 
 
 def _build_movie_record(
