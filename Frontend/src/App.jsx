@@ -14,19 +14,19 @@ const STEPS = [
     id: 1,
     eyebrow: 'Step 1',
     title: 'Rate movies',
-    description: 'Rate a few placeholder movies from 1 to 5 to create a temporary preference profile.',
+    description: 'Rate a few known movies to build a temporary taste profile.',
   },
   {
     id: 2,
     eyebrow: 'Step 2',
     title: 'Review rated movies and detected profile',
-    description: 'Check the movies you rated and inspect a simple placeholder profile before requesting recommendations.',
+    description: 'Review your ratings and see a first simple profile preview.',
   },
   {
     id: 3,
     eyebrow: 'Step 3',
     title: 'Choose strategy and generate recommendations',
-    description: 'Pick a recommendation mode, call the backend, and review the explanation summaries.',
+    description: 'Choose a strategy and inspect why each movie was recommended.',
   },
 ]
 
@@ -167,9 +167,9 @@ function App() {
         onNext={handleNextStep}
         hint={
           activeStep === 1 && ratedMoviesCount < 5
-            ? 'Tip: rating at least 5 movies will make the later demo feel more complete.'
+            ? 'Tip: rating at least 5 movies gives the demo a clearer profile.'
             : activeStep === 2 && ratedMoviesCount === 0
-              ? 'You can go back and add ratings before generating recommendations.'
+              ? 'Go back and add a few ratings before moving to recommendations.'
               : ''
         }
       />

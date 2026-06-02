@@ -15,6 +15,9 @@ body {
   background:
     radial-gradient(circle at top, #fff7df 0, #f4f1ea 45%),
     #f4f1ea;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
 }
 
 button,
@@ -29,17 +32,23 @@ button {
 }
 
 #root {
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
-  padding: 16px 0;
+  min-height: 100dvh;
+  padding: 12px 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .hero-panel,
@@ -57,7 +66,7 @@ button {
 
 .wizard-header {
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .hero-panel,
@@ -66,7 +75,7 @@ button {
 .info-panel,
 .scroll-panel,
 .wizard-footer {
-  padding: 20px;
+  padding: 16px;
 }
 
 .status-row {
@@ -80,14 +89,14 @@ button {
 .step-dots {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .step-dot {
   display: grid;
-  gap: 6px;
-  padding: 12px;
+  gap: 4px;
+  padding: 10px 12px;
   border-radius: 14px;
   border: 1px solid #e3dacd;
   background: #faf6ee;
@@ -105,13 +114,14 @@ button {
 }
 
 .step-dot-label {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .wizard-main {
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .step-shell {
@@ -119,12 +129,12 @@ button {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .step-header {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .step-content {
@@ -136,7 +146,7 @@ button {
   height: 100%;
   min-height: 0;
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .two-column-step {
@@ -152,10 +162,10 @@ button {
 }
 
 .eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: #8b5e34;
 }
 
@@ -166,6 +176,15 @@ button {
   margin: 0;
 }
 
+.hero-panel h1 {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  line-height: 1.15;
+}
+
+.step-shell h2 {
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+}
+
 .hero-copy,
 .section-copy,
 .meta,
@@ -173,6 +192,17 @@ button {
 .helper-text,
 .score-line {
   color: #52606d;
+}
+
+.hero-copy,
+.section-copy,
+.helper-text {
+  margin: 0;
+}
+
+.hero-copy {
+  max-width: 68ch;
+  font-size: 0.95rem;
 }
 
 .grid {
@@ -192,6 +222,7 @@ button {
   min-height: 0;
   overflow: auto;
   background: rgba(255, 253, 248, 0.92);
+  overscroll-behavior: contain;
 }
 
 .poster-placeholder {
@@ -316,7 +347,7 @@ button {
   justify-content: space-between;
   gap: 16px;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .wizard-footer-copy {
@@ -335,6 +366,10 @@ button {
 }
 
 @media (max-width: 900px) {
+  body {
+    overflow: hidden;
+  }
+
   .two-column-step {
     grid-template-columns: 1fr;
   }
@@ -347,7 +382,8 @@ button {
 @media (max-width: 640px) {
   .app-shell {
     width: min(100% - 20px, 1100px);
-    padding: 12px 0;
+    padding: 10px 0;
+    gap: 10px;
   }
 
   .hero-panel,
@@ -356,7 +392,18 @@ button {
   .info-panel,
   .scroll-panel,
   .wizard-footer {
-    padding: 18px;
+    padding: 14px;
+  }
+
+  .hero-panel h1 {
+    font-size: 1.25rem;
+  }
+
+  .hero-copy,
+  .step-dot-label,
+  .section-copy,
+  .helper-text {
+    font-size: 0.92rem;
   }
 
   .card-heading {

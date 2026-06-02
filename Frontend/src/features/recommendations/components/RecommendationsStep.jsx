@@ -16,7 +16,7 @@ function RecommendationsStep({
       <section className="info-panel">
         <h3>Recommendation strategy</h3>
         <p className="section-copy">
-          Choose the placeholder strategy to explain how different recommender families behave.
+          Choose a strategy, generate results, and inspect why each movie appears.
         </p>
         <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
         <button
@@ -28,7 +28,7 @@ function RecommendationsStep({
           {isLoadingRecommendations ? 'Generating...' : 'Generate recommendations'}
         </button>
         {!ratedMoviesCount ? (
-          <p className="helper-text">Add at least one rating before requesting recommendations.</p>
+          <p className="helper-text">Add at least one rating before generating recommendations.</p>
         ) : null}
       </section>
       <section className="scroll-panel recommendations-panel">
@@ -53,7 +53,7 @@ function RecommendationsStep({
         ) : (
           <div className="empty-state">
             <h3>No recommendations yet</h3>
-            <p className="helper-text">Generate a result to inspect the placeholder explanation summaries.</p>
+            <p className="helper-text">Generate a result to inspect the recommendation explanations.</p>
           </div>
         )}
       </section>

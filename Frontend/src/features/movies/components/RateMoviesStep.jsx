@@ -5,7 +5,7 @@ function RateMoviesStep({ movies, ratings, ratedMoviesCount, isLoadingMovies, on
     <div className="step-panel">
       <div className="step-toolbar">
         <div className="stats-chip">Rated movies: {ratedMoviesCount}</div>
-        <p className="helper-text">The grid below has its own scroll area for larger future catalogs.</p>
+        <p className="helper-text">Rate a few films to shape your temporary taste profile.</p>
       </div>
       <div className="scroll-panel">
         {isLoadingMovies ? (
@@ -19,4 +19,3 @@ function RateMoviesStep({ movies, ratings, ratedMoviesCount, isLoadingMovies, on
 }
 
 export default RateMoviesStep
-

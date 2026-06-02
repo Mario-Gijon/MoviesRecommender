@@ -3,11 +3,11 @@ function AppLayout({ activeStep, steps, statusLabel, children }) {
     <div className="app-shell">
       <header className="wizard-header">
         <div className="hero-panel">
-          <p className="eyebrow">Explainable Movies Recommender</p>
-          <h1>Explore how recommendation strategies change what gets suggested.</h1>
+          <p className="eyebrow">Explainable Movie Recommender</p>
+          <h1>Rate. Choose a method. Understand the recommendation.</h1>
           <p className="hero-copy">
-            Rate a few placeholder movies, review the temporary profile, then generate
-            deterministic recommendations with transparent explanations.
+            A short interactive demo about content-based, collaborative and hybrid
+            recommendation strategies.
           </p>
         </div>
         <div className="progress-panel">
