@@ -23,3 +23,5 @@ The 32M demo-catalog JSON now contains:
 - `excludedOrSensitive`
 
 `publicCatalog` is the full public set for rating, searching, and recommendations. It is ordered by `standDisplayScore` so the first page is demo-friendly. `collaborativeCore` is internal future collaborative evidence. The CSV review files are for manual review only. Neither step modifies SQLite or the runtime API.
+
+`publicCatalog` is complete by default. `--public-limit` is only for manual experiments or reduced review exports. The frontend should later paginate or progressively render/search the full public catalog.

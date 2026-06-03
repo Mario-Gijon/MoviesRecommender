@@ -92,6 +92,8 @@ uvicorn app.main:app --reload --port 8014
 - The demo catalog contains `publicCatalog`, `collaborativeCore`, and `excludedOrSensitive`.
 - `publicCatalog` is the full public set for rating, searching, and recommendations.
 - `publicCatalog` is ordered by `standDisplayScore` so the first page is demo-friendly.
+- `publicCatalog` is complete by default.
+- `--public-limit` is only for manual experiments or reduced review exports.
 - The frontend should later paginate or progressively render this list instead of rendering every card at once.
 - `collaborativeCore` is internal future collaborative evidence.
 - The demo-catalog JSON and review CSVs do not modify SQLite.
@@ -110,6 +112,7 @@ python -m app.scripts.enrich_movielens_32m_with_tmdb --resume --sleep 0.35
 python -m app.scripts.inspect_tmdb_enriched_movielens_32m
 python -m app.scripts.build_demo_catalog_from_movielens_32m
 python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 700
+python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 200
 python -m app.scripts.build_demo_catalog_from_movielens_32m --family-only
 python -m app.scripts.export_demo_catalog_32m_review_files
 ```

@@ -72,7 +72,9 @@ def main() -> None:
     ML_32M_DEMO_CATALOG_PATH.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
 
     print(f"Total input items: {catalog['summary']['totalInputItems']}")
+    print(f"Public eligible movies: {catalog['summary']['publicEligibleMovies']}")
     print(f"Public catalog movies written: {len(catalog['publicCatalog'])}")
+    print(f"Public limit applied: {catalog['summary']['publicLimitApplied']}")
     print(f"Collaborative core written: {len(catalog['collaborativeCore'])}")
     print(f"Excluded/sensitive written: {len(catalog['excludedOrSensitive'])}")
     print("Top 25 public catalog movies:")
@@ -88,7 +90,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a processed demo catalog from TMDB-enriched MovieLens 32M candidates.",
     )
-    parser.add_argument("--public-limit", type=int, default=700)
+    parser.add_argument("--public-limit", type=int, default=None)
     parser.add_argument("--collaborative-core-limit", type=int, default=2000)
     parser.add_argument("--min-ratings", type=int, default=100)
     parser.add_argument("--public-min-year", type=int, default=2000)
@@ -110,29 +112,35 @@ def _build_catalog(*, items: list[dict], args: argparse.Namespace) -> dict:
         item for item in analyzed_items if _is_excluded_candidate(item, args=args)
     ]
 
-    collaborative_ids = {item.get("movieId") for item in collaborative_candidates}
-
     public_candidates.sort(key=_public_sort_key)
     collaborative_candidates.sort(key=_collaborative_sort_key)
     excluded_candidates.sort(key=_excluded_sort_key)
 
+    public_catalog_candidates = _limit_items(public_candidates, args.public_limit)
+    collaborative_core_candidates = _limit_items(
+        collaborative_candidates,
+        args.collaborative_core_limit,
+    )
+
+    collaborative_ids = {item.get("movieId") for item in collaborative_core_candidates}
+
     public_catalog = _dedupe_and_serialize(
-        public_candidates[: args.public_limit],
+        public_catalog_candidates,
         roles_by_movie_id={
             movie_id: ["public", "recommendable", "rateable"]
             + (["collaborative_core"] if movie_id in collaborative_ids else [])
-            for movie_id in {item.get("movieId") for item in public_candidates[: args.public_limit]}
+            for movie_id in [item.get("movieId") for item in public_catalog_candidates]
         },
     )
     collaborative_core = _dedupe_and_serialize(
-        collaborative_candidates[: args.collaborative_core_limit],
+        collaborative_core_candidates,
         roles_by_movie_id={
             item.get("movieId"): (
                 ["public", "recommendable", "rateable", "collaborative_core"]
                 if _is_public_candidate(item, args=args)
                 else ["collaborative_core"]
             )
-            for item in collaborative_candidates[: args.collaborative_core_limit]
+            for item in collaborative_core_candidates
         },
     )
     excluded_or_sensitive = _dedupe_and_serialize(
@@ -161,7 +169,9 @@ def _build_catalog(*, items: list[dict], args: argparse.Namespace) -> dict:
         },
         "summary": {
             "totalInputItems": len(items),
+            "publicEligibleMovies": len(public_candidates),
             "publicCatalog": len(public_catalog),
+            "publicLimitApplied": args.public_limit is not None,
             "collaborativeCore": len(collaborative_core),
             "excludedOrSensitive": len(excluded_or_sensitive),
             **suitability_counts,
@@ -383,6 +393,12 @@ def _dedupe_and_serialize(items: list[dict], *, roles_by_movie_id: dict[int, lis
         serialized_items.append(_serialize_item(item, catalog_roles=roles_by_movie_id.get(movie_id, [])))
 
     return serialized_items
+
+
+def _limit_items(items: list[dict], limit: int | None) -> list[dict]:
+    if limit is None:
+        return items
+    return items[:limit]
 
 
 def _serialize_item(item: dict, *, catalog_roles: list[str]) -> dict:
