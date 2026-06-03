@@ -16,20 +16,28 @@ from app.infrastructure.database.session import Base, SessionLocal, engine
 
 def main() -> None:
     _ensure_sqlite_directory()
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as session:
-        session.query(MovieCoverageNoteRecord).delete()
-        session.query(MovieGenreRecord).delete()
-        session.query(MovieTagRecord).delete()
-        session.query(MovieRecord).delete()
-
         inserted_movies = [
-            _build_movie_record(movie_data, is_featured=True, is_recommendation_candidate=False)
-            for movie_data in PLACEHOLDER_FEATURED_MOVIES
+            _build_movie_record(
+                movie_data,
+                is_featured=True,
+                is_recommendation_candidate=False,
+                featured_order=index,
+                recommendation_order=None,
+            )
+            for index, movie_data in enumerate(PLACEHOLDER_FEATURED_MOVIES)
         ] + [
-            _build_movie_record(movie_data, is_featured=False, is_recommendation_candidate=True)
-            for movie_data in PLACEHOLDER_RECOMMENDATION_CANDIDATES
+            _build_movie_record(
+                movie_data,
+                is_featured=False,
+                is_recommendation_candidate=True,
+                featured_order=None,
+                recommendation_order=index,
+            )
+            for index, movie_data in enumerate(PLACEHOLDER_RECOMMENDATION_CANDIDATES)
         ]
 
         session.add_all(inserted_movies)
@@ -58,6 +66,8 @@ def _build_movie_record(
     *,
     is_featured: bool,
     is_recommendation_candidate: bool,
+    featured_order: int | None,
+    recommendation_order: int | None,
 ) -> MovieRecord:
     coverage = movie_data["coverage"]
     movie = MovieRecord(
@@ -70,6 +80,8 @@ def _build_movie_record(
         year=movie_data["year"],
         overview=movie_data["overview"],
         poster_url=movie_data["posterUrl"],
+        featured_order=featured_order,
+        recommendation_order=recommendation_order,
         is_featured=is_featured,
         is_recommendation_candidate=is_recommendation_candidate,
         available_for_content=coverage["availableForContent"],

@@ -19,17 +19,13 @@ def main() -> None:
         )
 
     _ensure_sqlite_directory()
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
     catalog = _load_demo_catalog()
     merged_movies = _merge_catalog_lists(catalog)
 
     with SessionLocal() as session:
-        session.query(MovieCoverageNoteRecord).delete()
-        session.query(MovieGenreRecord).delete()
-        session.query(MovieTagRecord).delete()
-        session.query(MovieRecord).delete()
-
         records = [_build_movie_record(movie) for movie in merged_movies.values()]
         session.add_all(records)
         session.commit()
@@ -71,12 +67,39 @@ def _load_demo_catalog() -> dict:
 def _merge_catalog_lists(catalog: dict) -> dict[int, dict]:
     merged: dict[int, dict] = {}
 
-    for item in catalog.get("visibleMovies", []):
-        _merge_item(merged, item, is_featured=True, is_recommendation_candidate=False, is_collaborative_core=False)
-    for item in catalog.get("recommendationPool", []):
-        _merge_item(merged, item, is_featured=False, is_recommendation_candidate=True, is_collaborative_core=False)
-    for item in catalog.get("collaborativeCore", []):
-        _merge_item(merged, item, is_featured=False, is_recommendation_candidate=False, is_collaborative_core=True)
+    for index, item in enumerate(catalog.get("visibleMovies", [])):
+        _merge_item(
+            merged,
+            item,
+            is_featured=True,
+            is_recommendation_candidate=False,
+            is_collaborative_core=False,
+            featured_order=index,
+            recommendation_order=None,
+            collaborative_order=None,
+        )
+    for index, item in enumerate(catalog.get("recommendationPool", [])):
+        _merge_item(
+            merged,
+            item,
+            is_featured=False,
+            is_recommendation_candidate=True,
+            is_collaborative_core=False,
+            featured_order=None,
+            recommendation_order=index,
+            collaborative_order=None,
+        )
+    for index, item in enumerate(catalog.get("collaborativeCore", [])):
+        _merge_item(
+            merged,
+            item,
+            is_featured=False,
+            is_recommendation_candidate=False,
+            is_collaborative_core=True,
+            featured_order=None,
+            recommendation_order=None,
+            collaborative_order=index,
+        )
 
     return merged
 
@@ -88,6 +111,9 @@ def _merge_item(
     is_featured: bool,
     is_recommendation_candidate: bool,
     is_collaborative_core: bool,
+    featured_order: int | None,
+    recommendation_order: int | None,
+    collaborative_order: int | None,
 ) -> None:
     movie_id = item["movieId"]
     existing = merged.get(movie_id)
@@ -97,6 +123,9 @@ def _merge_item(
             "is_featured": is_featured,
             "is_recommendation_candidate": is_recommendation_candidate,
             "is_collaborative_core": is_collaborative_core,
+            "featured_order": featured_order,
+            "recommendation_order": recommendation_order,
+            "collaborative_order": collaborative_order,
         }
         return
 
@@ -107,6 +136,12 @@ def _merge_item(
     existing["is_collaborative_core"] = (
         existing["is_collaborative_core"] or is_collaborative_core
     )
+    if existing.get("featured_order") is None and featured_order is not None:
+        existing["featured_order"] = featured_order
+    if existing.get("recommendation_order") is None and recommendation_order is not None:
+        existing["recommendation_order"] = recommendation_order
+    if existing.get("collaborative_order") is None and collaborative_order is not None:
+        existing["collaborative_order"] = collaborative_order
 
     for role in item.get("catalogRoles", []):
         if role not in existing["catalogRoles"]:
@@ -142,6 +177,9 @@ def _build_movie_record(item: dict) -> MovieRecord:
         overview=item.get("overview"),
         poster_url=poster_url,
         backdrop_url=backdrop_url,
+        featured_order=item.get("featured_order"),
+        recommendation_order=item.get("recommendation_order"),
+        collaborative_order=item.get("collaborative_order"),
         is_featured=item.get("is_featured", False),
         is_recommendation_candidate=item.get("is_recommendation_candidate", False),
         is_collaborative_core=item.get("is_collaborative_core", False),

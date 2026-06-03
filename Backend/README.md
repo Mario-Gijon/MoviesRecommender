@@ -94,6 +94,9 @@ uvicorn app.main:app --reload --port 8014
 - Demo catalog building creates a processed JSON only and does not modify the runtime SQLite catalog.
 - Final seeding from the processed demo catalog into SQLite will come later.
 - Suitability is a transparent heuristic for demo preparation, not an official age-rating decision.
+- `candidateScore` is data/reliability-oriented.
+- `standDisplayScore` is stand/audience-display-oriented.
+- The display heuristic is transparent and can be adjusted after manual CSV review.
 - CSV review files are manual review artifacts only.
 - Generated CSV files should not be committed.
 - Review export does not modify SQLite or the runtime API.
@@ -101,6 +104,8 @@ uvicorn app.main:app --reload --port 8014
 - Demo catalog seeding does not call TMDB.
 - Images currently use TMDB CDN URLs for development.
 - Local image download and offline image serving will come later.
+- Development seed scripts reset and recreate the local SQLite catalog schema before inserting data.
+- When seeded from the processed MovieLens/TMDB demo catalog, `/catalog/status` reflects demo-catalog counts and `/movies/featured` follows the processed visible-movie order.
 
 Examples:
 

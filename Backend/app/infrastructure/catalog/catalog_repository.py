@@ -16,7 +16,9 @@ class CatalogRepository:
                 if total_movies == 0:
                     return _build_uninitialized_status()
 
-                visible_movies = total_movies
+                visible_movies = session.scalar(
+                    select(func.count(MovieRecord.id)).where(MovieRecord.is_featured.is_(True))
+                ) or 0
                 recommendable_movies = session.scalar(
                     select(func.count(MovieRecord.id)).where(MovieRecord.is_recommendation_candidate.is_(True))
                 ) or 0
@@ -25,7 +27,7 @@ class CatalogRepository:
                 hybrid_coverage = min(1.0, round((avg_content + avg_collaborative) / 2 + 0.11, 2))
 
                 return {
-                    "catalogVersion": "sqlite-placeholder-v1",
+                    "catalogVersion": "sqlite-demo-catalog-v1",
                     "totalMovies": total_movies,
                     "visibleMovies": visible_movies,
                     "recommendableMovies": recommendable_movies,
@@ -33,12 +35,13 @@ class CatalogRepository:
                     "collaborativeCoverage": round(float(avg_collaborative), 2),
                     "hybridCoverage": hybrid_coverage,
                     "lastBuiltDate": None,
-                    "dataMode": "sqlite-placeholder",
-                    "sources": ["sqlite", "placeholder"],
+                    "dataMode": "sqlite-demo-catalog",
+                    "sources": ["sqlite", "movielens", "tmdb"],
                     "notes": [
-                        "SQLite currently stores placeholder catalog data only.",
+                        "SQLite stores the processed MovieLens/TMDB demo catalog.",
                         "Runtime API does not fetch external APIs.",
-                        "Real TMDB and MovieLens offline catalog build steps will replace this seed later.",
+                        "TMDB images currently use CDN URLs for development.",
+                        "Local image download and offline serving will come later.",
                     ],
                 }
         except OperationalError:
@@ -74,12 +77,21 @@ class CatalogRepository:
                         selectinload(MovieRecord.tags),
                         selectinload(MovieRecord.coverage_notes),
                     )
-                    .order_by(MovieRecord.id)
                 )
                 if featured_only:
-                    query = query.where(MovieRecord.is_featured.is_(True))
+                    query = query.where(MovieRecord.is_featured.is_(True)).order_by(
+                        MovieRecord.featured_order.asc().nullslast(),
+                        MovieRecord.title.asc(),
+                        MovieRecord.id.asc(),
+                    )
                 if recommendation_candidates_only:
-                    query = query.where(MovieRecord.is_recommendation_candidate.is_(True))
+                    query = query.where(MovieRecord.is_recommendation_candidate.is_(True)).order_by(
+                        MovieRecord.recommendation_order.asc().nullslast(),
+                        MovieRecord.title.asc(),
+                        MovieRecord.id.asc(),
+                    )
+                if not featured_only and not recommendation_candidates_only:
+                    query = query.order_by(MovieRecord.id.asc())
 
                 records = session.scalars(query).all()
                 if not records:

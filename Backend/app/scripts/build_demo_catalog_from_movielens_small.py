@@ -32,6 +32,27 @@ SUITABILITY_PRIORITY = {
     "unknown": 2,
     "adult_or_sensitive": 3,
 }
+HIGH_APPEAL_GENRES = {"Animation", "Family", "Adventure", "Fantasy", "Comedy", "Science Fiction", "Action"}
+CLASSIC_LOW_APPEAL_GENRES = {"Drama", "History", "Romance", "Mystery", "Crime", "Thriller"}
+AUDIENCE_FRIENDLY_KEYWORDS = {
+    "superhero",
+    "superheroes",
+    "magic",
+    "friendship",
+    "adventure",
+    "space",
+    "robot",
+    "animation",
+    "disney",
+    "pixar",
+    "wizard",
+    "dinosaur",
+    "time travel",
+    "alien",
+    "family",
+    "school",
+    "fantasy world",
+}
 
 
 def main() -> None:
@@ -45,6 +66,7 @@ def main() -> None:
     items = json.loads(ML_LATEST_SMALL_TMDB_ENRICHED_PATH.read_text(encoding="utf-8"))
     classified_items = [_classify_item(item) for item in items]
     suitability_counts = Counter(item["demoSuitability"] for item in classified_items)
+    _annotate_stand_display_scores(classified_items)
 
     visible_candidates = []
     recommendation_candidates = []
@@ -78,6 +100,7 @@ def main() -> None:
             visible_candidates,
             key=lambda item: (
                 SUITABILITY_PRIORITY[item["demoSuitability"]],
+                -item["standDisplayScore"],
                 -item["candidateScore"],
                 -item["ratingCount"],
                 -(item.get("tmdb", {}).get("popularity") or 0),
@@ -91,6 +114,7 @@ def main() -> None:
             recommendation_candidates,
             key=lambda item: (
                 -item["candidateScore"],
+                -item["standDisplayScore"],
                 -item["ratingCount"],
                 -(item.get("tmdb", {}).get("popularity") or 0),
                 item["cleanTitle"],
@@ -308,6 +332,111 @@ def _dedupe_and_limit(items: list[dict], limit: int | None) -> list[dict]:
     return result
 
 
+def _annotate_stand_display_scores(items: list[dict]) -> None:
+    max_tmdb_popularity = max(
+        (item.get("tmdb", {}).get("popularity") or 0 for item in items),
+        default=1,
+    )
+    max_rating_count = max((item.get("ratingCount") or 0 for item in items), default=1)
+
+    for item in items:
+        score, reasons = _compute_stand_display_score(
+            item=item,
+            max_tmdb_popularity=max_tmdb_popularity,
+            max_rating_count=max_rating_count,
+        )
+        item["standDisplayScore"] = score
+        item["standDisplayReasons"] = reasons
+
+
+def _compute_stand_display_score(
+    *,
+    item: dict,
+    max_tmdb_popularity: float,
+    max_rating_count: int,
+) -> tuple[float, list[str]]:
+    tmdb = item.get("tmdb", {})
+    genres = set(item.get("genres", []))
+    keywords = {keyword.lower() for keyword in item.get("keywords", [])}
+    year = item.get("year")
+    reasons: list[str] = []
+
+    recency_signal = _recency_signal(year)
+    if recency_signal >= 0.85:
+        reasons.append("recent_or_modern_movie")
+
+    genre_appeal_signal = _genre_appeal_signal(genres)
+    if genres & {"Animation", "Family", "Adventure"}:
+        reasons.append("family_animation_or_adventure")
+
+    popularity_signal = min((tmdb.get("popularity") or 0) / max_tmdb_popularity, 1.0) if max_tmdb_popularity else 0.0
+    if popularity_signal >= 0.6:
+        reasons.append("strong_tmdb_popularity")
+
+    rating_count_signal = min((item.get("ratingCount") or 0) / max_rating_count, 1.0) if max_rating_count else 0.0
+    data_reliability_signal = min(1.0, (item.get("candidateScore") or 0) * 0.7 + rating_count_signal * 0.3)
+    if rating_count_signal >= 0.5:
+        reasons.append("strong_movielens_rating_count")
+
+    keyword_appeal_signal = _keyword_appeal_signal(keywords)
+    if keyword_appeal_signal > 0:
+        reasons.append("audience_friendly_keywords")
+
+    classic_penalty = 0.0
+    if year is not None and year < 1980 and not (genres & {"Adventure", "Family", "Science Fiction", "Fantasy"}):
+        classic_penalty = 0.08
+        reasons.append("classic_movie_penalty")
+
+    score = (
+        0.30 * recency_signal
+        + 0.25 * genre_appeal_signal
+        + 0.20 * popularity_signal
+        + 0.15 * data_reliability_signal
+        + 0.10 * keyword_appeal_signal
+        - classic_penalty
+    )
+    return round(max(0.0, score), 4), reasons
+
+
+def _recency_signal(year: int | None) -> float:
+    if year is None:
+        return 0.5
+    if year >= 2000:
+        return 1.0
+    if year >= 1990:
+        return 0.85
+    if year >= 1980:
+        return 0.65
+    if year >= 1970:
+        return 0.45
+    return 0.25
+
+
+def _genre_appeal_signal(genres: set[str]) -> float:
+    if not genres:
+        return 0.3
+    score = 0.35
+    if genres & HIGH_APPEAL_GENRES:
+        score += 0.25
+    if {"Animation", "Family"} & genres:
+        score += 0.2
+    if genres & {"Adventure", "Fantasy", "Science Fiction"}:
+        score += 0.15
+    if genres and genres.issubset(CLASSIC_LOW_APPEAL_GENRES):
+        score -= 0.2
+    return max(0.0, min(1.0, score))
+
+
+def _keyword_appeal_signal(keywords: set[str]) -> float:
+    if not keywords:
+        return 0.0
+    matches = 0
+    for keyword in keywords:
+        if keyword in AUDIENCE_FRIENDLY_KEYWORDS:
+            matches += 1
+    return min(1.0, matches / 3)
+
+
 def _serialize_catalog_item(item: dict) -> dict:
     tmdb = item.get("tmdb", {})
     return {
@@ -334,6 +463,8 @@ def _serialize_catalog_item(item: dict) -> dict:
         "ratingCount": item.get("ratingCount"),
         "averageRating": item.get("averageRating"),
         "candidateScore": item.get("candidateScore"),
+        "standDisplayScore": item.get("standDisplayScore"),
+        "standDisplayReasons": item.get("standDisplayReasons", []),
         "demoSuitability": item.get("demoSuitability"),
         "suitabilityReasons": item.get("suitabilityReasons", []),
         "catalogRoles": item.get("catalogRoles", []),
