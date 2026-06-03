@@ -28,6 +28,12 @@ MovieLens development dataset inspection:
 python -m app.scripts.inspect_movielens_small
 ```
 
+MovieLens candidate generation:
+
+```bash
+python -m app.scripts.build_movielens_small_candidates
+```
+
 Run API:
 
 ```bash
@@ -48,3 +54,12 @@ uvicorn app.main:app --reload --port 8014
 - `ml-latest-small` is used only for offline pipeline development and inspection.
 - The final catalog may later use `ml-25m` or a larger MovieLens dataset.
 - Raw and processed MovieLens files should not be committed.
+- Candidate generation only writes a processed JSON file and does not modify the runtime SQLite catalog.
+- TMDB enrichment will come later.
+
+Examples:
+
+```bash
+python -m app.scripts.build_movielens_small_candidates --limit 500 --min-ratings 20
+python -m app.scripts.build_movielens_small_candidates --limit 800 --min-ratings 10 --min-year 1980
+```
