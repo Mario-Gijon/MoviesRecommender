@@ -47,6 +47,7 @@ def main() -> None:
     )
 
     print(f"Total enriched items: {inspection['general']['totalItems']}")
+    print(f"Failed enrichments: {len(inspection['failedEnrichments'])}")
     print(
         f"Poster coverage: {inspection['general']['itemsWithPosterPath']}/"
         f"{inspection['general']['totalItems']}"
@@ -90,6 +91,18 @@ def _build_inspection(items: list[dict]) -> dict:
     tmdb = _build_tmdb_stats(items)
     distributions = _build_distributions(items)
     classified_items = [_classify_item(item) for item in items]
+    suitability_counts = Counter(item["demoSuitability"] for item in classified_items)
+    failed_enrichments = [
+        {
+            "movieId": item.get("movieId"),
+            "cleanTitle": item.get("cleanTitle"),
+            "year": item.get("year"),
+            "tmdbId": item.get("tmdbId"),
+            "enrichmentError": item.get("enrichmentError"),
+        }
+        for item in classified_items
+        if item.get("enrichmentError")
+    ]
 
     grouped: dict[str, list[dict]] = defaultdict(list)
     for item in classified_items:
@@ -111,11 +124,12 @@ def _build_inspection(items: list[dict]) -> dict:
         "movieLens": movielens,
         "tmdb": tmdb,
         "distributions": distributions,
+        "failedEnrichments": failed_enrichments,
         "demoSuitabilityCounts": {
-            "family_friendly_candidate": len(grouped.get("family_friendly_candidate", [])),
-            "teen_candidate": len(grouped.get("teen_candidate", [])),
-            "adult_or_sensitive": len(grouped.get("adult_or_sensitive", [])),
-            "unknown": len(grouped.get("unknown", [])),
+            "family_friendly_candidate": suitability_counts.get("family_friendly_candidate", 0),
+            "teen_candidate": suitability_counts.get("teen_candidate", 0),
+            "adult_or_sensitive": suitability_counts.get("adult_or_sensitive", 0),
+            "unknown": suitability_counts.get("unknown", 0),
         },
         "familyFriendlyCandidates": grouped.get("family_friendly_candidate", []),
         "teenCandidates": grouped.get("teen_candidate", []),

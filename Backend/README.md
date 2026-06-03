@@ -46,6 +46,12 @@ Offline TMDB-enriched catalog inspection:
 python -m app.scripts.inspect_tmdb_enriched_movielens_small
 ```
 
+Offline demo catalog build:
+
+```bash
+python -m app.scripts.build_demo_catalog_from_movielens_small
+```
+
 Run API:
 
 ```bash
@@ -73,6 +79,9 @@ uvicorn app.main:app --reload --port 8014
 - Do not commit `.env` or generated processed files.
 - TMDB-enriched catalog inspection is offline analysis only.
 - Demo suitability classification is a simple heuristic for exploration, not a final age-rating authority.
+- Demo catalog building creates a processed JSON only and does not modify the runtime SQLite catalog.
+- Final seeding from the processed demo catalog into SQLite will come later.
+- Suitability is a transparent heuristic for demo preparation, not an official age-rating decision.
 
 Examples:
 
@@ -81,4 +90,5 @@ python -m app.scripts.build_movielens_small_candidates --limit 500 --min-ratings
 python -m app.scripts.build_movielens_small_candidates --limit 800 --min-ratings 10 --min-year 1980
 python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
 python -m app.scripts.inspect_tmdb_enriched_movielens_small
+python -m app.scripts.build_demo_catalog_from_movielens_small --visible-limit 120 --recommendation-limit 220
 ```
