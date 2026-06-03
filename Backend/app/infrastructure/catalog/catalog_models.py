@@ -16,12 +16,23 @@ class MovieRecord(Base):
     year: Mapped[int] = mapped_column(Integer)
     overview: Mapped[str | None] = mapped_column(Text, nullable=True)
     poster_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    backdrop_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_recommendation_candidate: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_collaborative_core: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     available_for_content: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     available_for_collaborative: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     content_coverage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     collaborative_coverage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    demo_suitability: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rating_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    average_rating: Mapped[float | None] = mapped_column(Float, nullable=True)
+    candidate_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tmdb_popularity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tmdb_vote_average: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tmdb_vote_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    runtime: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    original_language: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     genres: Mapped[list["MovieGenreRecord"]] = relationship(
         back_populates="movie",

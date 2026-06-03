@@ -58,6 +58,12 @@ Demo catalog review export:
 python -m app.scripts.export_demo_catalog_review_files
 ```
 
+Seed runtime catalog from processed demo catalog:
+
+```bash
+python -m app.scripts.seed_demo_catalog_from_movielens_small
+```
+
 Run API:
 
 ```bash
@@ -91,6 +97,10 @@ uvicorn app.main:app --reload --port 8014
 - CSV review files are manual review artifacts only.
 - Generated CSV files should not be committed.
 - Review export does not modify SQLite or the runtime API.
+- Demo catalog seeding replaces the runtime SQLite catalog with already processed local JSON.
+- Demo catalog seeding does not call TMDB.
+- Images currently use TMDB CDN URLs for development.
+- Local image download and offline image serving will come later.
 
 Examples:
 
@@ -101,4 +111,5 @@ python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
 python -m app.scripts.inspect_tmdb_enriched_movielens_small
 python -m app.scripts.build_demo_catalog_from_movielens_small --visible-limit 120 --recommendation-limit 220
 python -m app.scripts.export_demo_catalog_review_files
+python -m app.scripts.seed_demo_catalog_from_movielens_small
 ```
