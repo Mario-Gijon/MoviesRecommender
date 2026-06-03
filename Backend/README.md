@@ -40,6 +40,18 @@ MovieLens 32M TMDB-enriched catalog inspection:
 python -m app.scripts.inspect_tmdb_enriched_movielens_32m
 ```
 
+MovieLens 32M demo catalog generation:
+
+```bash
+python -m app.scripts.build_demo_catalog_from_movielens_32m
+```
+
+MovieLens 32M demo catalog CSV review export:
+
+```bash
+python -m app.scripts.export_demo_catalog_32m_review_files
+```
+
 Run API:
 
 ```bash
@@ -75,7 +87,16 @@ uvicorn app.main:app --reload --port 8014
 - Use `--limit` first to test before enriching all candidates.
 - 32M TMDB-enriched catalog inspection is offline analysis only.
 - Suitability classification is a transparent heuristic for exploration, not an official age-rating decision.
-- Final demo catalog generation will be added after enrichment.
+- The 32M demo catalog builder creates a processed demo-catalog JSON for review.
+- The 32M CSV export step creates manual review files only.
+- The demo catalog contains `publicCatalog`, `collaborativeCore`, and `excludedOrSensitive`.
+- `publicCatalog` is the full public set for rating, searching, and recommendations.
+- `publicCatalog` is ordered by `standDisplayScore` so the first page is demo-friendly.
+- The frontend should later paginate or progressively render this list instead of rendering every card at once.
+- `collaborativeCore` is internal future collaborative evidence.
+- The demo-catalog JSON and review CSVs do not modify SQLite.
+- Final SQLite seeding will come after review.
+- Suitability and `standDisplayScore` are transparent heuristics for demo preparation, not official age-rating decisions.
 - Runtime SQLite and the frontend are not changed by this cleanup.
 
 Examples:
@@ -87,4 +108,8 @@ python -m app.scripts.enrich_movielens_32m_with_tmdb --limit 100
 python -m app.scripts.enrich_movielens_32m_with_tmdb --force --sleep 0.35
 python -m app.scripts.enrich_movielens_32m_with_tmdb --resume --sleep 0.35
 python -m app.scripts.inspect_tmdb_enriched_movielens_32m
+python -m app.scripts.build_demo_catalog_from_movielens_32m
+python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 700
+python -m app.scripts.build_demo_catalog_from_movielens_32m --family-only
+python -m app.scripts.export_demo_catalog_32m_review_files
 ```
