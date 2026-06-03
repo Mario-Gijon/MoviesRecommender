@@ -40,6 +40,12 @@ Offline TMDB enrichment:
 python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
 ```
 
+Offline TMDB-enriched catalog inspection:
+
+```bash
+python -m app.scripts.inspect_tmdb_enriched_movielens_small
+```
+
 Run API:
 
 ```bash
@@ -65,6 +71,8 @@ uvicorn app.main:app --reload --port 8014
 - TMDB enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`.
 - TMDB enrichment is offline preprocessing only and does not modify the runtime SQLite catalog.
 - Do not commit `.env` or generated processed files.
+- TMDB-enriched catalog inspection is offline analysis only.
+- Demo suitability classification is a simple heuristic for exploration, not a final age-rating authority.
 
 Examples:
 
@@ -72,4 +80,5 @@ Examples:
 python -m app.scripts.build_movielens_small_candidates --limit 500 --min-ratings 20
 python -m app.scripts.build_movielens_small_candidates --limit 800 --min-ratings 10 --min-year 1980
 python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
+python -m app.scripts.inspect_tmdb_enriched_movielens_small
 ```
