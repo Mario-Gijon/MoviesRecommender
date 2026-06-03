@@ -7,17 +7,13 @@ function RateMoviesStep({
   ratings,
   ratedMoviesCount,
   catalogSearch,
-  selectedGenre,
-  genreOptions,
   isCatalogLoading,
   isCatalogLoadingMore,
-  catalogTotalItems,
   catalogHasLoaded,
   hasMoreCatalogPages,
   catalogError,
   onRate,
   onSearchChange,
-  onGenreChange,
   onLoadMore,
   onRetryLoadMovies,
 }) {
@@ -37,7 +33,7 @@ function RateMoviesStep({
       },
       {
         root: scrollPanelRef.current,
-        rootMargin: '120px 0px',
+        rootMargin: '220px 0px',
       },
     )
 
@@ -47,83 +43,58 @@ function RateMoviesStep({
   }, [hasMoreCatalogPages, isCatalogLoading, isCatalogLoadingMore, onLoadMore])
 
   return (
-    <div className="step-panel">
-      <div className="step-toolbar">
-        <div className="stats-chip">Rated movies: {ratedMoviesCount}</div>
-        <p className="helper-text">Rate a few films to shape your temporary taste profile.</p>
-      </div>
-      <div className="catalog-controls">
-        <label className="search-field">
+    <div className="rate-game-step">
+      <div className="game-search-row">
+        <label className="game-search">
+          <span aria-hidden="true">⌕</span>
           <span className="sr-only">Search movies</span>
           <input
             type="search"
             value={catalogSearch}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search movies..."
+            placeholder="Search movies"
           />
         </label>
-        <div className="genre-filter-row">
-          <button
-            type="button"
-            className={selectedGenre ? 'filter-chip' : 'filter-chip active'}
-            onClick={() => onGenreChange('')}
-          >
-            All genres
-          </button>
-          {genreOptions.map((genre) => (
-            <button
-              key={genre}
-              type="button"
-              className={selectedGenre === genre ? 'filter-chip active' : 'filter-chip'}
-              onClick={() => onGenreChange(genre)}
-            >
-              {genre}
-            </button>
-          ))}
+
+        <div className="rated-counter" aria-label={`${ratedMoviesCount} rated movies`}>
+          <strong>{ratedMoviesCount}</strong>
+          <span>rated</span>
         </div>
       </div>
-      <div ref={scrollPanelRef} className="scroll-panel">
+
+      <div ref={scrollPanelRef} className="game-catalog-panel">
         {isCatalogLoading && movies.length === 0 ? (
-          <p className="helper-text">Loading movie cards from the public catalog...</p>
+          <div className="game-state">
+            <span className="game-loader" aria-hidden="true" />
+            <strong>Loading</strong>
+          </div>
         ) : catalogError && movies.length === 0 ? (
-          <div className="empty-state">
-            <h3>Movies could not be loaded</h3>
-            <p className="helper-text">
-              The app could not reach the backend catalog. Retry after the backend is available.
-            </p>
-            <button type="button" className="secondary-button" onClick={onRetryLoadMovies}>
-              Retry loading movies
+          <div className="game-state">
+            <strong>Catalog unavailable</strong>
+            <button type="button" className="game-nav-button primary" onClick={onRetryLoadMovies}>
+              Retry
             </button>
           </div>
         ) : movies.length === 0 && catalogHasLoaded ? (
-          <div className="empty-state">
-            <h3>No movies found</h3>
-            <p className="helper-text">Try a different title search or clear the genre filter.</p>
+          <div className="game-state">
+            <strong>No movies found</strong>
           </div>
         ) : (
-          <div className="catalog-results">
-            <div className="catalog-summary-row">
-              <p className="helper-text">
-                Showing {movies.length} of {catalogTotalItems} movies
-              </p>
-              {catalogError && movies.length > 0 ? (
-                <p className="error-text">Could not load more movies. You can try again below.</p>
-              ) : null}
-            </div>
+          <>
             <MoviesGrid movies={movies} ratings={ratings} onRate={onRate} />
-            <div className="catalog-tail">
+
+            <div className="game-catalog-tail">
               {isCatalogLoadingMore ? (
-                <p className="helper-text">Loading more movies...</p>
+                <span className="game-loader small" aria-hidden="true" />
               ) : hasMoreCatalogPages ? (
-                <button type="button" className="secondary-button" onClick={onLoadMore}>
-                  Load more movies
+                <button type="button" className="load-trigger-button" onClick={onLoadMore}>
+                  Load more
                 </button>
-              ) : (
-                <p className="helper-text">End of catalog</p>
-              )}
+              ) : null}
+
               <div ref={loadMoreSentinelRef} className="catalog-sentinel" aria-hidden="true" />
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

@@ -1,32 +1,27 @@
 function StepNavigation({
-  activeStep,
-  totalSteps,
   canGoBack,
   canGoNext,
   nextButtonLabel,
   onBack,
   onNext,
-  hint,
 }) {
   return (
-    <footer className="wizard-footer">
-      <div className="wizard-footer-copy">
-        <p className="footer-step-label">
-          Step {activeStep} of {totalSteps}
-        </p>
-        {hint ? <p className="helper-text">{hint}</p> : null}
-      </div>
-      <div className="footer-actions">
-        <button type="button" className="secondary-button" onClick={onBack} disabled={!canGoBack}>
+    <footer className="game-navigation">
+      {canGoBack ? (
+        <button type="button" className="game-nav-button secondary" onClick={onBack}>
           Back
         </button>
-        <button type="button" className="primary-button" onClick={onNext} disabled={!canGoNext}>
+      ) : (
+        <span />
+      )}
+
+      {canGoNext ? (
+        <button type="button" className="game-nav-button primary" onClick={onNext}>
           {nextButtonLabel}
         </button>
-      </div>
+      ) : null}
     </footer>
   )
 }
 
 export default StepNavigation
-

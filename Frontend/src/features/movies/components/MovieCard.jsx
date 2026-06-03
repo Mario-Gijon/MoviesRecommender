@@ -1,42 +1,99 @@
-function MovieCard({ movie, rating, onRate }) {
-  const genresPreview = movie.genres.slice(0, 3)
-  const overviewPreview = movie.overview
-    ? `${movie.overview.slice(0, 120)}${movie.overview.length > 120 ? '…' : ''}`
-    : ''
+import { useEffect, useRef, useState } from 'react'
+
+function MovieCard({ movie, rating, onRate, index = 0 }) {
+  const cardRef = useRef(null)
+  const [isVisible, setIsVisible] = useState(false)
+  const [hoveredRating, setHoveredRating] = useState(null)
+  const isRated = Boolean(rating)
+  const previewRating = hoveredRating || rating || 0
+
+  useEffect(() => {
+    if (!cardRef.current) {
+      return undefined
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+        }
+      },
+      {
+        threshold: 0.2,
+        rootMargin: '70px 0px',
+      },
+    )
+
+    observer.observe(cardRef.current)
+
+    return () => observer.disconnect()
+  }, [])
 
   return (
-    <article className="card">
-      <div className="movie-poster-frame">
+    <article
+      ref={cardRef}
+      className={[
+        'poster-card',
+        isRated ? 'rated' : '',
+        isVisible ? 'visible' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={{ '--card-order': index % 16 }}
+    >
+      <div className="poster-frame">
         {movie.posterUrl ? (
-          <img className="movie-poster" src={movie.posterUrl} alt={`${movie.title} poster`} />
+          <img src={movie.posterUrl} alt={`${movie.title} poster`} loading="lazy" />
         ) : (
-          <div className="poster-placeholder">{movie.title.slice(0, 1)}</div>
+          <span className="poster-fallback">{movie.title.slice(0, 1)}</span>
         )}
-      </div>
-      <div className="card-body">
-        <div className="card-heading">
-          <h3>{movie.title}</h3>
-          <span>{movie.year}</span>
-        </div>
-        <p className="meta">{genresPreview.join(' • ')}</p>
-        {overviewPreview ? <p className="overview-preview">{overviewPreview}</p> : null}
-        <div className="rating-row">
-          {[1, 2, 3, 4, 5].map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={value === rating ? 'rating-button active' : 'rating-button'}
-              onClick={() => onRate(movie.id, value)}
+
+        <div className="poster-shade" aria-hidden="true" />
+        <div className="poster-light" aria-hidden="true" />
+
+        <div className="poster-overlay">
+          <div className="poster-title-block">
+            <h3>{movie.title}</h3>
+            {movie.year ? <span>{movie.year}</span> : null}
+          </div>
+
+          <div className="poster-actions">
+            <div
+              className="poster-stars"
+              aria-label={`Rate ${movie.title}`}
+              onMouseLeave={() => setHoveredRating(null)}
             >
-              {value}
-            </button>
-          ))}
-          {rating ? (
-            <button type="button" className="clear-button" onClick={() => onRate(movie.id, null)}>
-              Clear
-            </button>
-          ) : null}
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={value <= previewRating ? 'poster-star active' : 'poster-star'}
+                  style={{ '--star-order': value }}
+                  aria-label={`${value} stars`}
+                  aria-pressed={rating === value}
+                  onMouseEnter={() => setHoveredRating(value)}
+                  onFocus={() => setHoveredRating(value)}
+                  onBlur={() => setHoveredRating(null)}
+                  onClick={() => onRate(movie.id, value)}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            {isRated ? (
+              <button type="button" className="poster-clear" onClick={() => onRate(movie.id, null)}>
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
+
+        {isRated ? (
+          <div className="poster-rating-badge" aria-label={`${rating} stars`}>
+            {rating}★
+          </div>
+        ) : null}
       </div>
     </article>
   )

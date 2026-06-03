@@ -1,18 +1,10 @@
-function StepShell({ eyebrow, title, description, errorMessage, children }) {
+function StepShell({ errorMessage, children }) {
   return (
-    <section className="step-shell">
-      <header className="step-header">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title}</h2>
-        </div>
-        <p className="section-copy">{description}</p>
-      </header>
-      {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
-      <div className="step-content">{children}</div>
+    <section className="game-step-shell">
+      {errorMessage ? <p className="game-error">{errorMessage}</p> : null}
+      {children}
     </section>
   )
 }
 
 export default StepShell
-

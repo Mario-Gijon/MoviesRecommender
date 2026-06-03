@@ -12,35 +12,19 @@ import StepShell from './shared/components/StepShell'
 const STEPS = [
   {
     id: 1,
-    eyebrow: 'Step 1',
-    title: 'Rate movies',
-    description: 'Rate a few known movies to build a temporary taste profile.',
+    title: 'Rate',
   },
   {
     id: 2,
-    eyebrow: 'Step 2',
-    title: 'Review rated movies and detected profile',
-    description: 'Review your ratings and see a first simple profile preview.',
+    title: 'Review',
   },
   {
     id: 3,
-    eyebrow: 'Step 3',
-    title: 'Choose strategy and generate recommendations',
-    description: 'Choose a strategy and inspect why each movie was recommended.',
+    title: 'Recommend',
   },
 ]
 
-const PLACEHOLDER_PROFILE_CHIPS = ['Fantasy', 'Adventure', 'Comedy']
 const CATALOG_PAGE_SIZE = 40
-const GENRE_OPTIONS = [
-  'Animation',
-  'Adventure',
-  'Family',
-  'Fantasy',
-  'Comedy',
-  'Science Fiction',
-  'Action',
-]
 
 function App() {
   const [activeStep, setActiveStep] = useState(1)
@@ -49,9 +33,7 @@ function App() {
   const [catalogPage, setCatalogPage] = useState(1)
   const [catalogPageSize] = useState(CATALOG_PAGE_SIZE)
   const [catalogTotalPages, setCatalogTotalPages] = useState(0)
-  const [catalogTotalItems, setCatalogTotalItems] = useState(0)
   const [catalogSearch, setCatalogSearch] = useState('')
-  const [catalogGenre, setCatalogGenre] = useState('')
   const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState('')
   const [ratings, setRatings] = useState({})
   const [selectedStrategy, setSelectedStrategy] = useState('hybrid')
@@ -63,7 +45,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const catalogRequestIdRef = useRef(0)
 
-  async function loadCatalogPage({ page, append, search, genre }) {
+  async function loadCatalogPage({ page, append, search }) {
     const requestId = catalogRequestIdRef.current + 1
     catalogRequestIdRef.current = requestId
 
@@ -81,7 +63,7 @@ function App() {
         page,
         pageSize: catalogPageSize,
         search,
-        genre,
+        genre: '',
       })
 
       if (requestId !== catalogRequestIdRef.current) {
@@ -105,16 +87,19 @@ function App() {
 
         return nextMovies
       })
+
       setMovieIndex((currentIndex) => {
         const nextIndex = { ...currentIndex }
+
         response.items.forEach((movie) => {
           nextIndex[movie.id] = movie
         })
+
         return nextIndex
       })
+
       setCatalogPage(response.page)
       setCatalogTotalPages(response.totalPages)
-      setCatalogTotalItems(response.totalItems)
       setCatalogError('')
     } catch {
       if (requestId !== catalogRequestIdRef.current) {
@@ -125,13 +110,10 @@ function App() {
         setMovies([])
       }
 
-      setCatalogError(
-        append
-          ? 'Could not load more movies from the public catalog.'
-          : 'Could not load the public catalog. Check that the backend is running and the catalog is available.',
-      )
+      setCatalogError('Catalog unavailable')
     } finally {
       if (requestId !== catalogRequestIdRef.current) {
+        // eslint-disable-next-line no-unsafe-finally
         return
       }
 
@@ -153,16 +135,14 @@ function App() {
       page: 1,
       append: false,
       search: debouncedCatalogSearch,
-      genre: catalogGenre,
     })
-  }, [debouncedCatalogSearch, catalogGenre])
+  }, [debouncedCatalogSearch])
 
   function handleRetryLoadMovies() {
     loadCatalogPage({
       page: 1,
       append: false,
       search: debouncedCatalogSearch,
-      genre: catalogGenre,
     })
   }
 
@@ -179,7 +159,6 @@ function App() {
       page: catalogPage + 1,
       append: true,
       search: debouncedCatalogSearch,
-      genre: catalogGenre,
     })
   }
 
@@ -209,6 +188,7 @@ function App() {
     try {
       setIsLoadingRecommendations(true)
       setErrorMessage('')
+
       const response = await requestRecommendations({
         strategy: selectedStrategy,
         ratings: Object.entries(ratings).map(([movieId, rating]) => ({
@@ -216,9 +196,10 @@ function App() {
           rating,
         })),
       })
+
       setRecommendations(response)
     } catch {
-      setErrorMessage('Could not generate recommendations from the backend.')
+      setErrorMessage('Could not generate recommendations.')
     } finally {
       setIsLoadingRecommendations(false)
     }
@@ -235,48 +216,29 @@ function App() {
     [movieIndex, ratings],
   )
 
-  const activeStepMeta = STEPS[activeStep - 1]
   const ratedMoviesCount = ratedMovies.length
-  const nextButtonLabel = activeStep === STEPS.length ? 'Stay here' : 'Next'
+  const hasMoreCatalogPages = catalogPage < catalogTotalPages
   const canGoBack = activeStep > 1
   const canGoNext = activeStep < STEPS.length
-  const statusLabel = isCatalogLoading && movies.length === 0
-    ? 'Loading public catalog...'
-    : catalogError && movies.length === 0
-      ? 'Backend unavailable or catalog not loaded'
-      : 'Connected to local public catalog'
+  const nextButtonLabel = activeStep === 2 ? 'Recommend' : 'Continue'
   const stepErrorMessage = activeStep === 1 && movies.length === 0 ? catalogError : activeStep === 3 ? errorMessage : ''
-  const hasMoreCatalogPages = catalogPage < catalogTotalPages
 
   return (
-    <AppLayout
-      activeStep={activeStep}
-      steps={STEPS}
-      statusLabel={statusLabel}
-    >
-      <StepShell
-        eyebrow={activeStepMeta.eyebrow}
-        title={activeStepMeta.title}
-        description={activeStepMeta.description}
-        errorMessage={stepErrorMessage}
-      >
+    <AppLayout activeStep={activeStep} steps={STEPS}>
+      <StepShell errorMessage={stepErrorMessage}>
         {activeStep === 1 ? (
           <RateMoviesStep
             movies={movies}
             ratings={ratings}
             ratedMoviesCount={ratedMoviesCount}
             catalogSearch={catalogSearch}
-            selectedGenre={catalogGenre}
-            genreOptions={GENRE_OPTIONS}
             isCatalogLoading={isCatalogLoading}
             isCatalogLoadingMore={isCatalogLoadingMore}
-            catalogTotalItems={catalogTotalItems}
             catalogHasLoaded={catalogPage > 0 || movies.length > 0}
             hasMoreCatalogPages={hasMoreCatalogPages}
             catalogError={catalogError}
             onRate={handleRate}
             onSearchChange={setCatalogSearch}
-            onGenreChange={setCatalogGenre}
             onLoadMore={handleLoadMoreMovies}
             onRetryLoadMovies={handleRetryLoadMovies}
           />
@@ -286,7 +248,7 @@ function App() {
           <RatedMoviesStep
             ratedMovies={ratedMovies}
             ratings={ratings}
-            profileChips={PLACEHOLDER_PROFILE_CHIPS}
+            profileChips={[]}
             onRate={handleRate}
           />
         ) : null}
@@ -304,20 +266,11 @@ function App() {
       </StepShell>
 
       <StepNavigation
-        activeStep={activeStep}
-        totalSteps={STEPS.length}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         nextButtonLabel={nextButtonLabel}
         onBack={handlePreviousStep}
         onNext={handleNextStep}
-        hint={
-          activeStep === 1 && ratedMoviesCount < 5
-            ? 'Tip: rating at least 5 movies gives the demo a clearer profile.'
-            : activeStep === 2 && ratedMoviesCount === 0
-              ? 'Go back and add a few ratings before moving to recommendations.'
-              : ''
-        }
       />
     </AppLayout>
   )
