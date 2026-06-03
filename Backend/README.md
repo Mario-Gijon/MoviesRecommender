@@ -34,6 +34,12 @@ MovieLens candidate generation:
 python -m app.scripts.build_movielens_small_candidates
 ```
 
+Offline TMDB enrichment:
+
+```bash
+python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
+```
+
 Run API:
 
 ```bash
@@ -56,10 +62,14 @@ uvicorn app.main:app --reload --port 8014
 - Raw and processed MovieLens files should not be committed.
 - Candidate generation only writes a processed JSON file and does not modify the runtime SQLite catalog.
 - TMDB enrichment will come later.
+- TMDB enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`.
+- TMDB enrichment is offline preprocessing only and does not modify the runtime SQLite catalog.
+- Do not commit `.env` or generated processed files.
 
 Examples:
 
 ```bash
 python -m app.scripts.build_movielens_small_candidates --limit 500 --min-ratings 20
 python -m app.scripts.build_movielens_small_candidates --limit 800 --min-ratings 10 --min-year 1980
+python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
 ```
