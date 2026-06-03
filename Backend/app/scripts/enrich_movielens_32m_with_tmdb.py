@@ -8,8 +8,8 @@ import urllib.request
 
 from app.core.config import settings
 from app.infrastructure.datasets.movielens_paths import (
-    ML_LATEST_SMALL_CANDIDATES_PATH,
-    ML_LATEST_SMALL_TMDB_ENRICHED_PATH,
+    ML_32M_CANDIDATES_PATH,
+    ML_32M_TMDB_ENRICHED_PATH,
 )
 
 
@@ -25,70 +25,84 @@ def main() -> None:
             "Set MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN in Backend/.env or the shell environment."
         )
 
-    if not ML_LATEST_SMALL_CANDIDATES_PATH.exists():
+    if not ML_32M_CANDIDATES_PATH.exists():
         raise RuntimeError(
-            "MovieLens candidate file is missing. "
-            "Run `python -m app.scripts.build_movielens_small_candidates` first."
+            "MovieLens 32M candidate file is missing. "
+            "Run `python -m app.scripts.build_movielens_32m_candidates` first."
         )
 
-    if ML_LATEST_SMALL_TMDB_ENRICHED_PATH.exists() and not args.force:
+    if ML_32M_TMDB_ENRICHED_PATH.exists() and not args.force and not args.resume:
         raise RuntimeError(
-            "Enriched output already exists. "
-            "Pass `--force` to overwrite it."
+            "Enriched output already exists. Pass `--force` to rebuild or `--resume` to continue."
         )
 
-    candidates = json.loads(ML_LATEST_SMALL_CANDIDATES_PATH.read_text(encoding="utf-8"))
+    candidates = json.loads(ML_32M_CANDIDATES_PATH.read_text(encoding="utf-8"))
     selected_candidates = candidates[: args.limit] if args.limit is not None else candidates
 
-    enriched_candidates = []
+    existing_by_movie_id: dict[int, dict] = {}
+    already_enriched_count = 0
+    if args.resume and ML_32M_TMDB_ENRICHED_PATH.exists():
+        existing_items = json.loads(ML_32M_TMDB_ENRICHED_PATH.read_text(encoding="utf-8"))
+        existing_by_movie_id = {item["movieId"]: item for item in existing_items}
+        already_enriched_count = len(existing_by_movie_id)
+
+    print(f"Candidates read: {len(candidates)}")
+    print(f"Already enriched count: {already_enriched_count}")
+
     attempted = 0
     success_count = 0
     failed_count = 0
+    updated_by_movie_id = dict(existing_by_movie_id)
 
-    for index, candidate in enumerate(selected_candidates):
-        enriched_candidate = dict(candidate)
+    for candidate in selected_candidates:
+        movie_id = candidate["movieId"]
+        if args.resume and movie_id in updated_by_movie_id:
+            continue
+
         tmdb_id = candidate.get("tmdbId")
+        enriched_candidate = dict(candidate)
 
         if tmdb_id is None:
             enriched_candidate["tmdb"] = _empty_tmdb_payload()
             enriched_candidate["enrichmentError"] = "Missing tmdbId"
             failed_count += 1
-            enriched_candidates.append(enriched_candidate)
-            continue
+        else:
+            attempted += 1
+            try:
+                tmdb_payload = _fetch_tmdb_movie(tmdb_id=tmdb_id, token=token)
+                enriched_candidate["tmdb"] = _build_tmdb_payload(tmdb_payload)
+                success_count += 1
+            except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+                enriched_candidate["tmdb"] = _empty_tmdb_payload()
+                enriched_candidate["enrichmentError"] = _format_request_error(exc)
+                failed_count += 1
 
-        attempted += 1
-        try:
-            tmdb_payload = _fetch_tmdb_movie(tmdb_id=tmdb_id, token=token)
-            enriched_candidate["tmdb"] = _build_tmdb_payload(tmdb_payload)
-            success_count += 1
-        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
-            enriched_candidate["tmdb"] = _empty_tmdb_payload()
-            enriched_candidate["enrichmentError"] = _format_request_error(exc)
-            failed_count += 1
-        enriched_candidates.append(enriched_candidate)
+            if attempted % 50 == 0:
+                print(f"Attempted {attempted}/{len(selected_candidates)}...")
 
-        if index < len(selected_candidates) - 1 and args.sleep > 0:
-            time.sleep(args.sleep)
+            if args.sleep > 0:
+                time.sleep(args.sleep)
 
-    ML_LATEST_SMALL_TMDB_ENRICHED_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ML_LATEST_SMALL_TMDB_ENRICHED_PATH.write_text(
-        json.dumps(enriched_candidates, indent=2),
-        encoding="utf-8",
-    )
+        updated_by_movie_id[movie_id] = enriched_candidate
 
-    print(f"Candidates read: {len(candidates)}")
-    print(f"Candidates attempted: {attempted}")
+        if (attempted + failed_count) % 25 == 0:
+            _write_output(candidates=candidates, enriched_by_movie_id=updated_by_movie_id)
+
+    _write_output(candidates=candidates, enriched_by_movie_id=updated_by_movie_id)
+
+    print(f"Candidates attempted this run: {attempted}")
     print(f"Successfully enriched: {success_count}")
     print(f"Failed enrichments: {failed_count}")
-    print(f"Output path: {ML_LATEST_SMALL_TMDB_ENRICHED_PATH}")
+    print(f"Output path: {ML_32M_TMDB_ENRICHED_PATH}")
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Enrich processed MovieLens latest-small candidates with TMDB metadata.",
+        description="Enrich processed MovieLens 32M candidates with TMDB metadata.",
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument("--sleep", type=float, default=0.25)
     return parser.parse_args()
 
@@ -156,17 +170,14 @@ def _extract_top_cast(credits_payload: dict) -> list[dict]:
 
 
 def _extract_directors(credits_payload: dict) -> list[dict]:
-    directors = []
-    for member in credits_payload.get("crew", []):
-        if member.get("job") != "Director":
-            continue
-        directors.append(
-            {
-                "id": member.get("id"),
-                "name": member.get("name"),
-            }
-        )
-    return directors
+    return [
+        {
+            "id": member.get("id"),
+            "name": member.get("name"),
+        }
+        for member in credits_payload.get("crew", [])
+        if member.get("job") == "Director"
+    ]
 
 
 def _extract_certifications(release_dates_payload: dict) -> dict[str, str]:
@@ -211,6 +222,19 @@ def _format_request_error(exc: Exception) -> str:
     if isinstance(exc, urllib.error.URLError):
         return f"TMDB request failed: {exc.reason}"
     return "TMDB response could not be parsed"
+
+
+def _write_output(*, candidates: list[dict], enriched_by_movie_id: dict[int, dict]) -> None:
+    ordered_items = [
+        enriched_by_movie_id[candidate["movieId"]]
+        for candidate in candidates
+        if candidate["movieId"] in enriched_by_movie_id
+    ]
+    ML_32M_TMDB_ENRICHED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ML_32M_TMDB_ENRICHED_PATH.write_text(
+        json.dumps(ordered_items, indent=2),
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

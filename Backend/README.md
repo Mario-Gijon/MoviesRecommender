@@ -10,58 +10,34 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Seed placeholder catalog:
+MovieLens 32M dataset download/extract:
 
 ```bash
-python -m app.scripts.seed_placeholder_catalog
+python -m app.scripts.download_movielens_32m
 ```
 
-MovieLens development dataset download/extract:
+MovieLens 32M dataset inspection:
 
 ```bash
-python -m app.scripts.download_movielens_small
+python -m app.scripts.inspect_movielens_32m
 ```
 
-MovieLens development dataset inspection:
+MovieLens 32M candidate generation:
 
 ```bash
-python -m app.scripts.inspect_movielens_small
+python -m app.scripts.build_movielens_32m_candidates
 ```
 
-MovieLens candidate generation:
+MovieLens 32M TMDB enrichment:
 
 ```bash
-python -m app.scripts.build_movielens_small_candidates
+python -m app.scripts.enrich_movielens_32m_with_tmdb --limit 100
 ```
 
-Offline TMDB enrichment:
+MovieLens 32M TMDB-enriched catalog inspection:
 
 ```bash
-python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
-```
-
-Offline TMDB-enriched catalog inspection:
-
-```bash
-python -m app.scripts.inspect_tmdb_enriched_movielens_small
-```
-
-Offline demo catalog build:
-
-```bash
-python -m app.scripts.build_demo_catalog_from_movielens_small
-```
-
-Demo catalog review export:
-
-```bash
-python -m app.scripts.export_demo_catalog_review_files
-```
-
-Seed runtime catalog from processed demo catalog:
-
-```bash
-python -m app.scripts.seed_demo_catalog_from_movielens_small
+python -m app.scripts.inspect_tmdb_enriched_movielens_32m
 ```
 
 Run API:
@@ -81,40 +57,34 @@ uvicorn app.main:app --reload --port 8014
 
 ## MovieLens Development Dataset
 
-- `ml-latest-small` is used only for offline pipeline development and inspection.
+- The previous `ml-latest-small` offline pipeline has been removed.
+- `ml-32m` is now the active offline MovieLens dataset source.
 - The final catalog may later use `ml-25m` or a larger MovieLens dataset.
 - Raw and processed MovieLens files should not be committed.
-- Candidate generation only writes a processed JSON file and does not modify the runtime SQLite catalog.
-- TMDB enrichment will come later.
-- TMDB enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`.
-- TMDB enrichment is offline preprocessing only and does not modify the runtime SQLite catalog.
-- Do not commit `.env` or generated processed files.
-- TMDB-enriched catalog inspection is offline analysis only.
-- Demo suitability classification is a simple heuristic for exploration, not a final age-rating authority.
-- Demo catalog building creates a processed JSON only and does not modify the runtime SQLite catalog.
-- Final seeding from the processed demo catalog into SQLite will come later.
-- Suitability is a transparent heuristic for demo preparation, not an official age-rating decision.
-- `candidateScore` is data/reliability-oriented.
-- `standDisplayScore` is stand/audience-display-oriented.
-- The display heuristic is transparent and can be adjusted after manual CSV review.
-- CSV review files are manual review artifacts only.
-- Generated CSV files should not be committed.
-- Review export does not modify SQLite or the runtime API.
-- Demo catalog seeding replaces the runtime SQLite catalog with already processed local JSON.
-- Demo catalog seeding does not call TMDB.
-- Images currently use TMDB CDN URLs for development.
-- Local image download and offline image serving will come later.
-- Development seed scripts reset and recreate the local SQLite catalog schema before inserting data.
-- When seeded from the processed MovieLens/TMDB demo catalog, `/catalog/status` reflects demo-catalog counts and `/movies/featured` follows the processed visible-movie order.
+- The 32M utilities do not modify SQLite.
+- The 32M utilities do not call TMDB.
+- The 32M inspection output is used to decide filters for a more modern demo catalog.
+- The 32M candidate builder creates the first filtered modern candidate list from MovieLens 32M.
+- The 32M candidate builder does not call TMDB.
+- The 32M candidate builder does not modify SQLite.
+- The 32M candidate JSON will feed a later TMDB enrichment step.
+- 32M TMDB enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`.
+- 32M TMDB enrichment is offline preprocessing only.
+- 32M TMDB enrichment does not modify SQLite or the runtime API.
+- Generated enriched files should not be committed.
+- Use `--limit` first to test before enriching all candidates.
+- 32M TMDB-enriched catalog inspection is offline analysis only.
+- Suitability classification is a transparent heuristic for exploration, not an official age-rating decision.
+- Final demo catalog generation will be added after enrichment.
+- Runtime SQLite and the frontend are not changed by this cleanup.
 
 Examples:
 
 ```bash
-python -m app.scripts.build_movielens_small_candidates --limit 500 --min-ratings 20
-python -m app.scripts.build_movielens_small_candidates --limit 800 --min-ratings 10 --min-year 1980
-python -m app.scripts.enrich_movielens_small_with_tmdb --limit 50
-python -m app.scripts.inspect_tmdb_enriched_movielens_small
-python -m app.scripts.build_demo_catalog_from_movielens_small --visible-limit 120 --recommendation-limit 220
-python -m app.scripts.export_demo_catalog_review_files
-python -m app.scripts.seed_demo_catalog_from_movielens_small
+python -m app.scripts.build_movielens_32m_candidates --limit 2000 --min-ratings 100 --min-year 2000
+python -m app.scripts.build_movielens_32m_candidates --limit 3000 --min-ratings 50 --min-year 1995
+python -m app.scripts.enrich_movielens_32m_with_tmdb --limit 100
+python -m app.scripts.enrich_movielens_32m_with_tmdb --force --sleep 0.35
+python -m app.scripts.enrich_movielens_32m_with_tmdb --resume --sleep 0.35
+python -m app.scripts.inspect_tmdb_enriched_movielens_32m
 ```
