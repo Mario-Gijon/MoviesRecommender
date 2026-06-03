@@ -36,3 +36,11 @@ class CatalogStatus(BaseModel):
     dataMode: str
     sources: list[str]
     notes: list[str]
+
+
+class PaginatedMovieCatalogResponse(BaseModel):
+    items: list[Movie]
+    page: int
+    pageSize: int
+    totalItems: int
+    totalPages: int

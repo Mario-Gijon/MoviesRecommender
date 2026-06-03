@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { fetchFeaturedMovies } from './features/movies/movies.api'
+import { fetchPublicCatalogPage } from './features/movies/movies.api'
 import RateMoviesStep from './features/movies/components/RateMoviesStep'
 import RatedMoviesStep from './features/movies/components/RatedMoviesStep'
 import RecommendationsStep from './features/recommendations/components/RecommendationsStep'
@@ -31,34 +31,157 @@ const STEPS = [
 ]
 
 const PLACEHOLDER_PROFILE_CHIPS = ['Fantasy', 'Adventure', 'Comedy']
+const CATALOG_PAGE_SIZE = 40
+const GENRE_OPTIONS = [
+  'Animation',
+  'Adventure',
+  'Family',
+  'Fantasy',
+  'Comedy',
+  'Science Fiction',
+  'Action',
+]
 
 function App() {
   const [activeStep, setActiveStep] = useState(1)
   const [movies, setMovies] = useState([])
+  const [movieIndex, setMovieIndex] = useState({})
+  const [catalogPage, setCatalogPage] = useState(1)
+  const [catalogPageSize] = useState(CATALOG_PAGE_SIZE)
+  const [catalogTotalPages, setCatalogTotalPages] = useState(0)
+  const [catalogTotalItems, setCatalogTotalItems] = useState(0)
+  const [catalogSearch, setCatalogSearch] = useState('')
+  const [catalogGenre, setCatalogGenre] = useState('')
+  const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState('')
   const [ratings, setRatings] = useState({})
   const [selectedStrategy, setSelectedStrategy] = useState('hybrid')
   const [recommendations, setRecommendations] = useState(null)
-  const [isLoadingMovies, setIsLoadingMovies] = useState(true)
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true)
+  const [isCatalogLoadingMore, setIsCatalogLoadingMore] = useState(false)
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
+  const [catalogError, setCatalogError] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const catalogRequestIdRef = useRef(0)
 
-  async function loadMovies() {
-    try {
-      setIsLoadingMovies(true)
-      setErrorMessage('')
-      const featuredMovies = await fetchFeaturedMovies()
-      setMovies(featuredMovies)
-    } catch {
+  async function loadCatalogPage({ page, append, search, genre }) {
+    const requestId = catalogRequestIdRef.current + 1
+    catalogRequestIdRef.current = requestId
+
+    if (append) {
+      setIsCatalogLoadingMore(true)
+      setCatalogError('')
+    } else {
+      setIsCatalogLoading(true)
+      setCatalogError('')
       setMovies([])
-      setErrorMessage('Could not load featured movies. Check that the backend is running and the catalog is available.')
+    }
+
+    try {
+      const response = await fetchPublicCatalogPage({
+        page,
+        pageSize: catalogPageSize,
+        search,
+        genre,
+      })
+
+      if (requestId !== catalogRequestIdRef.current) {
+        return
+      }
+
+      setMovies((currentMovies) => {
+        if (!append) {
+          return response.items
+        }
+
+        const nextMovies = [...currentMovies]
+        const seenMovieIds = new Set(currentMovies.map((movie) => movie.id))
+
+        response.items.forEach((movie) => {
+          if (!seenMovieIds.has(movie.id)) {
+            seenMovieIds.add(movie.id)
+            nextMovies.push(movie)
+          }
+        })
+
+        return nextMovies
+      })
+      setMovieIndex((currentIndex) => {
+        const nextIndex = { ...currentIndex }
+        response.items.forEach((movie) => {
+          nextIndex[movie.id] = movie
+        })
+        return nextIndex
+      })
+      setCatalogPage(response.page)
+      setCatalogTotalPages(response.totalPages)
+      setCatalogTotalItems(response.totalItems)
+      setCatalogError('')
+    } catch {
+      if (requestId !== catalogRequestIdRef.current) {
+        return
+      }
+
+      if (!append) {
+        setMovies([])
+      }
+
+      setCatalogError(
+        append
+          ? 'Could not load more movies from the public catalog.'
+          : 'Could not load the public catalog. Check that the backend is running and the catalog is available.',
+      )
     } finally {
-      setIsLoadingMovies(false)
+      if (requestId !== catalogRequestIdRef.current) {
+        return
+      }
+
+      setIsCatalogLoading(false)
+      setIsCatalogLoadingMore(false)
     }
   }
 
   useEffect(() => {
-    loadMovies()
-  }, [])
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedCatalogSearch(catalogSearch.trim())
+    }, 300)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [catalogSearch])
+
+  useEffect(() => {
+    loadCatalogPage({
+      page: 1,
+      append: false,
+      search: debouncedCatalogSearch,
+      genre: catalogGenre,
+    })
+  }, [debouncedCatalogSearch, catalogGenre])
+
+  function handleRetryLoadMovies() {
+    loadCatalogPage({
+      page: 1,
+      append: false,
+      search: debouncedCatalogSearch,
+      genre: catalogGenre,
+    })
+  }
+
+  function handleLoadMoreMovies() {
+    if (
+      isCatalogLoading ||
+      isCatalogLoadingMore ||
+      catalogPage >= catalogTotalPages
+    ) {
+      return
+    }
+
+    loadCatalogPage({
+      page: catalogPage + 1,
+      append: true,
+      search: debouncedCatalogSearch,
+      genre: catalogGenre,
+    })
+  }
 
   function handleRate(movieId, rating) {
     setRatings((currentRatings) => {
@@ -103,10 +226,13 @@ function App() {
 
   const ratedMovies = useMemo(
     () =>
-      movies
-        .filter((movie) => ratings[movie.id])
-        .map((movie) => ({ ...movie, rating: ratings[movie.id] })),
-    [movies, ratings],
+      Object.entries(ratings)
+        .map(([movieId, rating]) => {
+          const movie = movieIndex[Number(movieId)]
+          return movie ? { ...movie, rating } : null
+        })
+        .filter(Boolean),
+    [movieIndex, ratings],
   )
 
   const activeStepMeta = STEPS[activeStep - 1]
@@ -114,12 +240,13 @@ function App() {
   const nextButtonLabel = activeStep === STEPS.length ? 'Stay here' : 'Next'
   const canGoBack = activeStep > 1
   const canGoNext = activeStep < STEPS.length
-  const statusLabel = isLoadingMovies
-    ? 'Loading featured movies...'
-    : errorMessage && movies.length === 0
+  const statusLabel = isCatalogLoading && movies.length === 0
+    ? 'Loading public catalog...'
+    : catalogError && movies.length === 0
       ? 'Backend unavailable or catalog not loaded'
-      : 'Connected to local catalog'
-  const stepErrorMessage = activeStep === 1 && movies.length === 0 ? errorMessage : activeStep === 3 ? errorMessage : ''
+      : 'Connected to local public catalog'
+  const stepErrorMessage = activeStep === 1 && movies.length === 0 ? catalogError : activeStep === 3 ? errorMessage : ''
+  const hasMoreCatalogPages = catalogPage < catalogTotalPages
 
   return (
     <AppLayout
@@ -138,10 +265,20 @@ function App() {
             movies={movies}
             ratings={ratings}
             ratedMoviesCount={ratedMoviesCount}
-            isLoadingMovies={isLoadingMovies}
-            movieLoadError={movies.length === 0 ? errorMessage : ''}
+            catalogSearch={catalogSearch}
+            selectedGenre={catalogGenre}
+            genreOptions={GENRE_OPTIONS}
+            isCatalogLoading={isCatalogLoading}
+            isCatalogLoadingMore={isCatalogLoadingMore}
+            catalogTotalItems={catalogTotalItems}
+            catalogHasLoaded={catalogPage > 0 || movies.length > 0}
+            hasMoreCatalogPages={hasMoreCatalogPages}
+            catalogError={catalogError}
             onRate={handleRate}
-            onRetryLoadMovies={loadMovies}
+            onSearchChange={setCatalogSearch}
+            onGenreChange={setCatalogGenre}
+            onLoadMore={handleLoadMoreMovies}
+            onRetryLoadMovies={handleRetryLoadMovies}
           />
         ) : null}
 

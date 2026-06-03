@@ -52,11 +52,36 @@ MovieLens 32M demo catalog CSV review export:
 python -m app.scripts.export_demo_catalog_32m_review_files
 ```
 
+Seed SQLite from the processed MovieLens 32M demo catalog:
+
+```bash
+python -m app.scripts.seed_demo_catalog_from_movielens_32m
+```
+
 Run API:
 
 ```bash
 uvicorn app.main:app --reload --port 8014
 ```
+
+Public catalog endpoint:
+
+`GET /movies/public-catalog`
+
+Query params:
+
+- `page` default `1`
+- `pageSize` default `40`, max `100`
+- `search` optional title/original-title substring
+- `genre` optional genre name
+
+Examples:
+
+- `/movies/public-catalog?page=1&pageSize=40`
+- `/movies/public-catalog?page=1&pageSize=40&search=spider`
+- `/movies/public-catalog?page=1&pageSize=40&genre=Animation`
+
+`/movies/featured` remains for compatibility, but frontend pagination/search should prefer `/movies/public-catalog`.
 
 ## Current scope
 
@@ -97,7 +122,12 @@ uvicorn app.main:app --reload --port 8014
 - The frontend should later paginate or progressively render this list instead of rendering every card at once.
 - `collaborativeCore` is internal future collaborative evidence.
 - The demo-catalog JSON and review CSVs do not modify SQLite.
-- Final SQLite seeding will come after review.
+- `python -m app.scripts.seed_demo_catalog_from_movielens_32m` replaces the local runtime SQLite catalog with the processed 32M demo catalog.
+- The seed script uses already processed local JSON and does not call TMDB.
+- `publicCatalog` is mapped to the current featured/recommendation flags for runtime compatibility.
+- `collaborativeCore` is stored for future collaborative filtering.
+- Images currently use TMDB CDN URLs for development. Local image download and offline serving will come later.
+- This seed resets and replaces the local SQLite catalog schema in development.
 - Suitability and `standDisplayScore` are transparent heuristics for demo preparation, not official age-rating decisions.
 - Runtime SQLite and the frontend are not changed by this cleanup.
 
@@ -115,4 +145,5 @@ python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 700
 python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 200
 python -m app.scripts.build_demo_catalog_from_movielens_32m --family-only
 python -m app.scripts.export_demo_catalog_32m_review_files
+python -m app.scripts.seed_demo_catalog_from_movielens_32m
 ```

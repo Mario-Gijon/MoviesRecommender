@@ -1,10 +1,10 @@
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import OperationalError
-from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.infrastructure.catalog.catalog_mapper import movie_record_to_api_dict
-from app.infrastructure.catalog.catalog_models import MovieRecord
+from app.infrastructure.catalog.catalog_models import MovieGenreRecord, MovieRecord
 from app.infrastructure.database.session import SessionLocal
 
 
@@ -55,6 +55,47 @@ class CatalogRepository:
         records = self._load_movies(recommendation_candidates_only=True)
         return [movie_record_to_api_dict(record) for record in records]
 
+    def get_public_catalog_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None,
+        genre: str | None,
+    ) -> tuple[list[dict], int]:
+        try:
+            with SessionLocal() as session:
+                total_movies = session.scalar(select(func.count(MovieRecord.id))) or 0
+                if total_movies == 0:
+                    raise RuntimeError(
+                        "Local catalog DB has not been initialized. "
+                        "Run `python -m app.scripts.seed_placeholder_catalog` from Backend/."
+                    )
+
+                filtered_query = self._build_public_catalog_query(search=search, genre=genre)
+                filtered_subquery = filtered_query.subquery()
+                total_items = session.scalar(
+                    select(func.count()).select_from(filtered_subquery)
+                ) or 0
+
+                paginated_query = (
+                    filtered_query
+                    .options(
+                        selectinload(MovieRecord.genres),
+                        selectinload(MovieRecord.tags),
+                        selectinload(MovieRecord.coverage_notes),
+                    )
+                    .offset((page - 1) * page_size)
+                    .limit(page_size)
+                )
+                records = session.scalars(paginated_query).all()
+                return [movie_record_to_api_dict(record) for record in records], int(total_items)
+        except OperationalError as exc:
+            raise RuntimeError(
+                "Local catalog DB has not been initialized. "
+                "Run `python -m app.scripts.seed_placeholder_catalog` from Backend/."
+            ) from exc
+
     def _load_movies(
         self,
         *,
@@ -102,6 +143,35 @@ class CatalogRepository:
                 "Local catalog DB has not been initialized. "
                 "Run `python -m app.scripts.seed_placeholder_catalog` from Backend/."
             ) from exc
+
+    def _build_public_catalog_query(
+        self,
+        *,
+        search: str | None,
+        genre: str | None,
+    ):
+        query = select(MovieRecord).where(MovieRecord.is_featured.is_(True))
+
+        if search and search.strip():
+            normalized_search = f"%{search.strip().lower()}%"
+            query = query.where(
+                or_(
+                    func.lower(MovieRecord.title).like(normalized_search),
+                    func.lower(func.coalesce(MovieRecord.original_title, "")).like(normalized_search),
+                )
+            )
+
+        if genre and genre.strip():
+            normalized_genre = genre.strip().lower()
+            query = query.join(MovieRecord.genres).where(
+                func.lower(MovieGenreRecord.name) == normalized_genre
+            )
+
+        return query.distinct().order_by(
+            MovieRecord.featured_order.asc().nullslast(),
+            MovieRecord.title.asc(),
+            MovieRecord.id.asc(),
+        )
 
 
 def _build_uninitialized_status() -> dict:

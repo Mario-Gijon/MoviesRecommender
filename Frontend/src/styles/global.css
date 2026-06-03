@@ -161,6 +161,40 @@ button {
   flex-wrap: wrap;
 }
 
+.catalog-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.search-field input {
+  width: 100%;
+  border: 1px solid #d9d1c3;
+  border-radius: 999px;
+  background: #fffdf8;
+  padding: 10px 14px;
+  color: #1f2933;
+}
+
+.genre-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  border: 1px solid #d9d1c3;
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #52606d;
+  padding: 8px 12px;
+}
+
+.filter-chip.active {
+  border-color: #8b5e34;
+  background: #fff2df;
+  color: #8b5e34;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   text-transform: uppercase;
@@ -236,6 +270,31 @@ button {
   overflow: auto;
   background: rgba(255, 253, 248, 0.92);
   overscroll-behavior: contain;
+}
+
+.catalog-results {
+  display: grid;
+  gap: 14px;
+}
+
+.catalog-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.catalog-tail {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
+.catalog-sentinel {
+  width: 100%;
+  height: 1px;
 }
 
 .poster-placeholder {
@@ -386,6 +445,18 @@ button {
   margin: 0;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 900px) {
   body {
     overflow: hidden;
@@ -429,6 +500,10 @@ button {
 
   .card-heading {
     flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .catalog-summary-row {
     align-items: flex-start;
   }
 
