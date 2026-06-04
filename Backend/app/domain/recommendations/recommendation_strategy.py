@@ -10,7 +10,7 @@ from app.domain.recommendations.recommendation_schemas import (
     RecommendationResponse,
     UserProfile,
 )
-from app.infrastructure.catalog.catalog_repository import catalog_repository
+from app.infrastructure.catalog.offline_catalog_repository import catalog_repository
 
 
 STRATEGY_EXPLANATIONS = {

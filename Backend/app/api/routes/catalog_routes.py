@@ -7,7 +7,7 @@ from app.domain.movies.movie_schemas import (
     Movie,
     PaginatedMovieCatalogResponse,
 )
-from app.infrastructure.catalog.catalog_repository import catalog_repository
+from app.infrastructure.catalog.offline_catalog_repository import catalog_repository
 
 
 router = APIRouter(tags=["catalog"])

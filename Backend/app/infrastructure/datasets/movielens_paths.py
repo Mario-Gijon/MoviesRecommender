@@ -3,7 +3,8 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 RAW_MOVIELENS_DIR = DATA_DIR / "raw" / "movielens"
-PROCESSED_MOVIELENS_DIR = DATA_DIR / "processed" / "movielens"
+PIPELINE_CACHE_DIR = DATA_DIR / "pipeline_cache"
+ML_32M_PIPELINE_CACHE_DIR = PIPELINE_CACHE_DIR / "movielens_32m"
 OFFLINE_DATASET_DIR = DATA_DIR / "offline_dataset"
 OFFLINE_DATASET_CSV_DIR = OFFLINE_DATASET_DIR / "csv"
 OFFLINE_DATASET_IMAGES_DIR = OFFLINE_DATASET_DIR / "images"
@@ -18,26 +19,21 @@ ML_32M_RATINGS_CSV_PATH = ML_32M_DATASET_DIR / "ratings.csv"
 ML_32M_TAGS_CSV_PATH = ML_32M_DATASET_DIR / "tags.csv"
 ML_32M_LINKS_CSV_PATH = ML_32M_DATASET_DIR / "links.csv"
 
-ML_32M_SUMMARY_PATH = PROCESSED_MOVIELENS_DIR / "ml_32m_summary.json"
-ML_32M_CANDIDATES_PATH = PROCESSED_MOVIELENS_DIR / "ml_32m_candidates.json"
-ML_32M_TMDB_ENRICHED_PATH = PROCESSED_MOVIELENS_DIR / "ml_32m_tmdb_enriched.json"
-ML_32M_TMDB_INSPECTION_PATH = PROCESSED_MOVIELENS_DIR / "ml_32m_tmdb_inspection.json"
-ML_32M_DEMO_CATALOG_PATH = PROCESSED_MOVIELENS_DIR / "ml_32m_demo_catalog.json"
-ML_32M_DEMO_CATALOG_PUBLIC_CSV_PATH = (
-    PROCESSED_MOVIELENS_DIR / "ml_32m_demo_catalog_public.csv"
+ML_32M_SUMMARY_PATH = ML_32M_PIPELINE_CACHE_DIR / "source_dataset_summary.json"
+ML_32M_CANDIDATES_PATH = ML_32M_PIPELINE_CACHE_DIR / "candidate_movies.json"
+ML_32M_TMDB_ENRICHED_PATH = ML_32M_PIPELINE_CACHE_DIR / "tmdb_enriched_movies.json"
+ML_32M_TMDB_INSPECTION_PATH = (
+    ML_32M_PIPELINE_CACHE_DIR / "tmdb_enrichment_inspection.json"
 )
-ML_32M_DEMO_CATALOG_COLLABORATIVE_CORE_CSV_PATH = (
-    PROCESSED_MOVIELENS_DIR / "ml_32m_demo_catalog_collaborative_core.csv"
+ML_32M_DEMO_CATALOG_PATH = ML_32M_PIPELINE_CACHE_DIR / "partitioned_demo_catalog.json"
+ML_32M_DEMO_RATINGS_PATH = (
+    ML_32M_PIPELINE_CACHE_DIR / "filtered_collaborative_ratings.csv"
 )
-ML_32M_DEMO_CATALOG_EXCLUDED_CSV_PATH = (
-    PROCESSED_MOVIELENS_DIR / "ml_32m_demo_catalog_excluded.csv"
-)
-ML_32M_DEMO_RATINGS_PATH = PROCESSED_MOVIELENS_DIR / "ml_32m_demo_ratings.csv"
 ML_32M_DEMO_RATINGS_BY_MOVIE_PATH = (
-    PROCESSED_MOVIELENS_DIR / "ml_32m_demo_ratings_by_movie.csv"
+    ML_32M_PIPELINE_CACHE_DIR / "filtered_collaborative_ratings_by_movie.csv"
 )
 ML_32M_DEMO_RATINGS_SUMMARY_PATH = (
-    PROCESSED_MOVIELENS_DIR / "ml_32m_demo_ratings_summary.json"
+    ML_32M_PIPELINE_CACHE_DIR / "filtered_collaborative_ratings_summary.json"
 )
 OFFLINE_DATASET_MANIFEST_PATH = OFFLINE_DATASET_DIR / "manifest.json"
 OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH = OFFLINE_DATASET_CSV_DIR / "public_movies.csv"

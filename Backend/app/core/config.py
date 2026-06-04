@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     app_name: str = "Movies Recommender API"
     app_version: str = "0.1.0"
     environment: str = "local"
-    database_url: str = "sqlite:///./app/data/catalog.sqlite"
     tmdb_bearer_token: str | None = None
     cors_origins: list[str] = [
         "http://localhost:5173",

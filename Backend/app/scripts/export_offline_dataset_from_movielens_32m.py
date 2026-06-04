@@ -84,13 +84,17 @@ def main() -> None:
         )
 
     catalog = json.loads(ML_32M_DEMO_CATALOG_PATH.read_text(encoding="utf-8"))
-    ratings_summary_by_movie = _load_ratings_summary_by_movie()
+    ratings_summary_by_movie, has_ratings_summary = _load_ratings_summary_by_movie()
 
     OFFLINE_DATASET_DIR.mkdir(parents=True, exist_ok=True)
     OFFLINE_DATASET_CSV_DIR.mkdir(parents=True, exist_ok=True)
     OFFLINE_DATASET_POSTERS_DIR.mkdir(parents=True, exist_ok=True)
 
-    catalog_index = _build_catalog_index(catalog)
+    catalog_index = _build_catalog_index(
+        catalog,
+        ratings_summary_by_movie=ratings_summary_by_movie,
+        has_ratings_summary=has_ratings_summary,
+    )
 
     public_rows = [
         _build_movie_csv_row(
@@ -112,6 +116,7 @@ def main() -> None:
             ratings_summary_by_movie=ratings_summary_by_movie,
             public_ids=catalog_index["public_ids"],
             collaborative_support_ids=catalog_index["collaborative_support_ids"],
+            has_ratings_summary=has_ratings_summary,
         )
         for item in catalog_index["excluded_items"]
     ]
@@ -166,26 +171,35 @@ def main() -> None:
     print(f"Manifest path: {OFFLINE_DATASET_MANIFEST_PATH}")
 
 
-def _build_catalog_index(catalog: dict) -> dict:
+def _build_catalog_index(
+    catalog: dict,
+    *,
+    ratings_summary_by_movie: dict[int, dict],
+    has_ratings_summary: bool,
+) -> dict:
     public_items = list(catalog.get("publicCatalog", []))
     collaborative_items = list(catalog.get("collaborativeCore", []))
     excluded_source_items = list(catalog.get("excludedOrSensitive", []))
 
-    public_ids = {
-        movie_id
-        for movie_id in (_parse_int(item.get("movieId")) for item in public_items)
-        if movie_id is not None
-    }
-
     merged_items_by_id: dict[int, dict] = {}
-    ordered_all_ids: list[int] = []
+    public_ids: set[int] = set()
+    ordered_all_entries: list[tuple[str, int]] = []
+    invalid_items: list[dict] = []
+    invalid_item_fingerprints: set[tuple[str, str, str, str]] = set()
+
     for items in (public_items, collaborative_items, excluded_source_items):
         for item in items:
             movie_id = _parse_int(item.get("movieId"))
             if movie_id is None:
+                fingerprint = _build_invalid_item_fingerprint(item)
+                if fingerprint in invalid_item_fingerprints:
+                    continue
+                invalid_item_fingerprints.add(fingerprint)
+                invalid_items.append(dict(item))
+                ordered_all_entries.append(("invalid", len(invalid_items) - 1))
                 continue
             if movie_id not in merged_items_by_id:
-                ordered_all_ids.append(movie_id)
+                ordered_all_entries.append(("movie", movie_id))
                 merged_items_by_id[movie_id] = dict(item)
                 continue
             merged_items_by_id[movie_id] = {
@@ -193,46 +207,45 @@ def _build_catalog_index(catalog: dict) -> dict:
                 **item,
             }
 
-    unsafe_ids = {
-        movie_id
-        for movie_id, item in merged_items_by_id.items()
-        if _is_unsafe_item(item)
-    }
+    public_ordered_ids = _movie_ids_in_order(public_items)
+    public_ids.update(public_ordered_ids)
 
-    collaborative_support_ids = []
+    collaborative_support_ids: list[int] = []
     collaborative_support_id_set: set[int] = set()
     for item in collaborative_items:
         movie_id = _parse_int(item.get("movieId"))
-        if movie_id is None or movie_id in public_ids or movie_id in unsafe_ids:
+        merged_item = merged_items_by_id.get(movie_id) if movie_id is not None else item
+        if movie_id is None or movie_id in public_ids:
             continue
         if movie_id in collaborative_support_id_set:
+            continue
+        if _is_technically_invalid_support_item(
+            merged_item,
+            ratings_summary_by_movie=ratings_summary_by_movie,
+            has_ratings_summary=has_ratings_summary,
+        ):
             continue
         collaborative_support_ids.append(movie_id)
         collaborative_support_id_set.add(movie_id)
 
-    excluded_id_set = {
-        movie_id
-        for movie_id in ordered_all_ids
-        if movie_id not in public_ids and movie_id not in collaborative_support_id_set
-    }
-    excluded_id_set.update(unsafe_ids)
-    excluded_id_set.difference_update(public_ids)
-    excluded_id_set.difference_update(collaborative_support_id_set)
-
     public_items_by_id = _dedupe_items_by_id(public_items)
     collaborative_items_by_id = _dedupe_items_by_id(collaborative_items)
 
-    public_rows_source = [public_items_by_id[movie_id] for movie_id in public_ids_in_order(public_items)]
+    public_rows_source = [public_items_by_id[movie_id] for movie_id in public_ordered_ids]
     collaborative_support_items = [
         collaborative_items_by_id[movie_id]
         for movie_id in collaborative_support_ids
         if movie_id in collaborative_items_by_id
     ]
-    excluded_items = [
-        merged_items_by_id[movie_id]
-        for movie_id in ordered_all_ids
-        if movie_id in excluded_id_set
-    ]
+    excluded_items: list[dict] = []
+    for entry_type, entry_value in ordered_all_entries:
+        if entry_type == "invalid":
+            excluded_items.append(invalid_items[entry_value])
+            continue
+
+        if entry_value in public_ids or entry_value in collaborative_support_id_set:
+            continue
+        excluded_items.append(merged_items_by_id[entry_value])
 
     return {
         "public_items": public_rows_source,
@@ -240,13 +253,15 @@ def _build_catalog_index(catalog: dict) -> dict:
         "excluded_items": excluded_items,
         "public_ids": public_ids,
         "collaborative_support_ids": collaborative_support_id_set,
+        "has_ratings_summary": has_ratings_summary,
+        "ratings_summary_by_movie": ratings_summary_by_movie,
     }
 
 
-def public_ids_in_order(public_items: list[dict]) -> list[int]:
+def _movie_ids_in_order(items: list[dict]) -> list[int]:
     ordered_ids: list[int] = []
     seen_ids: set[int] = set()
-    for item in public_items:
+    for item in items:
         movie_id = _parse_int(item.get("movieId"))
         if movie_id is None or movie_id in seen_ids:
             continue
@@ -265,25 +280,29 @@ def _dedupe_items_by_id(items: list[dict]) -> dict[int, dict]:
     return deduped
 
 
-def _is_unsafe_item(item: dict) -> bool:
-    public_exclusion_reasons = {
-        _normalize_reason(reason)
-        for reason in item.get("publicExclusionReasons", [])
-        if reason
-    }
-    demo_suitability = str(item.get("demoSuitability") or "").strip()
-    enrichment_error = item.get("enrichmentError")
-
-    return any(
-        (
-            demo_suitability == "adult_or_sensitive",
-            demo_suitability == "unknown",
-            bool(enrichment_error),
-            "adult_or_sensitive" in public_exclusion_reasons,
-            "unknown_suitability" in public_exclusion_reasons,
-            "enrichment_error" in public_exclusion_reasons,
-        )
+def _build_invalid_item_fingerprint(item: dict) -> tuple[str, str, str, str]:
+    return (
+        _string_or_empty(item.get("tmdbId")),
+        _string_or_empty(item.get("imdbId")),
+        _string_or_empty(item.get("title")),
+        _string_or_empty(item.get("year")),
     )
+
+
+def _is_technically_invalid_support_item(
+    item: dict,
+    *,
+    ratings_summary_by_movie: dict[int, dict],
+    has_ratings_summary: bool,
+) -> bool:
+    movie_id = _parse_int(item.get("movieId"))
+    if movie_id is None:
+        return True
+    if _has_enrichment_error(item):
+        return True
+    if has_ratings_summary and not _has_filtered_ratings(movie_id, ratings_summary_by_movie):
+        return True
+    return False
 
 
 def _build_movie_csv_row(
@@ -340,6 +359,7 @@ def _build_excluded_movie_csv_row(
     ratings_summary_by_movie: dict[int, dict],
     public_ids: set[int],
     collaborative_support_ids: set[int],
+    has_ratings_summary: bool,
 ) -> dict:
     row = _build_movie_csv_row(
         item,
@@ -349,6 +369,8 @@ def _build_excluded_movie_csv_row(
         item,
         public_ids=public_ids,
         collaborative_support_ids=collaborative_support_ids,
+        ratings_summary_by_movie=ratings_summary_by_movie,
+        has_ratings_summary=has_ratings_summary,
     )
     row.update(
         {
@@ -368,35 +390,36 @@ def _build_exclusion_reasons(
     *,
     public_ids: set[int],
     collaborative_support_ids: set[int],
+    ratings_summary_by_movie: dict[int, dict],
+    has_ratings_summary: bool,
 ) -> list[str]:
     reasons: list[str] = []
     movie_id = _parse_int(item.get("movieId"))
-    public_exclusion_reasons = {
-        _normalize_reason(reason)
-        for reason in item.get("publicExclusionReasons", [])
-        if reason
-    }
-    demo_suitability = str(item.get("demoSuitability") or "").strip()
-
-    if demo_suitability == "adult_or_sensitive" or "adult_or_sensitive" in public_exclusion_reasons:
-        reasons.append("adult_or_sensitive")
-    if demo_suitability == "unknown" or "unknown_suitability" in public_exclusion_reasons:
-        reasons.append("unknown_suitability")
-    if item.get("enrichmentError") or "enrichment_error" in public_exclusion_reasons:
+    if movie_id is None:
+        reasons.append("missing_or_invalid_movie_id")
+    if _has_enrichment_error(item):
         reasons.append("enrichment_error")
-    if movie_id not in public_ids and movie_id not in collaborative_support_ids:
+    if (
+        movie_id is not None
+        and has_ratings_summary
+        and not _has_filtered_ratings(movie_id, ratings_summary_by_movie)
+    ):
+        reasons.append("missing_filtered_ratings")
+    if movie_id is None or (
+        movie_id not in public_ids and movie_id not in collaborative_support_ids
+    ):
         reasons.append("not_public_or_collaborative_support")
 
     return list(dict.fromkeys(reasons))
 
 
 def _build_exclusion_category(exclusion_reasons: list[str]) -> str:
-    if "adult_or_sensitive" in exclusion_reasons:
-        return "sensitive_content"
-    if "unknown_suitability" in exclusion_reasons:
-        return "unknown_suitability"
+    if "missing_or_invalid_movie_id" in exclusion_reasons:
+        return "missing_or_invalid_movie_id"
     if "enrichment_error" in exclusion_reasons:
         return "enrichment_error"
+    if "missing_filtered_ratings" in exclusion_reasons:
+        return "missing_filtered_ratings"
     return "not_public_or_collaborative_support"
 
 
@@ -466,9 +489,9 @@ def _write_collaborative_ratings_csv(*, included_movie_ids: set[int]) -> int:
     return rows_written
 
 
-def _load_ratings_summary_by_movie() -> dict[int, dict]:
+def _load_ratings_summary_by_movie() -> tuple[dict[int, dict], bool]:
     if not ML_32M_DEMO_RATINGS_BY_MOVIE_PATH.exists():
-        return {}
+        return {}, False
 
     summary_by_movie: dict[int, dict] = {}
     with ML_32M_DEMO_RATINGS_BY_MOVIE_PATH.open("r", encoding="utf-8", newline="") as file:
@@ -482,7 +505,7 @@ def _load_ratings_summary_by_movie() -> dict[int, dict]:
                 "filteredAverageRating": row.get("filteredAverageRating", ""),
             }
 
-    return summary_by_movie
+    return summary_by_movie, True
 
 
 def _build_manifest(
@@ -563,7 +586,27 @@ def _normalize_reason(value: object) -> str:
 def _parse_int(value: object) -> int | None:
     if value in (None, ""):
         return None
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _has_filtered_ratings(movie_id: int, ratings_summary_by_movie: dict[int, dict]) -> bool:
+    summary = ratings_summary_by_movie.get(movie_id, {})
+    filtered_rating_count = _parse_int(summary.get("filteredRatingCount"))
+    return filtered_rating_count is not None and filtered_rating_count > 0
+
+
+def _has_enrichment_error(item: dict) -> bool:
+    if item.get("enrichmentError"):
+        return True
+    public_exclusion_reasons = {
+        _normalize_reason(reason)
+        for reason in item.get("publicExclusionReasons", [])
+        if reason
+    }
+    return "enrichment_error" in public_exclusion_reasons
 
 
 def _string_or_empty(value: object) -> str:
