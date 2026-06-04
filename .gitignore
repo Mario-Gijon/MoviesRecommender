@@ -22,3 +22,4 @@ Backend/app/data/raw/*
 !Backend/app/data/raw/README.md
 Backend/app/data/processed/*
 !Backend/app/data/processed/README.md
+Backend/app/data/offline_dataset/*
