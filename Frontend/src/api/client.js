@@ -15,8 +15,28 @@ export async function apiRequest(path, options = {}) {
     throw new Error(`Request failed with status ${response.status}`)
   }
 
-  return response.json()
+  const payload = await response.json()
+  return normalizeApiPayload(payload)
 }
 
 export { API_URL }
 
+function normalizeApiPayload(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeApiPayload)
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  const normalizedEntries = Object.entries(value).map(([key, entryValue]) => {
+    if (key === 'posterUrl' && typeof entryValue === 'string' && entryValue.startsWith('/')) {
+      return [key, new URL(entryValue, API_URL).toString()]
+    }
+
+    return [key, normalizeApiPayload(entryValue)]
+  })
+
+  return Object.fromEntries(normalizedEntries)
+}
