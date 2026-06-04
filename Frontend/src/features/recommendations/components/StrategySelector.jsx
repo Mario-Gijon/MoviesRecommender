@@ -6,12 +6,12 @@ const STRATEGIES = [
 
 function StrategySelector({ value, onChange }) {
   return (
-    <div className="strategy-row">
+    <div className="game-strategy-tabs" aria-label="Recommendation strategy">
       {STRATEGIES.map((strategy) => (
         <button
           key={strategy.value}
           type="button"
-          className={value === strategy.value ? 'strategy-button active' : 'strategy-button'}
+          className={value === strategy.value ? 'game-strategy-button active' : 'game-strategy-button'}
           onClick={() => onChange(strategy.value)}
         >
           {strategy.label}
@@ -22,4 +22,3 @@ function StrategySelector({ value, onChange }) {
 }
 
 export default StrategySelector
-

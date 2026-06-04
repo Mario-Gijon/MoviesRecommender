@@ -50,31 +50,70 @@ def main() -> None:
     print(f"Already enriched count: {already_enriched_count}")
 
     attempted = 0
-    success_count = 0
+    fully_enriched_count = 0
+    display_backfilled_count = 0
+    already_complete_count = 0
     failed_count = 0
     updated_by_movie_id = dict(existing_by_movie_id)
 
     for candidate in selected_candidates:
         movie_id = candidate["movieId"]
-        if args.resume and movie_id in updated_by_movie_id:
-            continue
+        existing_candidate = updated_by_movie_id.get(movie_id)
+        if args.resume and existing_candidate is not None:
+            existing_tmdb = existing_candidate.get("tmdb", {})
+            if _has_complete_display_metadata(existing_tmdb):
+                already_complete_count += 1
+                continue
 
         tmdb_id = candidate.get("tmdbId")
-        enriched_candidate = dict(candidate)
+        enriched_candidate = dict(existing_candidate or candidate)
 
         if tmdb_id is None:
-            enriched_candidate["tmdb"] = _empty_tmdb_payload()
-            enriched_candidate["enrichmentError"] = "Missing tmdbId"
+            if "tmdb" not in enriched_candidate:
+                enriched_candidate["tmdb"] = _empty_tmdb_payload()
+            if "enrichmentError" not in enriched_candidate:
+                enriched_candidate["enrichmentError"] = "Missing tmdbId"
             failed_count += 1
         else:
             attempted += 1
             try:
-                tmdb_payload = _fetch_tmdb_movie(tmdb_id=tmdb_id, token=token)
-                enriched_candidate["tmdb"] = _build_tmdb_payload(tmdb_payload)
-                success_count += 1
+                if existing_candidate is not None and _has_canonical_tmdb_metadata(
+                    existing_candidate.get("tmdb", {})
+                ):
+                    display_payload = _fetch_tmdb_movie(
+                        tmdb_id=tmdb_id,
+                        token=token,
+                        language=args.display_language,
+                        include_extended_payload=False,
+                    )
+                    enriched_candidate["tmdb"] = _backfill_display_metadata(
+                        existing_tmdb=existing_candidate.get("tmdb", {}),
+                        display_payload=display_payload,
+                    )
+                    display_backfilled_count += 1
+                else:
+                    canonical_payload = _fetch_tmdb_movie(
+                        tmdb_id=tmdb_id,
+                        token=token,
+                        language="en-US",
+                        include_extended_payload=True,
+                    )
+                    display_payload = _fetch_tmdb_movie(
+                        tmdb_id=tmdb_id,
+                        token=token,
+                        language=args.display_language,
+                        include_extended_payload=False,
+                    )
+                    enriched_candidate["tmdb"] = _build_tmdb_payload(
+                        canonical_payload=canonical_payload,
+                        display_payload=display_payload,
+                    )
+                    fully_enriched_count += 1
+                enriched_candidate.pop("enrichmentError", None)
             except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
-                enriched_candidate["tmdb"] = _empty_tmdb_payload()
-                enriched_candidate["enrichmentError"] = _format_request_error(exc)
+                if existing_candidate is None:
+                    enriched_candidate["tmdb"] = _empty_tmdb_payload()
+                    enriched_candidate["enrichmentError"] = _format_request_error(exc)
                 failed_count += 1
 
             if attempted % 50 == 0:
@@ -91,7 +130,9 @@ def main() -> None:
     _write_output(candidates=candidates, enriched_by_movie_id=updated_by_movie_id)
 
     print(f"Candidates attempted this run: {attempted}")
-    print(f"Successfully enriched: {success_count}")
+    print(f"Already complete: {already_complete_count}")
+    print(f"Display-backfilled: {display_backfilled_count}")
+    print(f"Fully enriched: {fully_enriched_count}")
     print(f"Failed enrichments: {failed_count}")
     print(f"Output path: {ML_32M_TMDB_ENRICHED_PATH}")
 
@@ -104,16 +145,21 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--sleep", type=float, default=0.25)
+    parser.add_argument("--display-language", default="es-ES")
     return parser.parse_args()
 
 
-def _fetch_tmdb_movie(*, tmdb_id: int, token: str) -> dict:
-    query = urllib.parse.urlencode(
-        {
-            "language": "en-US",
-            "append_to_response": "keywords,credits,release_dates",
-        }
-    )
+def _fetch_tmdb_movie(
+    *,
+    tmdb_id: int,
+    token: str,
+    language: str,
+    include_extended_payload: bool,
+) -> dict:
+    query_params = {"language": language}
+    if include_extended_payload:
+        query_params["append_to_response"] = "keywords,credits,release_dates"
+    query = urllib.parse.urlencode(query_params)
     request = urllib.request.Request(
         f"{TMDB_BASE_URL}/{tmdb_id}?{query}",
         headers={
@@ -125,30 +171,65 @@ def _fetch_tmdb_movie(*, tmdb_id: int, token: str) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _build_tmdb_payload(payload: dict) -> dict:
-    keywords_payload = payload.get("keywords", {})
-    credits_payload = payload.get("credits", {})
-    release_dates_payload = payload.get("release_dates", {})
+def _build_tmdb_payload(*, canonical_payload: dict, display_payload: dict) -> dict:
+    keywords_payload = canonical_payload.get("keywords", {})
+    credits_payload = canonical_payload.get("credits", {})
+    release_dates_payload = canonical_payload.get("release_dates", {})
+    canonical_genres = [
+        genre.get("name")
+        for genre in canonical_payload.get("genres", [])
+        if genre.get("name")
+    ]
+    display_genres = [
+        genre.get("name")
+        for genre in display_payload.get("genres", [])
+        if genre.get("name")
+    ]
+    canonical_title = canonical_payload.get("title")
+    canonical_overview = canonical_payload.get("overview")
 
     return {
-        "id": payload.get("id"),
-        "title": payload.get("title"),
-        "originalTitle": payload.get("original_title"),
-        "overview": payload.get("overview"),
-        "releaseDate": payload.get("release_date"),
-        "runtime": payload.get("runtime"),
-        "originalLanguage": payload.get("original_language"),
-        "popularity": payload.get("popularity"),
-        "voteAverage": payload.get("vote_average"),
-        "voteCount": payload.get("vote_count"),
-        "posterPath": payload.get("poster_path"),
-        "backdropPath": payload.get("backdrop_path"),
-        "genres": [genre.get("name") for genre in payload.get("genres", []) if genre.get("name")],
+        "id": canonical_payload.get("id"),
+        "title": canonical_title,
+        "originalTitle": canonical_payload.get("original_title"),
+        "overview": canonical_overview,
+        "releaseDate": canonical_payload.get("release_date"),
+        "runtime": canonical_payload.get("runtime"),
+        "originalLanguage": canonical_payload.get("original_language"),
+        "popularity": canonical_payload.get("popularity"),
+        "voteAverage": canonical_payload.get("vote_average"),
+        "voteCount": canonical_payload.get("vote_count"),
+        "posterPath": canonical_payload.get("poster_path"),
+        "backdropPath": canonical_payload.get("backdrop_path"),
+        "genres": canonical_genres,
+        "displayTitle": _coalesce_text(display_payload.get("title"), canonical_title),
+        "displayOverview": _coalesce_text(display_payload.get("overview"), canonical_overview),
+        "displayGenres": display_genres or canonical_genres,
         "keywords": _extract_keywords(keywords_payload),
         "topCast": _extract_top_cast(credits_payload),
         "directors": _extract_directors(credits_payload),
         "certifications": _extract_certifications(release_dates_payload),
     }
+
+
+def _backfill_display_metadata(*, existing_tmdb: dict, display_payload: dict) -> dict:
+    canonical_title = existing_tmdb.get("title")
+    canonical_overview = existing_tmdb.get("overview")
+    canonical_genres = list(existing_tmdb.get("genres", []))
+    display_genres = [
+        genre.get("name")
+        for genre in display_payload.get("genres", [])
+        if genre.get("name")
+    ]
+
+    updated_tmdb = dict(existing_tmdb)
+    updated_tmdb["displayTitle"] = _coalesce_text(display_payload.get("title"), canonical_title)
+    updated_tmdb["displayOverview"] = _coalesce_text(
+        display_payload.get("overview"),
+        canonical_overview,
+    )
+    updated_tmdb["displayGenres"] = display_genres or canonical_genres
+    return updated_tmdb
 
 
 def _extract_keywords(keywords_payload: dict) -> list[str]:
@@ -200,6 +281,8 @@ def _empty_tmdb_payload() -> dict:
         "title": None,
         "originalTitle": None,
         "overview": None,
+        "displayTitle": None,
+        "displayOverview": None,
         "releaseDate": None,
         "runtime": None,
         "originalLanguage": None,
@@ -209,6 +292,7 @@ def _empty_tmdb_payload() -> dict:
         "posterPath": None,
         "backdropPath": None,
         "genres": [],
+        "displayGenres": [],
         "keywords": [],
         "topCast": [],
         "directors": [],
@@ -222,6 +306,36 @@ def _format_request_error(exc: Exception) -> str:
     if isinstance(exc, urllib.error.URLError):
         return f"TMDB request failed: {exc.reason}"
     return "TMDB response could not be parsed"
+
+
+def _coalesce_text(primary: str | None, fallback: str | None) -> str | None:
+    normalized_primary = (primary or "").strip()
+    if normalized_primary:
+        return normalized_primary
+    normalized_fallback = (fallback or "").strip()
+    return normalized_fallback or None
+
+
+def _has_complete_display_metadata(tmdb_payload: dict) -> bool:
+    return all(
+        key in tmdb_payload
+        for key in ("displayTitle", "displayOverview", "displayGenres")
+    )
+
+
+def _has_canonical_tmdb_metadata(tmdb_payload: dict) -> bool:
+    return any(
+        tmdb_payload.get(key)
+        for key in (
+            "title",
+            "overview",
+            "genres",
+            "keywords",
+            "topCast",
+            "directors",
+            "certifications",
+        )
+    )
 
 
 def _write_output(*, candidates: list[dict], enriched_by_movie_id: dict[int, dict]) -> None:

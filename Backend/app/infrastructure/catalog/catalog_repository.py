@@ -158,13 +158,17 @@ class CatalogRepository:
                 or_(
                     func.lower(MovieRecord.title).like(normalized_search),
                     func.lower(func.coalesce(MovieRecord.original_title, "")).like(normalized_search),
+                    func.lower(func.coalesce(MovieRecord.display_title, "")).like(normalized_search),
                 )
             )
 
         if genre and genre.strip():
             normalized_genre = genre.strip().lower()
             query = query.join(MovieRecord.genres).where(
-                func.lower(MovieGenreRecord.name) == normalized_genre
+                or_(
+                    func.lower(MovieGenreRecord.name) == normalized_genre,
+                    func.lower(func.coalesce(MovieGenreRecord.display_name, "")) == normalized_genre,
+                )
             )
 
         return query.distinct().order_by(

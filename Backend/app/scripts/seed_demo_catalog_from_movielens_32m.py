@@ -126,6 +126,8 @@ def _build_movie_record(
         original_title=source_item.get("title"),
         year=source_item["year"],
         overview=source_item.get("overview"),
+        display_title=source_item.get("displayTitle"),
+        display_overview=source_item.get("displayOverview"),
         poster_url=_build_image_url(TMDB_POSTER_BASE_URL, source_item.get("posterPath")),
         backdrop_url=_build_image_url(TMDB_BACKDROP_BASE_URL, source_item.get("backdropPath")),
         featured_order=featured_order,
@@ -148,7 +150,7 @@ def _build_movie_record(
         runtime=source_item.get("runtime"),
         original_language=source_item.get("originalLanguage"),
     )
-    movie.genres = [MovieGenreRecord(name=name) for name in source_item.get("genres", [])]
+    movie.genres = _build_genre_records(source_item)
     movie.tags = [MovieTagRecord(name=name) for name in tags]
     movie.coverage_notes = [
         MovieCoverageNoteRecord(note=note)
@@ -174,6 +176,23 @@ def _merge_tags(item: dict) -> list[str]:
         merged_tags.append(normalized_tag)
 
     return merged_tags
+
+
+def _build_genre_records(item: dict) -> list[MovieGenreRecord]:
+    genres = list(item.get("genres", []))
+    display_genres = list(item.get("displayGenres", []))
+    genre_records: list[MovieGenreRecord] = []
+
+    for index, genre_name in enumerate(genres):
+        display_name = display_genres[index] if index < len(display_genres) else None
+        genre_records.append(
+            MovieGenreRecord(
+                name=genre_name,
+                display_name=display_name or None,
+            )
+        )
+
+    return genre_records
 
 
 def _normalize_tag(value: str | None) -> str:

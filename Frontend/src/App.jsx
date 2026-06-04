@@ -131,11 +131,13 @@ function App() {
   }, [catalogSearch])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCatalogPage({
       page: 1,
       append: false,
       search: debouncedCatalogSearch,
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedCatalogSearch])
 
   function handleRetryLoadMovies() {
@@ -224,7 +226,7 @@ function App() {
   const stepErrorMessage = activeStep === 1 && movies.length === 0 ? catalogError : activeStep === 3 ? errorMessage : ''
 
   return (
-    <AppLayout activeStep={activeStep} steps={STEPS}>
+    <AppLayout activeStep={activeStep} steps={STEPS} onStepSelect={setActiveStep}>
       <StepShell errorMessage={stepErrorMessage}>
         {activeStep === 1 ? (
           <RateMoviesStep

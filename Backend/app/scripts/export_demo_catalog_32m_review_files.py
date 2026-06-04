@@ -15,11 +15,13 @@ CSV_COLUMNS = [
     "imdbId",
     "title",
     "cleanTitle",
+    "displayTitle",
     "year",
     "demoSuitability",
     "catalogRoles",
     "publicExclusionReasons",
     "genres",
+    "displayGenres",
     "keywords",
     "userTags",
     "directors",
@@ -43,6 +45,7 @@ CSV_COLUMNS = [
     "posterPath",
     "backdropPath",
     "overview",
+    "displayOverview",
 ]
 
 
@@ -80,11 +83,13 @@ def _build_csv_row(item: dict) -> dict:
         "imdbId": item.get("imdbId"),
         "title": item.get("title"),
         "cleanTitle": item.get("cleanTitle"),
+        "displayTitle": item.get("displayTitle"),
         "year": item.get("year"),
         "demoSuitability": item.get("demoSuitability"),
         "catalogRoles": _join_values(item.get("catalogRoles", [])),
         "publicExclusionReasons": _join_values(item.get("publicExclusionReasons", [])),
         "genres": _join_values(item.get("genres", [])),
+        "displayGenres": _join_values(item.get("displayGenres", [])),
         "keywords": _join_values(item.get("keywords", [])),
         "userTags": _join_values(item.get("userTags", [])),
         "directors": _join_values([director.get("name") for director in item.get("directors", [])]),
@@ -110,6 +115,7 @@ def _build_csv_row(item: dict) -> dict:
         "posterPath": item.get("posterPath"),
         "backdropPath": item.get("backdropPath"),
         "overview": item.get("overview"),
+        "displayOverview": item.get("displayOverview"),
     }
 
 

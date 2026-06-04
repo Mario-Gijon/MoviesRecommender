@@ -18,8 +18,11 @@ class Movie(BaseModel):
     originalTitle: str | None = None
     year: int
     overview: str | None = None
+    displayTitle: str | None = None
+    displayOverview: str | None = None
     posterUrl: str | None = None
     genres: list[str]
+    displayGenres: list[str] | None = None
     tags: list[str]
     coverage: MovieCoverage
 

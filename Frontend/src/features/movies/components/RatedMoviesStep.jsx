@@ -1,104 +1,26 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 
+import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import MoviesGrid from './MoviesGrid'
 
-function RateMoviesStep({
-  movies,
-  ratings,
-  ratedMoviesCount,
-  catalogSearch,
-  isCatalogLoading,
-  isCatalogLoadingMore,
-  catalogHasLoaded,
-  hasMoreCatalogPages,
-  catalogError,
-  onRate,
-  onSearchChange,
-  onLoadMore,
-  onRetryLoadMovies,
-}) {
+function RatedMoviesStep({ ratedMovies, ratings, onRate }) {
   const scrollPanelRef = useRef(null)
-  const loadMoreSentinelRef = useRef(null)
 
-  useEffect(() => {
-    if (!scrollPanelRef.current || !loadMoreSentinelRef.current || !hasMoreCatalogPages) {
-      return undefined
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !isCatalogLoading && !isCatalogLoadingMore) {
-          onLoadMore()
-        }
-      },
-      {
-        root: scrollPanelRef.current,
-        rootMargin: '220px 0px',
-      },
-    )
-
-    observer.observe(loadMoreSentinelRef.current)
-
-    return () => observer.disconnect()
-  }, [hasMoreCatalogPages, isCatalogLoading, isCatalogLoadingMore, onLoadMore])
+  useSmoothWheelScroll(scrollPanelRef)
 
   return (
-    <div className="rate-game-step">
-      <div className="game-search-row">
-        <label className="game-search">
-          <span aria-hidden="true">⌕</span>
-          <span className="sr-only">Search movies</span>
-          <input
-            type="search"
-            value={catalogSearch}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search movies"
-          />
-        </label>
-
-        <div className="rated-counter" aria-label={`${ratedMoviesCount} rated movies`}>
-          <strong>{ratedMoviesCount}</strong>
-          <span>rated</span>
-        </div>
-      </div>
-
-      <div ref={scrollPanelRef} className="game-catalog-panel">
-        {isCatalogLoading && movies.length === 0 ? (
-          <div className="game-state">
-            <span className="game-loader" aria-hidden="true" />
-            <strong>Loading</strong>
-          </div>
-        ) : catalogError && movies.length === 0 ? (
-          <div className="game-state">
-            <strong>Catalog unavailable</strong>
-            <button type="button" className="game-nav-button primary" onClick={onRetryLoadMovies}>
-              Retry
-            </button>
-          </div>
-        ) : movies.length === 0 && catalogHasLoaded ? (
-          <div className="game-state">
-            <strong>No movies found</strong>
-          </div>
+    <div className="review-game-step compact-step">
+      <section ref={scrollPanelRef} className="game-catalog-panel review-panel">
+        {ratedMovies.length ? (
+          <MoviesGrid movies={ratedMovies} ratings={ratings} onRate={onRate} />
         ) : (
-          <>
-            <MoviesGrid movies={movies} ratings={ratings} onRate={onRate} />
-
-            <div className="game-catalog-tail">
-              {isCatalogLoadingMore ? (
-                <span className="game-loader small" aria-hidden="true" />
-              ) : hasMoreCatalogPages ? (
-                <button type="button" className="load-trigger-button" onClick={onLoadMore}>
-                  Load more
-                </button>
-              ) : null}
-
-              <div ref={loadMoreSentinelRef} className="catalog-sentinel" aria-hidden="true" />
-            </div>
-          </>
+          <div className="game-state">
+            <strong>No rated movies yet</strong>
+          </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }
 
-export default RateMoviesStep
+export default RatedMoviesStep

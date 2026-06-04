@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { getMovieDisplayTitle } from '../movieDisplay'
+
 function MovieCard({ movie, rating, onRate, index = 0 }) {
   const cardRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
   const [hoveredRating, setHoveredRating] = useState(null)
   const isRated = Boolean(rating)
   const previewRating = hoveredRating || rating || 0
+  const movieTitle = getMovieDisplayTitle(movie)
 
   useEffect(() => {
     if (!cardRef.current) {
@@ -43,9 +46,9 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
     >
       <div className="poster-frame">
         {movie.posterUrl ? (
-          <img src={movie.posterUrl} alt={`${movie.title} poster`} loading="lazy" />
+          <img src={movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
         ) : (
-          <span className="poster-fallback">{movie.title.slice(0, 1)}</span>
+          <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
         )}
 
         <div className="poster-shade" aria-hidden="true" />
@@ -53,14 +56,14 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
 
         <div className="poster-overlay">
           <div className="poster-title-block">
-            <h3>{movie.title}</h3>
+            <h3>{movieTitle}</h3>
             {movie.year ? <span>{movie.year}</span> : null}
           </div>
 
           <div className="poster-actions">
             <div
               className="poster-stars"
-              aria-label={`Rate ${movie.title}`}
+              aria-label={`Rate ${movieTitle}`}
               onMouseLeave={() => setHoveredRating(null)}
             >
               {[1, 2, 3, 4, 5].map((value) => (

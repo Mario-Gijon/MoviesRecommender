@@ -11,8 +11,11 @@ def movie_record_to_api_dict(record: MovieRecord) -> dict:
         "originalTitle": record.original_title,
         "year": record.year,
         "overview": record.overview,
+        "displayTitle": record.display_title or record.title,
+        "displayOverview": record.display_overview or record.overview,
         "posterUrl": record.poster_url,
         "genres": [genre.name for genre in record.genres],
+        "displayGenres": [genre.display_name or genre.name for genre in record.genres],
         "tags": [tag.name for tag in record.tags],
         "coverage": {
             "availableForContent": record.available_for_content,

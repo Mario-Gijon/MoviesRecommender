@@ -1,4 +1,4 @@
-function AppLayout({ activeStep, steps, children }) {
+function AppLayout({ activeStep, steps, onStepSelect, children }) {
   return (
     <div className="game-shell">
       <header className="game-header">
@@ -9,13 +9,16 @@ function AppLayout({ activeStep, steps, children }) {
 
         <nav className="game-steps" aria-label="Demo steps">
           {steps.map((step) => (
-            <div
+            <button
               key={step.id}
+              type="button"
               className={step.id === activeStep ? 'game-step active' : 'game-step'}
+              onClick={() => onStepSelect(step.id)}
+              aria-current={step.id === activeStep ? 'step' : undefined}
             >
               <span>{step.id}</span>
               <strong>{step.title}</strong>
-            </div>
+            </button>
           ))}
         </nav>
       </header>

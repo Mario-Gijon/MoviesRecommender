@@ -15,6 +15,8 @@ class MovieRecord(Base):
     original_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     year: Mapped[int] = mapped_column(Integer)
     overview: Mapped[str | None] = mapped_column(Text, nullable=True)
+    display_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_overview: Mapped[str | None] = mapped_column(Text, nullable=True)
     poster_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     backdrop_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     featured_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -57,6 +59,7 @@ class MovieGenreRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     movie: Mapped[MovieRecord] = relationship(back_populates="genres")
 

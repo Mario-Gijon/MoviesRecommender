@@ -1,3 +1,6 @@
+import { useRef } from 'react'
+
+import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import RecommendationCard from './RecommendationCard'
 import StrategySelector from './StrategySelector'
 
@@ -9,51 +12,36 @@ function RecommendationsStep({
   isLoadingRecommendations,
   ratedMoviesCount,
 }) {
+  const scrollPanelRef = useRef(null)
   const canGenerate = ratedMoviesCount > 0 && !isLoadingRecommendations
 
+  useSmoothWheelScroll(scrollPanelRef)
+
   return (
-    <div className="step-panel two-column-step">
-      <section className="info-panel">
-        <h3>Recommendation strategy</h3>
-        <p className="section-copy">
-          Choose a strategy, generate results, and inspect why each movie appears.
-        </p>
+    <div className="recommend-game-step compact-recommend-step">
+      <div className="recommend-toolbar compact-recommend-toolbar">
         <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
+
         <button
           type="button"
-          className="primary-button generate-button"
+          className="game-nav-button primary generate-button"
           onClick={onGenerateRecommendations}
           disabled={!canGenerate}
         >
-          {isLoadingRecommendations ? 'Generating...' : 'Generate recommendations'}
+          {isLoadingRecommendations ? 'Generating...' : 'Generate'}
         </button>
-        {!ratedMoviesCount ? (
-          <p className="helper-text">Add at least one rating before generating recommendations.</p>
-        ) : null}
-      </section>
-      <section className="scroll-panel recommendations-panel">
+      </div>
+
+      <section ref={scrollPanelRef} className="game-catalog-panel recommendations-stage">
         {recommendations ? (
-          <>
-            <div className="card">
-              <div className="card-body">
-                <h3>Returned explanation</h3>
-                <p className="meta">
-                  Strategy: {recommendations.strategy} | Rated movies:{' '}
-                  {recommendations.userProfile.ratedMoviesCount}
-                </p>
-                <p>{recommendations.explanation.summary}</p>
-              </div>
-            </div>
-            <div className="recommendations-list">
-              {recommendations.recommendations.map((item) => (
-                <RecommendationCard key={item.movie.id} item={item} />
-              ))}
-            </div>
-          </>
+          <div className="recommendation-grid">
+            {recommendations.recommendations.map((item, index) => (
+              <RecommendationCard key={item.movie.id} item={item} rank={index + 1} />
+            ))}
+          </div>
         ) : (
-          <div className="empty-state">
-            <h3>No recommendations yet</h3>
-            <p className="helper-text">Generate a result to inspect the recommendation explanations.</p>
+          <div className="game-state">
+            <strong>{ratedMoviesCount ? 'Ready to generate' : 'Rate movies first'}</strong>
           </div>
         )}
       </section>

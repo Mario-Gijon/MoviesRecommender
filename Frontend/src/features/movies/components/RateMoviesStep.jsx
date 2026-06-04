@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import MoviesGrid from './MoviesGrid'
 
 function RateMoviesStep({
@@ -19,6 +20,8 @@ function RateMoviesStep({
 }) {
   const scrollPanelRef = useRef(null)
   const loadMoreSentinelRef = useRef(null)
+
+  useSmoothWheelScroll(scrollPanelRef)
 
   useEffect(() => {
     if (!scrollPanelRef.current || !loadMoreSentinelRef.current || !hasMoreCatalogPages) {

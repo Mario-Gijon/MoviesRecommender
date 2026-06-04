@@ -52,6 +52,12 @@ MovieLens 32M demo catalog CSV review export:
 python -m app.scripts.export_demo_catalog_32m_review_files
 ```
 
+MovieLens 32M demo ratings filtering for the current processed catalog:
+
+```bash
+python -m app.scripts.build_demo_ratings_from_movielens_32m
+```
+
 Seed SQLite from the processed MovieLens 32M demo catalog:
 
 ```bash
@@ -115,6 +121,12 @@ Examples:
 - The 32M demo catalog builder creates a processed demo-catalog JSON for review.
 - The 32M CSV export step creates manual review files only.
 - The demo catalog contains `publicCatalog`, `collaborativeCore`, and `excludedOrSensitive`.
+- The demo ratings builder creates processed ratings artifacts for the current 32M demo catalog.
+- It streams raw MovieLens ratings and filters them to `collaborativeCore`.
+- It writes processed ratings CSV and by-movie summary artifacts only.
+- It does not modify SQLite.
+- It does not implement collaborative recommendations yet.
+- Generated processed artifacts should not be committed.
 - `publicCatalog` is the full public set for rating, searching, and recommendations.
 - `publicCatalog` is ordered by `standDisplayScore` so the first page is demo-friendly.
 - `publicCatalog` is complete by default.
@@ -145,5 +157,6 @@ python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 700
 python -m app.scripts.build_demo_catalog_from_movielens_32m --public-limit 200
 python -m app.scripts.build_demo_catalog_from_movielens_32m --family-only
 python -m app.scripts.export_demo_catalog_32m_review_files
+python -m app.scripts.build_demo_ratings_from_movielens_32m
 python -m app.scripts.seed_demo_catalog_from_movielens_32m
 ```

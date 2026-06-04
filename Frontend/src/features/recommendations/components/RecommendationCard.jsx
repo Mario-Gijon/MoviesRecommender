@@ -1,29 +1,50 @@
-function RecommendationCard({ item }) {
+import { getMovieDisplayTitle } from '../../movies/movieDisplay'
+
+function RecommendationCard({ item, rank }) {
+  const matchLabel = `${item.matchPercentage}%`
+  const movieTitle = getMovieDisplayTitle(item.movie)
+
   return (
-    <article className="card recommendation-card">
-      <div className="card-body">
-        <div className="card-heading">
-          <h3>{item.movie.title}</h3>
-          <span>{item.movie.year}</span>
+    <article className="recommendation-poster-card">
+      <div className="recommendation-poster-frame">
+        {item.movie.posterUrl ? (
+          <img src={item.movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
+        ) : (
+          <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
+        )}
+
+        <div className="recommendation-shade" aria-hidden="true" />
+
+        <div className="recommendation-rank">#{rank}</div>
+
+        <div className="recommendation-content">
+          <div>
+            <h3>{movieTitle}</h3>
+            {item.movie.year ? <span>{item.movie.year}</span> : null}
+          </div>
+
+          <div className="recommendation-score-row">
+            <strong>{matchLabel}</strong>
+            <span>{item.method}</span>
+          </div>
+
+          {item.explanationSummary ? (
+            <p>{item.explanationSummary}</p>
+          ) : null}
+
+          {item.explanationSignals?.length ? (
+            <div className="recommendation-signals">
+              {item.explanationSignals.slice(0, 3).map((signal) => (
+                <span key={`${item.movie.id}-${signal.label}`}>
+                  {signal.label}: {signal.value}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <p className="meta">
-          {item.movie.genres.join(' • ')} | {item.method}
-        </p>
-        <p className="score-line">
-          Score: {item.score} | Match: {item.matchPercentage}%
-        </p>
-        <p>{item.explanationSummary}</p>
-        <ul className="signals-list">
-          {item.explanationSignals.map((signal) => (
-            <li key={`${item.movie.id}-${signal.label}`}>
-              <strong>{signal.label}:</strong> {signal.value}
-            </li>
-          ))}
-        </ul>
       </div>
     </article>
   )
 }
 
 export default RecommendationCard
-

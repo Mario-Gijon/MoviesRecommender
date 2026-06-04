@@ -409,11 +409,19 @@ def _serialize_item(item: dict, *, catalog_roles: list[str]) -> dict:
         "imdbId": item.get("imdbId"),
         "title": item.get("title"),
         "cleanTitle": item.get("cleanTitle"),
+        "displayTitle": (
+            tmdb.get("displayTitle")
+            or tmdb.get("title")
+            or item.get("cleanTitle")
+            or item.get("title")
+        ),
         "year": item.get("year"),
         "overview": tmdb.get("overview"),
+        "displayOverview": tmdb.get("displayOverview") or tmdb.get("overview"),
         "posterPath": tmdb.get("posterPath"),
         "backdropPath": tmdb.get("backdropPath"),
         "genres": tmdb.get("genres", []),
+        "displayGenres": tmdb.get("displayGenres") or tmdb.get("genres", []),
         "keywords": tmdb.get("keywords", []),
         "userTags": item.get("userTags", []),
         "topCast": tmdb.get("topCast", []),
