@@ -46,3 +46,21 @@ BOOST_GENRES = {
     "Comedy",
     "Action",
 }
+PUBLIC_BLOCKED_TERMS = {
+    "hitler",
+    "adolf hitler",
+    "nazi",
+    "nazism",
+    "neo-nazi",
+    "third reich",
+    "holocaust",
+    "genocide",
+    "fascism",
+    "dictator",
+    "terrorism",
+    "suicide",
+    "self harm",
+    "rape",
+    "torture",
+    "serial killer",
+}

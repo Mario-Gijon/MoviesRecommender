@@ -11,6 +11,10 @@ from app.domain.catalog_heuristics.ordering import (
 )
 from app.domain.catalog_heuristics.scoring import compute_stand_display_score
 from app.domain.catalog_heuristics.suitability import classify_item
+from app.domain.catalog_heuristics.text_signals import (
+    find_public_blocked_terms,
+    has_public_blocked_topic,
+)
 
 __all__ = [
     "build_public_exclusion_reasons",
@@ -18,6 +22,8 @@ __all__ = [
     "collaborative_sort_key",
     "compute_stand_display_score",
     "excluded_sort_key",
+    "find_public_blocked_terms",
+    "has_public_blocked_topic",
     "is_collaborative_candidate",
     "is_excluded_candidate",
     "is_public_candidate",

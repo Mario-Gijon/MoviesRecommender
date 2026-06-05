@@ -1,5 +1,7 @@
 from argparse import Namespace
 
+from app.domain.catalog_heuristics.text_signals import has_public_blocked_topic
+
 
 def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
     reasons: list[str] = []
@@ -18,6 +20,8 @@ def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
     else:
         if year < args.public_min_year:
             reasons.append("below_public_min_year")
+    if has_public_blocked_topic(item):
+        reasons.append("blocked_public_topic")
     if item.get("demoSuitability") == "adult_or_sensitive":
         reasons.append("adult_or_sensitive")
     if item.get("demoSuitability") == "unknown":
@@ -37,6 +41,8 @@ def is_public_candidate(item: dict, *, args: Namespace) -> bool:
         return False
     year = item.get("year")
     if year is None or year < args.public_min_year:
+        return False
+    if has_public_blocked_topic(item):
         return False
     if item.get("demoSuitability") in {"adult_or_sensitive", "unknown"}:
         return False
