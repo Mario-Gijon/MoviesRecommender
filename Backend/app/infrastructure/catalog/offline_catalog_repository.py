@@ -114,11 +114,7 @@ class OfflineCatalogRepository:
             normalized_search = search.strip().lower()
             haystack = [
                 _normalize_text(movie.get("title")),
-                _normalize_text(movie.get("originalTitle")),
                 _normalize_text(movie.get("displayTitle")),
-                *(_normalize_text(value) for value in movie.get("genres", [])),
-                *(_normalize_text(value) for value in movie.get("displayGenres", []) or []),
-                *(_normalize_text(value) for value in movie.get("tags", [])),
             ]
             if not any(normalized_search in value for value in haystack if value):
                 return False
