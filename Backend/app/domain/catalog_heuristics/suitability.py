@@ -1,7 +1,6 @@
 from app.domain.catalog_heuristics.constants import (
     ADULT_ES,
     ADULT_GENRES,
-    ADULT_KEYWORDS,
     ADULT_US,
     FAMILY_ES,
     FAMILY_GENRES,
@@ -23,7 +22,7 @@ def classify_item(item: dict) -> dict:
     public_blocked_terms = find_public_blocked_terms(item)
     reasons: list[str] = []
 
-    adult_signal = bool(genres & ADULT_GENRES) or bool(keywords & ADULT_KEYWORDS)
+    adult_signal = bool(genres & ADULT_GENRES)
     family_signal = bool(genres & FAMILY_GENRES) or bool(keywords & FAMILY_KEYWORDS)
     family_cert = us_cert in FAMILY_US or es_cert in FAMILY_ES
 
