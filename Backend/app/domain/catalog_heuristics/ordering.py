@@ -1,7 +1,7 @@
 def _public_priority(item: dict) -> int:
-    if item.get("demoSuitability") == "family_friendly_candidate":
+    if item.get("suitabilityCategory") == "family_friendly":
         return 0
-    if item.get("demoSuitability") == "teen_candidate":
+    if item.get("suitabilityCategory") == "teen":
         return 1
     return 2
 
@@ -32,7 +32,7 @@ def collaborative_sort_key(item: dict) -> tuple:
 
 def excluded_sort_key(item: dict) -> tuple:
     return (
-        0 if item.get("demoSuitability") == "adult_or_sensitive" else 1,
+        0 if item.get("suitabilityCategory") == "adult_or_sensitive" else 1,
         -float(item.get("candidateScore") or 0.0),
         -int(item.get("ratingCount") or 0),
         item.get("cleanTitle") or item.get("title") or "",

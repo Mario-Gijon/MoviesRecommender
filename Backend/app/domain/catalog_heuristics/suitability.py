@@ -10,6 +10,7 @@ from app.domain.catalog_heuristics.constants import (
     TEEN_ES,
     TEEN_US,
 )
+from app.domain.catalog_heuristics.text_signals import find_public_blocked_terms
 
 
 def classify_item(item: dict) -> dict:
@@ -19,6 +20,7 @@ def classify_item(item: dict) -> dict:
     certifications = tmdb.get("certifications", {})
     us_cert = certifications.get("US")
     es_cert = certifications.get("ES")
+    public_blocked_terms = find_public_blocked_terms(item)
     reasons: list[str] = []
 
     adult_signal = bool(genres & ADULT_GENRES) or bool(keywords & ADULT_KEYWORDS)
@@ -30,10 +32,10 @@ def classify_item(item: dict) -> dict:
         suitability = "adult_or_sensitive"
     elif us_cert in TEEN_US or es_cert in TEEN_ES:
         reasons.append("Certification indicates teen suitability")
-        suitability = "teen_candidate"
+        suitability = "teen"
     elif family_cert:
         reasons.append("Certification indicates family-friendly suitability")
-        suitability = "family_friendly_candidate"
+        suitability = "family_friendly"
     else:
         suitability = "unknown"
 
@@ -41,18 +43,23 @@ def classify_item(item: dict) -> dict:
         reasons.append("Genre or keyword signal indicates sensitive themes")
         if family_cert:
             reasons.append("Warning: family certification conflicts with adult signal")
-        elif suitability != "family_friendly_candidate":
+        elif suitability != "family_friendly":
             suitability = "adult_or_sensitive"
 
     if suitability == "unknown" and family_signal and not adult_signal:
         reasons.append("Family-oriented genres or keywords without adult signals")
-        suitability = "family_friendly_candidate"
-    elif suitability == "teen_candidate" and family_signal and not adult_signal:
+        suitability = "family_friendly"
+    elif suitability == "teen" and family_signal and not adult_signal:
         reasons.append("Family-oriented signals keep this near the teen/family boundary")
     elif suitability == "unknown":
         reasons.append("Missing or unclear certification and content signals")
 
+    if public_blocked_terms:
+        suitability = "adult_or_sensitive"
+        reasons.append("Public blocked topic signal detected")
+
     analyzed = dict(item)
-    analyzed["demoSuitability"] = suitability
+    analyzed["suitabilityCategory"] = suitability
+    analyzed["publicBlockedTerms"] = public_blocked_terms
     analyzed["suitabilityReasons"] = reasons
     return analyzed

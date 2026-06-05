@@ -1,13 +1,12 @@
 from argparse import Namespace
 
-from app.domain.catalog_heuristics.text_signals import has_public_blocked_topic
-
 
 def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
     reasons: list[str] = []
     tmdb = item.get("tmdb", {})
     rating_count = int(item.get("ratingCount") or 0)
     year = item.get("year")
+    public_blocked_terms = item.get("publicBlockedTerms", [])
 
     if item.get("enrichmentError"):
         reasons.append("enrichment_error")
@@ -20,13 +19,13 @@ def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
     else:
         if year < args.public_min_year:
             reasons.append("below_public_min_year")
-    if has_public_blocked_topic(item):
+    if public_blocked_terms:
         reasons.append("blocked_public_topic")
-    if item.get("demoSuitability") == "adult_or_sensitive":
+    if item.get("suitabilityCategory") == "adult_or_sensitive":
         reasons.append("adult_or_sensitive")
-    if item.get("demoSuitability") == "unknown":
+    if item.get("suitabilityCategory") == "unknown":
         reasons.append("unknown_suitability")
-    if args.family_only and item.get("demoSuitability") == "teen_candidate":
+    if args.family_only and item.get("suitabilityCategory") == "teen":
         reasons.append("family_only_excludes_teen")
     return reasons
 
@@ -42,11 +41,11 @@ def is_public_candidate(item: dict, *, args: Namespace) -> bool:
     year = item.get("year")
     if year is None or year < args.public_min_year:
         return False
-    if has_public_blocked_topic(item):
+    if item.get("publicBlockedTerms"):
         return False
-    if item.get("demoSuitability") in {"adult_or_sensitive", "unknown"}:
+    if item.get("suitabilityCategory") in {"adult_or_sensitive", "unknown"}:
         return False
-    if args.family_only and item.get("demoSuitability") != "family_friendly_candidate":
+    if args.family_only and item.get("suitabilityCategory") != "family_friendly":
         return False
     return True
 

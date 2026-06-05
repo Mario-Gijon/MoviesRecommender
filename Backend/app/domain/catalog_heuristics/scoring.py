@@ -17,7 +17,7 @@ def compute_stand_display_score(item: dict) -> tuple[float, list[str]]:
     keyword_appeal_signal = min(len(keyword_set & FAMILY_KEYWORDS) / 4.0, 1.0)
 
     penalty = 0.0
-    if item.get("demoSuitability") == "adult_or_sensitive":
+    if item.get("suitabilityCategory") == "adult_or_sensitive":
         penalty += 0.10
         reasons.append("adult_signal_penalty")
 
@@ -25,7 +25,7 @@ def compute_stand_display_score(item: dict) -> tuple[float, list[str]]:
         reasons.append("recent_movie")
     if {"Animation", "Family", "Adventure", "Fantasy"} & genres:
         reasons.append("family_animation_or_adventure")
-    elif item.get("demoSuitability") == "teen_candidate" and {"Action", "Science Fiction"} & genres:
+    elif item.get("suitabilityCategory") == "teen" and {"Action", "Science Fiction"} & genres:
         reasons.append("teen_friendly_blockbuster")
     if tmdb_popularity_signal >= 0.6:
         reasons.append("strong_tmdb_popularity")

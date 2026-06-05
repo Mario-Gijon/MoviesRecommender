@@ -42,7 +42,7 @@ def main() -> None:
     for item in catalog["publicCatalog"][:25]:
         print(
             f"- {item['cleanTitle']} ({item['year']}) | "
-            f"{item['demoSuitability']} | standDisplayScore={item['standDisplayScore']}"
+            f"{item['suitabilityCategory']} | standDisplayScore={item['standDisplayScore']}"
         )
     print(f"Output path: {ML_32M_DEMO_CATALOG_PATH}")
 
@@ -113,13 +113,13 @@ def _build_catalog(*, items: list[dict], args: argparse.Namespace) -> dict:
 
     suitability_counts = {
         "familyFriendlyInputCount": sum(
-            1 for item in analyzed_items if item["demoSuitability"] == "family_friendly_candidate"
+            1 for item in analyzed_items if item["suitabilityCategory"] == "family_friendly"
         ),
-        "teenInputCount": sum(1 for item in analyzed_items if item["demoSuitability"] == "teen_candidate"),
+        "teenInputCount": sum(1 for item in analyzed_items if item["suitabilityCategory"] == "teen"),
         "adultOrSensitiveInputCount": sum(
-            1 for item in analyzed_items if item["demoSuitability"] == "adult_or_sensitive"
+            1 for item in analyzed_items if item["suitabilityCategory"] == "adult_or_sensitive"
         ),
-        "unknownInputCount": sum(1 for item in analyzed_items if item["demoSuitability"] == "unknown"),
+        "unknownInputCount": sum(1 for item in analyzed_items if item["suitabilityCategory"] == "unknown"),
     }
 
     return {
@@ -210,8 +210,9 @@ def _serialize_item(item: dict, *, catalog_roles: list[str]) -> dict:
         "recencyScore": item.get("recencyScore"),
         "standDisplayScore": item.get("standDisplayScore"),
         "standDisplayReasons": item.get("standDisplayReasons", []),
-        "demoSuitability": item.get("demoSuitability"),
+        "suitabilityCategory": item.get("suitabilityCategory"),
         "suitabilityReasons": item.get("suitabilityReasons", []),
+        "publicBlockedTerms": item.get("publicBlockedTerms", []),
         "catalogRoles": catalog_roles,
         "publicExclusionReasons": item.get("publicExclusionReasons", []),
     }

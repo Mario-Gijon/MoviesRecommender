@@ -20,7 +20,7 @@ from app.infrastructure.datasets.movielens_paths import (
 
 LIST_SEPARATOR = "|"
 COLLABORATIVE_RATINGS_COLUMNS = ["userId", "movieId", "rating", "timestamp"]
-MOVIE_COLUMNS = [
+BASE_MOVIE_COLUMNS = [
     "movieId",
     "tmdbId",
     "imdbId",
@@ -51,14 +51,18 @@ MOVIE_COLUMNS = [
     "tmdbPopularity",
     "tmdbVoteAverage",
     "tmdbVoteCount",
-    "demoSuitability",
+    "suitabilityCategory",
     "standDisplayScore",
 ]
-EXCLUDED_MOVIE_COLUMNS = MOVIE_COLUMNS + [
+PUBLIC_MOVIE_COLUMNS = list(BASE_MOVIE_COLUMNS)
+SUPPORT_MOVIE_COLUMNS = BASE_MOVIE_COLUMNS + [
+    "publicExclusionReasons",
+    "publicBlockedTerms",
+    "suitabilityReasons",
+]
+EXCLUDED_MOVIE_COLUMNS = SUPPORT_MOVIE_COLUMNS + [
     "exclusionCategory",
     "exclusionReasons",
-    "suitabilityReasons",
-    "publicExclusionReasons",
 ]
 MOVIE_RATINGS_SUMMARY_COLUMNS = [
     "movieId",
@@ -97,14 +101,14 @@ def main() -> None:
     )
 
     public_rows = [
-        _build_movie_csv_row(
+        _build_public_movie_csv_row(
             item,
             ratings_summary_by_movie=ratings_summary_by_movie,
         )
         for item in catalog_index["public_items"]
     ]
     support_rows = [
-        _build_movie_csv_row(
+        _build_support_movie_csv_row(
             item,
             ratings_summary_by_movie=ratings_summary_by_movie,
         )
@@ -128,12 +132,12 @@ def main() -> None:
 
     _write_csv(
         OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
-        MOVIE_COLUMNS,
+        PUBLIC_MOVIE_COLUMNS,
         public_rows,
     )
     _write_csv(
         OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
-        MOVIE_COLUMNS,
+        SUPPORT_MOVIE_COLUMNS,
         support_rows,
     )
     _write_csv(
@@ -305,7 +309,7 @@ def _is_technically_invalid_support_item(
     return False
 
 
-def _build_movie_csv_row(
+def _build_base_movie_csv_row(
     item: dict,
     *,
     ratings_summary_by_movie: dict[int, dict],
@@ -348,9 +352,41 @@ def _build_movie_csv_row(
         "tmdbPopularity": _string_or_empty(item.get("tmdbPopularity")),
         "tmdbVoteAverage": _string_or_empty(item.get("tmdbVoteAverage")),
         "tmdbVoteCount": _string_or_empty(item.get("tmdbVoteCount")),
-        "demoSuitability": _string_or_empty(item.get("demoSuitability")),
+        "suitabilityCategory": _string_or_empty(item.get("suitabilityCategory")),
         "standDisplayScore": _string_or_empty(item.get("standDisplayScore")),
     }
+
+
+def _build_public_movie_csv_row(
+    item: dict,
+    *,
+    ratings_summary_by_movie: dict[int, dict],
+) -> dict:
+    return _build_base_movie_csv_row(
+        item,
+        ratings_summary_by_movie=ratings_summary_by_movie,
+    )
+
+
+def _build_support_movie_csv_row(
+    item: dict,
+    *,
+    ratings_summary_by_movie: dict[int, dict],
+) -> dict:
+    row = _build_base_movie_csv_row(
+        item,
+        ratings_summary_by_movie=ratings_summary_by_movie,
+    )
+    row.update(
+        {
+            "publicExclusionReasons": _join_list_values(
+                item.get("publicExclusionReasons", [])
+            ),
+            "publicBlockedTerms": _join_list_values(item.get("publicBlockedTerms", [])),
+            "suitabilityReasons": _join_list_values(item.get("suitabilityReasons", [])),
+        }
+    )
+    return row
 
 
 def _build_excluded_movie_csv_row(
@@ -361,7 +397,7 @@ def _build_excluded_movie_csv_row(
     collaborative_support_ids: set[int],
     has_ratings_summary: bool,
 ) -> dict:
-    row = _build_movie_csv_row(
+    row = _build_support_movie_csv_row(
         item,
         ratings_summary_by_movie=ratings_summary_by_movie,
     )
@@ -376,10 +412,6 @@ def _build_excluded_movie_csv_row(
         {
             "exclusionCategory": _build_exclusion_category(exclusion_reasons),
             "exclusionReasons": _join_list_values(exclusion_reasons),
-            "suitabilityReasons": _join_list_values(item.get("suitabilityReasons", [])),
-            "publicExclusionReasons": _join_list_values(
-                item.get("publicExclusionReasons", [])
-            ),
         }
     )
     return row
