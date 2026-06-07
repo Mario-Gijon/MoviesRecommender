@@ -2,9 +2,13 @@ import argparse
 import json
 import re
 
-import numpy as np
 import pandas as pd
 
+from app.domain.catalog_heuristics.candidate_scoring import (
+    compute_candidate_scores,
+    compute_data_reliability_scores,
+    compute_recency_scores,
+)
 from app.infrastructure.datasets.movielens_paths import (
     ML_32M_CANDIDATES_PATH,
     ML_32M_LINKS_CSV_PATH,
@@ -52,17 +56,12 @@ def main() -> None:
     passed_year_filter = int(year_mask.sum())
     candidates_df = candidates_df[year_mask].copy()
 
-    candidates_df["dataReliabilityScore"] = _compute_data_reliability_scores(
+    candidates_df["dataReliabilityScore"] = compute_data_reliability_scores(
         candidates_df,
         max_rating_count=max_rating_count,
     )
-    candidates_df["recencyScore"] = _compute_recency_scores(candidates_df["year"])
-    candidates_df["candidateScore"] = np.round(
-        0.55 * candidates_df["dataReliabilityScore"]
-        + 0.30 * candidates_df["recencyScore"]
-        + 0.15 * candidates_df["userTags"].apply(lambda tags: 1.0 if tags else 0.0),
-        4,
-    )
+    candidates_df["recencyScore"] = compute_recency_scores(candidates_df["year"])
+    candidates_df["candidateScore"] = compute_candidate_scores(candidates_df)
 
     candidates_df = candidates_df.sort_values(
         by=[
@@ -196,52 +195,6 @@ def _load_links() -> pd.DataFrame:
     links_df["imdbId"] = links_df["imdbId"].replace({"": pd.NA})
     links_df["tmdbId"] = pd.to_numeric(links_df["tmdbId"], errors="coerce").astype("Int64")
     return links_df
-
-
-def _compute_data_reliability_scores(
-    candidates_df: pd.DataFrame,
-    *,
-    max_rating_count: int,
-) -> pd.Series:
-    rating_count_signal = np.minimum(
-        candidates_df["ratingCount"].to_numpy(dtype=float) / max_rating_count,
-        1.0,
-    ) if max_rating_count else np.zeros(len(candidates_df), dtype=float)
-    average_rating_signal = candidates_df["averageRating"].to_numpy(dtype=float) / 5.0
-    has_tmdb = candidates_df["tmdbId"].notna().to_numpy()
-    has_imdb = candidates_df["imdbId"].notna().to_numpy()
-    metadata_signal = np.select(
-        [has_tmdb & has_imdb, has_tmdb | has_imdb],
-        [1.0, 0.5],
-        default=0.0,
-    )
-    return pd.Series(
-        np.round(
-        0.55 * rating_count_signal
-        + 0.30 * average_rating_signal
-        + 0.15 * metadata_signal,
-        4,
-        ),
-        index=candidates_df.index,
-    )
-
-
-def _compute_recency_scores(years: pd.Series) -> pd.Series:
-    year_values = years.astype("float64").to_numpy()
-    scores = np.select(
-        [
-            year_values >= 2020,
-            year_values >= 2015,
-            year_values >= 2010,
-            year_values >= 2000,
-            year_values >= 1995,
-            year_values >= 1990,
-        ],
-        [1.0, 0.9, 0.8, 0.7, 0.55, 0.45],
-        default=0.25,
-    )
-    scores[np.isnan(year_values)] = 0.0
-    return pd.Series(scores, index=years.index)
 
 
 def _serialize_candidates(candidates_df: pd.DataFrame) -> list[dict[str, object]]:

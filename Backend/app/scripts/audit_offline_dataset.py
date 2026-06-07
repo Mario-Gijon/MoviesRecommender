@@ -119,94 +119,28 @@ NUMERIC_COLUMNS = [
 ]
 
 EXPLANATIONS = {
-    "section_partitions": {
-        "what": "Resume cómo se reparte el dataset entre catálogo público, soporte colaborativo y películas excluidas.",
-        "how": "Si soporte colaborativo es mucho mayor que el catálogo público, eso es normal: sirve para perfilar usuarios aunque no sea visible.",
-    },
-    "partition_chart": {
-        "what": "Compara cuántas películas hay en catálogo público, soporte colaborativo y excluidas.",
-        "how": "El catálogo público es lo que el usuario ve. El soporte colaborativo puede ser mucho mayor porque incluye películas útiles para construir perfiles.",
-    },
-    "section_suitability": {
-        "what": "Compara la composición por suitabilityCategory entre particiones.",
-        "how": "Sirve para comprobar si el contenido sensible queda fuera del catálogo visible y si las particiones reflejan el objetivo del proyecto.",
-    },
-    "suitability_chart": {
-        "what": "Distribuye las películas según suitabilityCategory en cada partición.",
-        "how": "El catálogo público debería concentrarse en family_friendly y teen. adult_or_sensitive debería aparecer sobre todo en soporte colaborativo o excluidas.",
-    },
-    "section_public": {
-        "what": "Analiza idioma, época, género y señales de calidad visual del catálogo público.",
-        "how": "Ayuda a detectar sesgos de idioma, exceso de títulos antiguos o películas con baja señal para la experiencia del stand.",
-    },
-    "public_languages_chart": {
-        "what": "Muestra los idiomas originales más frecuentes dentro del catálogo público.",
-        "how": "Permite detectar si el catálogo público está demasiado sesgado hacia un idioma o si entran películas poco alineadas con el público objetivo.",
-    },
-    "public_decades_chart": {
-        "what": "Resume de qué décadas proceden las películas públicas.",
-        "how": "Una mezcla muy antigua puede indicar que la selección pública necesita reforzar recencia o relevancia cultural actual.",
-    },
-    "public_genres_chart": {
-        "what": "Muestra los géneros dominantes del catálogo público.",
-        "how": "Sirve para ver si la oferta visible está equilibrada o si depende demasiado de pocos géneros.",
-    },
-    "public_score_distribution_chart": {
-        "what": "Muestra cómo se distribuye la puntuación usada para ordenar visualmente el catálogo público.",
-        "how": "Una concentración alta en valores bajos puede indicar que el catálogo público contiene demasiadas películas poco atractivas para el stand.",
-    },
-    "public_scatter_chart": {
-        "what": "Relaciona popularidad/cobertura en MovieLens con la puntuación visual del stand.",
-        "how": "Las películas con muchos ratings y score alto son candidatas sólidas. Las de pocos ratings y score bajo suelen requerir revisión.",
-    },
-    "section_support": {
-        "what": "Explica por qué muchas películas son útiles colaborativamente pero no llegan al catálogo público.",
-        "how": "Las razones de bloqueo ayudan a ajustar heurísticas futuras sin romper el rol del soporte colaborativo.",
-    },
-    "support_blocked_terms_chart": {
-        "what": "Resume los blocked terms más frecuentes en soporte colaborativo.",
-        "how": "Si pocos términos concentran muchos casos, son una señal fuerte del tipo de contenido que se está filtrando del catálogo público.",
-    },
-    "section_excluded": {
-        "what": "Resume las causas de exclusión total del dataset visible y de soporte.",
-        "how": "Si predominan fallos técnicos o de enriquecimiento, hay margen de mejora de pipeline sin tocar heurísticas de recomendación.",
-    },
-    "excluded_reasons_chart": {
-        "what": "Cuenta las razones de exclusión más frecuentes.",
-        "how": "Sirve para distinguir exclusiones por política de contenido frente a exclusiones por falta de datos o errores de enriquecimiento.",
-    },
-    "section_collaborative": {
-        "what": "Analiza la señal colaborativa sin volcar millones de ratings en el HTML.",
-        "how": "Estas métricas indican fuerza de perfiles, sesgo de ratings y densidad de la matriz usuario-película.",
-    },
-    "collaborative_rating_distribution_chart": {
-        "what": "Muestra cómo se reparten los valores de rating entre 0.5 y 5.0.",
-        "how": "Permite ver si los usuarios tienden a puntuar demasiado alto, demasiado bajo o de forma concentrada.",
-    },
-    "collaborative_user_buckets_chart": {
-        "what": "Agrupa usuarios por número de ratings emitidos.",
-        "how": "Sirve para medir fortaleza de perfiles: más usuarios en tramos altos implica mejor señal colaborativa para recomendar.",
-    },
-    "collaborative_year_chart": {
-        "what": "Cuenta ratings por año usando el timestamp del dataset colaborativo.",
-        "how": "Ayuda a detectar concentración temporal de actividad y a ver si la señal proviene de pocas oleadas históricas.",
-    },
-    "collaborative_top_movies_chart": {
-        "what": "Muestra qué películas concentran más filtered ratings en el dataset offline.",
-        "how": "Una cola demasiado concentrada puede indicar que unas pocas películas dominan la señal colaborativa disponible.",
-    },
-    "section_tables": {
-        "what": "Muestra solo tablas pequeñas y accionables.",
-        "how": "Las tablas completas siguen disponibles en CSV dentro de audit/tables y audit/detailed para inspección más profunda.",
-    },
-    "section_static": {
-        "what": "Expone las versiones PNG de los gráficos para README y documentación.",
-        "how": "Esto permite reutilizar el análisis sin depender del dashboard interactivo.",
-    },
-    "section_conclusions": {
-        "what": "Resume hallazgos automáticos derivados de los datos.",
-        "how": "No son reglas de producto; son señales rápidas para orientar revisión de pipeline y heurísticas futuras.",
-    },
+    "section_partitions": "Resume el reparto entre catálogo público, soporte colaborativo y películas excluidas. Que el soporte colaborativo sea más grande es normal: ayuda a construir perfiles aunque no sea visible en la demo.",
+    "partition_chart": "Compara cuántas películas hay en cada partición del dataset offline y permite ver de un vistazo qué parte se dedica a la experiencia visible y qué parte queda como soporte.",
+    "section_suitability": "Permite comprobar si el catálogo público se concentra en películas family_friendly y teen, dejando el contenido sensible sobre todo fuera de la parte visible.",
+    "suitability_chart": "Si adult_or_sensitive aparece con mucho peso en la parte pública, la separación entre catálogo visible y núcleo de soporte merece revisión.",
+    "section_public": "Analiza idioma, década, géneros y señales de atractivo visual del catálogo público para detectar sesgos o títulos débiles en la experiencia del stand.",
+    "public_languages_chart": "Ayuda a ver si el catálogo público está demasiado concentrado en pocos idiomas o si entran títulos poco alineados con el público objetivo.",
+    "public_decades_chart": "Muestra qué tan reciente o histórica es la selección pública. Una mezcla demasiado antigua puede indicar falta de recencia cultural.",
+    "public_genres_chart": "Sirve para comprobar si la oferta visible está equilibrada o si depende demasiado de unos pocos géneros dominantes.",
+    "public_score_distribution_chart": "Muestra cómo se reparte la puntuación usada para ordenar visualmente el catálogo público. Muchas películas en valores bajos sugieren una vitrina menos atractiva.",
+    "public_scatter_chart": "Relaciona cobertura en MovieLens y atractivo visual del stand. Los títulos con muchos ratings y score alto suelen ser candidatos más sólidos.",
+    "section_support": "Explica por qué muchas películas útiles colaborativamente no llegan al catálogo público y ayuda a revisar bloqueos sin alterar el papel del soporte.",
+    "support_blocked_terms_chart": "Si pocos blocked terms concentran muchos casos, describen con bastante claridad el tipo de contenido que se está apartando del catálogo visible.",
+    "section_excluded": "Resume las causas de exclusión total. Si predominan fallos técnicos o de enriquecimiento, el problema está en el pipeline más que en la lógica de recomendación.",
+    "excluded_reasons_chart": "Distingue exclusiones por política de contenido frente a exclusiones por cobertura, metadatos incompletos o errores de enriquecimiento.",
+    "section_collaborative": "Estas métricas describen el núcleo colaborativo completo: películas públicas más películas de soporte colaborativo. Las excluidas no forman parte de `collaborative_ratings.csv`.",
+    "collaborative_rating_distribution_chart": "Muestra si los usuarios tienden a puntuar demasiado alto, demasiado bajo o de forma muy concentrada, algo útil para entender sesgos del núcleo colaborativo.",
+    "collaborative_user_buckets_chart": "Agrupa usuarios por número de ratings emitidos. Más peso en los tramos altos implica perfiles más fuertes para alimentar el recomendador.",
+    "collaborative_year_chart": "Cuenta ratings por año en el núcleo colaborativo y ayuda a ver si la actividad está repartida o concentrada en pocas oleadas temporales.",
+    "collaborative_top_movies_chart": "Muestra qué películas del núcleo colaborativo concentran más ratings filtrados. Si unas pocas dominan demasiado, la señal puede quedar muy sesgada.",
+    "section_tables": "Muestra solo muestras pequeñas y accionables. Las tablas completas siguen disponibles en CSV dentro de `audit/tables/` y `audit/detailed/`.",
+    "section_static": "Expone las versiones PNG de los gráficos para README e informes, de modo que el análisis pueda reutilizarse sin depender del dashboard interactivo.",
+    "section_conclusions": "Resume hallazgos automáticos derivados de los datos. No son reglas de producto: son señales rápidas para orientar revisión de pipeline y heurísticas futuras.",
 }
 
 
@@ -794,7 +728,6 @@ def _build_summary_tables(
                 "year",
                 "publicBlockedTerms",
                 "publicExclusionReasons",
-                "suitabilityReasons",
             ]
         ].head(100).rename(columns={"displayLabel": "displayTitle"}),
         "collaborative_summary": collaborative_signals["tables"]["collaborative_summary"],
@@ -1255,7 +1188,7 @@ def _build_dashboard_html(
         color="partitionLabel",
         category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
         color_discrete_map=PARTITION_COLORS,
-        title="Películas analizadas por partición",
+        title="Películas por partición",
     )
     _style_plotly_figure(partition_fig)
 
@@ -1267,7 +1200,7 @@ def _build_dashboard_html(
         barmode="group",
         category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
         color_discrete_map=PARTITION_COLORS,
-        title="suitabilityCategory por partición",
+        title="Categorías de suitability",
     )
     _style_plotly_figure(suitability_fig)
 
@@ -1276,7 +1209,7 @@ def _build_dashboard_html(
         x="originalLanguage",
         y="movieCount",
         color_discrete_sequence=[SINBAD_BLUE],
-        title="Idiomas principales del catálogo público",
+        title="Idiomas del catálogo público",
     )
     _style_plotly_figure(public_languages_fig)
 
@@ -1285,7 +1218,7 @@ def _build_dashboard_html(
         x="decade",
         y="movieCount",
         color_discrete_sequence=[SINBAD_GOLD],
-        title="Décadas dominantes del catálogo público",
+        title="Décadas del catálogo público",
     )
     _style_plotly_figure(public_decades_fig)
 
@@ -1294,7 +1227,7 @@ def _build_dashboard_html(
         x="genre",
         y="movieCount",
         color_discrete_sequence=[SINBAD_CYAN],
-        title="Géneros principales del catálogo público",
+        title="Géneros del catálogo público",
     )
     _style_plotly_figure(public_genres_fig)
 
@@ -1363,7 +1296,7 @@ def _build_dashboard_html(
         x="year",
         y="ratingCount",
         markers=True,
-        title="Ratings colaborativos por año",
+        title="Ratings por año en el núcleo colaborativo",
     )
     ratings_by_year_fig.update_traces(line_color=SINBAD_BLUE)
     _style_plotly_figure(ratings_by_year_fig)
@@ -1377,24 +1310,61 @@ def _build_dashboard_html(
         y="displayLabel",
         orientation="h",
         color_discrete_sequence=[SINBAD_CYAN],
-        title="Top películas por filteredRatingCount",
+        title="Top películas por número de ratings filtrados",
     )
     _style_plotly_figure(top_movies_fig)
 
+    plotly_config = {"responsive": True, "displaylogo": False}
     plot_blocks = [
-        partition_fig.to_html(full_html=False, include_plotlyjs="inline"),
-        suitability_fig.to_html(full_html=False, include_plotlyjs=False),
-        public_languages_fig.to_html(full_html=False, include_plotlyjs=False),
-        public_decades_fig.to_html(full_html=False, include_plotlyjs=False),
-        public_genres_fig.to_html(full_html=False, include_plotlyjs=False),
-        score_dist_fig.to_html(full_html=False, include_plotlyjs=False),
-        scatter_fig.to_html(full_html=False, include_plotlyjs=False),
-        support_blocked_terms_fig.to_html(full_html=False, include_plotlyjs=False),
-        excluded_reasons_fig.to_html(full_html=False, include_plotlyjs=False),
-        rating_distribution_fig.to_html(full_html=False, include_plotlyjs=False),
-        user_buckets_fig.to_html(full_html=False, include_plotlyjs=False),
-        ratings_by_year_fig.to_html(full_html=False, include_plotlyjs=False),
-        top_movies_fig.to_html(full_html=False, include_plotlyjs=False),
+        partition_fig.to_html(
+            full_html=False,
+            include_plotlyjs="inline",
+            config=plotly_config,
+        ),
+        suitability_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
+        public_languages_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        public_decades_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        public_genres_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        score_dist_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
+        scatter_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
+        support_blocked_terms_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        excluded_reasons_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        rating_distribution_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        user_buckets_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        ratings_by_year_fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config=plotly_config,
+        ),
+        top_movies_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
     ]
 
     headline_kpis = [
@@ -1505,11 +1475,13 @@ def _build_dashboard_html(
       color: var(--text);
     }}
     .wrap {{
-      width: min(1440px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 28px 0 40px;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 28px clamp(18px, 2.2vw, 42px) 44px;
     }}
     .hero {{
+      width: 100%;
       padding: 28px;
       border: 1px solid var(--border);
       border-radius: 24px;
@@ -1531,11 +1503,12 @@ def _build_dashboard_html(
     .subtitle {{
       margin: 0;
       color: var(--muted);
-      max-width: 980px;
+      max-width: 1280px;
       font-size: 17px;
       line-height: 1.6;
     }}
     .section {{
+      width: 100%;
       margin-top: 28px;
       padding: 24px;
       border: 1px solid var(--border);
@@ -1576,38 +1549,41 @@ def _build_dashboard_html(
       font-size: 30px;
       font-weight: 700;
     }}
-    .two {{
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    }}
-    .three {{
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    }}
-    .chart-grid {{
+    .row {{
       display: grid;
       gap: 18px;
-      grid-template-columns: repeat(12, minmax(0, 1fr));
+      width: 100%;
+    }}
+    .row-1 {{
+      grid-template-columns: minmax(0, 1fr);
+    }}
+    .row-2 {{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .row-3 {{
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }}
+    .row-4 {{
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }}
     .chart-card {{
-      grid-column: span 12;
       background: var(--panel-soft);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 16px;
-    }}
-    .chart-card.half {{
-      grid-column: span 6;
-    }}
-    .chart-card.wide {{
-      grid-column: span 8;
-    }}
-    .chart-card.third {{
-      grid-column: span 4;
+      width: 100%;
+      min-width: 0;
     }}
     .card {{
       background: var(--panel-soft);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 16px;
+      width: 100%;
+      min-width: 0;
+    }}
+    .full-width {{
+      grid-column: 1 / -1;
     }}
     .plot {{
       overflow: hidden;
@@ -1615,22 +1591,24 @@ def _build_dashboard_html(
       background: rgba(8, 17, 31, 0.85);
       border: 1px solid #1d2d4e;
     }}
+    .plot,
+    .plot > div,
+    .plot .plotly-graph-div,
+    .js-plotly-plot {{
+      width: 100% !important;
+      max-width: 100% !important;
+    }}
     .explanation {{
-      margin: 0 0 16px;
-      padding: 14px 16px;
+      margin: 0 0 14px;
+      padding: 12px 15px;
       border-radius: 16px;
       border: 1px solid #223252;
       background: rgba(8, 17, 31, 0.74);
     }}
-    .explanation strong {{
-      color: var(--gold);
-    }}
     .explanation p {{
-      margin: 0 0 8px;
+      margin: 0;
       color: var(--text);
-    }}
-    .explanation p:last-child {{
-      margin-bottom: 0;
+      line-height: 1.6;
     }}
     .gallery-card img {{
       width: 100%;
@@ -1642,6 +1620,11 @@ def _build_dashboard_html(
     .gallery-card h3 {{
       margin: 0 0 12px;
       font-size: 17px;
+    }}
+    .gallery-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
     }}
     table {{
       width: 100%;
@@ -1681,11 +1664,24 @@ def _build_dashboard_html(
     a {{
       color: var(--cyan);
     }}
-    @media (max-width: 1000px) {{
-      .chart-card.half,
-      .chart-card.wide,
-      .chart-card.third {{
-        grid-column: span 12;
+    @media (max-width: 1200px) {{
+      .row-3,
+      .row-4 {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+    }}
+    @media (max-width: 900px) {{
+      .row-2,
+      .row-3,
+      .row-4 {{
+        grid-template-columns: minmax(0, 1fr);
+      }}
+      .wrap {{
+        padding: 16px 12px 28px;
+      }}
+      .section,
+      .hero {{
+        padding: 18px;
       }}
     }}
   </style>
@@ -1705,8 +1701,8 @@ def _build_dashboard_html(
     <section class="section">
       <h2>A. Particiones principales</h2>
       {_explanation_html("section_partitions")}
-      <div class="chart-grid">
-        <div class="chart-card">
+      <div class="row row-1">
+        <div class="chart-card full-width">
           {_explanation_html("partition_chart")}
           <div class="plot">{plot_blocks[0]}</div>
         </div>
@@ -1716,8 +1712,8 @@ def _build_dashboard_html(
     <section class="section">
       <h2>B. Comparación de suitability</h2>
       {_explanation_html("section_suitability")}
-      <div class="chart-grid">
-        <div class="chart-card">
+      <div class="row row-1">
+        <div class="chart-card full-width">
           {_explanation_html("suitability_chart")}
           <div class="plot">{plot_blocks[1]}</div>
         </div>
@@ -1727,24 +1723,30 @@ def _build_dashboard_html(
     <section class="section">
       <h2>C. Catálogo público</h2>
       {_explanation_html("section_public")}
-      <div class="chart-grid">
-        <div class="chart-card half">
+      <div class="row row-2">
+        <div class="chart-card">
           {_explanation_html("public_languages_chart")}
           <div class="plot">{plot_blocks[2]}</div>
         </div>
-        <div class="chart-card half">
+        <div class="chart-card">
           {_explanation_html("public_decades_chart")}
           <div class="plot">{plot_blocks[3]}</div>
         </div>
-        <div class="chart-card wide">
+      </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        <div class="chart-card full-width">
           {_explanation_html("public_genres_chart")}
           <div class="plot">{plot_blocks[4]}</div>
         </div>
-        <div class="chart-card wide">
+      </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        <div class="chart-card full-width">
           {_explanation_html("public_score_distribution_chart")}
           <div class="plot">{plot_blocks[5]}</div>
         </div>
-        <div class="chart-card">
+      </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        <div class="chart-card full-width">
           {_explanation_html("public_scatter_chart")}
           <div class="plot">{plot_blocks[6]}</div>
         </div>
@@ -1754,12 +1756,12 @@ def _build_dashboard_html(
     <section class="section">
       <h2>D. Soporte colaborativo</h2>
       {_explanation_html("section_support")}
-      <div class="chart-grid">
-        <div class="chart-card wide">
+      <div class="row row-2">
+        <div class="chart-card">
           {_explanation_html("support_blocked_terms_chart")}
           <div class="plot">{plot_blocks[7]}</div>
         </div>
-        <div class="chart-card wide">
+        <div class="chart-card">
           <div class="table-wrap">{_render_html_table(support_examples, limit=12)}</div>
         </div>
       </div>
@@ -1768,8 +1770,8 @@ def _build_dashboard_html(
     <section class="section">
       <h2>E. Películas excluidas</h2>
       {_explanation_html("section_excluded")}
-      <div class="chart-grid">
-        <div class="chart-card">
+      <div class="row row-1">
+        <div class="chart-card full-width">
           {_explanation_html("excluded_reasons_chart")}
           <div class="plot">{plot_blocks[8]}</div>
         </div>
@@ -1780,20 +1782,22 @@ def _build_dashboard_html(
       <h2>I. Señales colaborativas</h2>
       {_explanation_html("section_collaborative")}
       <div class="grid kpis">{collaborative_kpis_html}</div>
-      <div class="chart-grid" style="margin-top: 18px;">
-        <div class="chart-card half">
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="chart-card">
           {_explanation_html("collaborative_rating_distribution_chart")}
           <div class="plot">{plot_blocks[9]}</div>
         </div>
-        <div class="chart-card half">
+        <div class="chart-card">
           {_explanation_html("collaborative_user_buckets_chart")}
           <div class="plot">{plot_blocks[10]}</div>
         </div>
-        <div class="chart-card half">
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="chart-card">
           {_explanation_html("collaborative_year_chart")}
           <div class="plot">{plot_blocks[11]}</div>
         </div>
-        <div class="chart-card half">
+        <div class="chart-card">
           {_explanation_html("collaborative_top_movies_chart")}
           <div class="plot">{plot_blocks[12]}</div>
         </div>
@@ -1803,7 +1807,7 @@ def _build_dashboard_html(
     <section class="section">
       <h2>F. Tablas de revisión</h2>
       {_explanation_html("section_tables")}
-      <div class="grid three">
+      <div class="row row-3">
         <div class="card">
           <h3>Top 25 públicas</h3>
           <div class="table-wrap">{_render_html_table(tables["public_top_movies"], limit=25)}</div>
@@ -1822,7 +1826,7 @@ def _build_dashboard_html(
     <section class="section">
       <h2>G. Gráficos estáticos para documentación</h2>
       {_explanation_html("section_static")}
-      <div class="grid two">{chart_gallery}</div>
+      <div class="gallery-grid">{chart_gallery}</div>
     </section>
 
     <section class="section">
@@ -1932,6 +1936,8 @@ Top exclusion reasons:
 - Media ratings/película: {collaborative_signals["averageRatingsPerMovie"]:.2f}
 - Mediana ratings/película: {collaborative_signals["medianRatingsPerMovie"]:.2f}
 
+- El núcleo colaborativo está formado por las películas públicas y las películas de soporte colaborativo.
+- Las películas excluidas no forman parte de `collaborative_ratings.csv`.
 - Qué muestra: fuerza de perfiles, sesgo de valores de rating y dispersión de la matriz usuario-película.
 - Cómo interpretarlo: una matriz muy dispersa es normal, pero perfiles demasiado débiles o una distribución sesgada pueden limitar el valor colaborativo.
 
@@ -2208,12 +2214,7 @@ def _chart_card_html(title: str, relative_path: str) -> str:
 
 def _explanation_html(key: str) -> str:
     text = EXPLANATIONS[key]
-    return (
-        '<div class="explanation">'
-        f"<p><strong>Qué muestra:</strong> {escape(text['what'])}</p>"
-        f"<p><strong>Cómo interpretarlo:</strong> {escape(text['how'])}</p>"
-        "</div>"
-    )
+    return f'<div class="explanation"><p>{escape(text)}</p></div>'
 
 
 def _coalesce_text(primary: pd.Series | None, fallback: pd.Series | None) -> pd.Series:
