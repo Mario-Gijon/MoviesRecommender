@@ -1,5 +1,7 @@
-import csv
 import json
+from collections import defaultdict
+
+import pandas as pd
 
 from app.infrastructure.datasets.movielens_paths import (
     ML_32M_DEMO_CATALOG_PATH,
@@ -23,6 +25,7 @@ BY_MOVIE_COLUMNS = [
     "filteredRatingCount",
     "filteredAverageRating",
 ]
+RATINGS_CHUNK_SIZE = 1_000_000
 
 
 def main() -> None:
@@ -42,43 +45,16 @@ def main() -> None:
     catalog_index = _build_catalog_index(catalog)
 
     ML_32M_DEMO_RATINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ML_32M_DEMO_RATINGS_BY_MOVIE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ML_32M_DEMO_RATINGS_SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    source_ratings_read = 0
-    ratings_written = 0
-    unique_users: set[str] = set()
-    filtered_counts_by_movie: dict[int, int] = {}
-    filtered_sums_by_movie: dict[int, float] = {}
-
-    with ML_32M_RATINGS_CSV_PATH.open("r", encoding="utf-8", newline="") as input_file:
-        reader = csv.DictReader(input_file)
-        with ML_32M_DEMO_RATINGS_PATH.open("w", encoding="utf-8", newline="") as output_file:
-            writer = csv.DictWriter(output_file, fieldnames=FILTERED_RATINGS_COLUMNS)
-            writer.writeheader()
-
-            for row in reader:
-                source_ratings_read += 1
-
-                movie_id = _parse_int(row.get("movieId"))
-                if movie_id not in catalog_index["collaborative_core_movie_ids"]:
-                    continue
-
-                writer.writerow(
-                    {
-                        "userId": row.get("userId", ""),
-                        "movieId": row.get("movieId", ""),
-                        "rating": row.get("rating", ""),
-                        "timestamp": row.get("timestamp", ""),
-                    }
-                )
-
-                ratings_written += 1
-                unique_users.add(row.get("userId", ""))
-
-                rating_value = _parse_float(row.get("rating"))
-                filtered_counts_by_movie[movie_id] = filtered_counts_by_movie.get(movie_id, 0) + 1
-                filtered_sums_by_movie[movie_id] = (
-                    filtered_sums_by_movie.get(movie_id, 0.0) + rating_value
-                )
+    (
+        source_ratings_read,
+        ratings_written,
+        unique_users,
+        filtered_counts_by_movie,
+        filtered_sums_by_movie,
+    ) = _filter_ratings_with_chunks(catalog_index["collaborative_core_movie_ids"])
 
     _write_by_movie_csv(
         catalog_index=catalog_index,
@@ -140,6 +116,69 @@ def _build_catalog_index(catalog: dict) -> dict:
     }
 
 
+def _filter_ratings_with_chunks(
+    collaborative_core_movie_ids: set[int],
+) -> tuple[int, int, set[int], dict[int, int], dict[int, float]]:
+    source_ratings_read = 0
+    ratings_written = 0
+    unique_users: set[int] = set()
+    filtered_counts_by_movie: dict[int, int] = defaultdict(int)
+    filtered_sums_by_movie: dict[int, float] = defaultdict(float)
+    write_header = True
+
+    for chunk_df in pd.read_csv(
+        ML_32M_RATINGS_CSV_PATH,
+        usecols=FILTERED_RATINGS_COLUMNS,
+        dtype={
+            "userId": "int64",
+            "movieId": "int64",
+            "rating": "float64",
+            "timestamp": "int64",
+        },
+        chunksize=RATINGS_CHUNK_SIZE,
+    ):
+        source_ratings_read += int(len(chunk_df))
+        filtered_df = chunk_df[chunk_df["movieId"].isin(collaborative_core_movie_ids)].copy()
+        if filtered_df.empty:
+            continue
+
+        filtered_df.to_csv(
+            ML_32M_DEMO_RATINGS_PATH,
+            columns=FILTERED_RATINGS_COLUMNS,
+            index=False,
+            mode="w" if write_header else "a",
+            header=write_header,
+        )
+        write_header = False
+
+        ratings_written += int(len(filtered_df))
+        unique_users.update(int(user_id) for user_id in filtered_df["userId"].unique().tolist())
+
+        grouped_df = (
+            filtered_df.groupby("movieId", sort=False)["rating"]
+            .agg(["count", "sum"])
+            .reset_index()
+        )
+        for row in grouped_df.itertuples(index=False):
+            movie_id = int(row.movieId)
+            filtered_counts_by_movie[movie_id] += int(row.count)
+            filtered_sums_by_movie[movie_id] += float(row.sum)
+
+    if write_header:
+        pd.DataFrame(columns=FILTERED_RATINGS_COLUMNS).to_csv(
+            ML_32M_DEMO_RATINGS_PATH,
+            index=False,
+        )
+
+    return (
+        source_ratings_read,
+        ratings_written,
+        unique_users,
+        dict(filtered_counts_by_movie),
+        dict(filtered_sums_by_movie),
+    )
+
+
 def _merge_movie_metadata(movie_metadata_by_id: dict[int, dict], item: dict) -> None:
     movie_id = _parse_int(item.get("movieId"))
     if movie_id is None:
@@ -176,8 +215,8 @@ def _write_by_movie_csv(
 
         rows.append(
             {
-                "movieId": movie_id,
-                "title": metadata.get("title", ""),
+                "movieId": int(movie_id),
+                "title": str(metadata.get("title", "")),
                 "year": metadata.get("year", ""),
                 "isPublicCatalog": "true" if movie_id in public_movie_ids else "false",
                 "isCollaborativeCore": (
@@ -186,7 +225,7 @@ def _write_by_movie_csv(
                 "isExcludedOrSensitive": "true" if movie_id in excluded_movie_ids else "false",
                 "catalogRatingCount": metadata.get("catalogRatingCount", ""),
                 "catalogAverageRating": metadata.get("catalogAverageRating", ""),
-                "filteredRatingCount": filtered_rating_count,
+                "filteredRatingCount": int(filtered_rating_count),
                 "filteredAverageRating": filtered_average_rating,
             }
         )
@@ -200,10 +239,10 @@ def _write_by_movie_csv(
         )
     )
 
-    with ML_32M_DEMO_RATINGS_BY_MOVIE_PATH.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=BY_MOVIE_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    pd.DataFrame(rows, columns=BY_MOVIE_COLUMNS).to_csv(
+        ML_32M_DEMO_RATINGS_BY_MOVIE_PATH,
+        index=False,
+    )
 
 
 def _build_summary(
@@ -211,7 +250,7 @@ def _build_summary(
     catalog_index: dict,
     source_ratings_read: int,
     ratings_written: int,
-    unique_users: set[str],
+    unique_users: set[int],
     filtered_counts_by_movie: dict[int, int],
 ) -> dict:
     public_movie_ids = catalog_index["public_movie_ids"]
@@ -224,18 +263,18 @@ def _build_summary(
 
     return {
         "sourceDataset": "ml-32m",
-        "sourceRatingsRead": source_ratings_read,
-        "ratingsWritten": ratings_written,
-        "uniqueUsers": len(unique_users),
-        "publicCatalogMovies": len(public_movie_ids),
-        "collaborativeCoreMovies": len(collaborative_core_movie_ids),
-        "excludedOrSensitiveMovies": len(excluded_movie_ids),
-        "moviesWithFilteredRatings": len(movies_with_filtered_ratings),
-        "publicCatalogMoviesWithFilteredRatings": len(
-            movies_with_filtered_ratings & public_movie_ids
+        "sourceRatingsRead": int(source_ratings_read),
+        "ratingsWritten": int(ratings_written),
+        "uniqueUsers": int(len(unique_users)),
+        "publicCatalogMovies": int(len(public_movie_ids)),
+        "collaborativeCoreMovies": int(len(collaborative_core_movie_ids)),
+        "excludedOrSensitiveMovies": int(len(excluded_movie_ids)),
+        "moviesWithFilteredRatings": int(len(movies_with_filtered_ratings)),
+        "publicCatalogMoviesWithFilteredRatings": int(
+            len(movies_with_filtered_ratings & public_movie_ids)
         ),
-        "collaborativeCoreMoviesWithFilteredRatings": len(
-            movies_with_filtered_ratings & collaborative_core_movie_ids
+        "collaborativeCoreMoviesWithFilteredRatings": int(
+            len(movies_with_filtered_ratings & collaborative_core_movie_ids)
         ),
         "outputRatingsPath": str(ML_32M_DEMO_RATINGS_PATH),
         "outputByMoviePath": str(ML_32M_DEMO_RATINGS_BY_MOVIE_PATH),
@@ -246,12 +285,6 @@ def _parse_int(value: object) -> int | None:
     if value in (None, ""):
         return None
     return int(value)
-
-
-def _parse_float(value: object) -> float:
-    if value in (None, ""):
-        return 0.0
-    return float(value)
 
 
 def _format_float(value: float) -> str:
