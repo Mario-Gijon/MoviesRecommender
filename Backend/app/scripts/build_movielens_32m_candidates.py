@@ -1,8 +1,9 @@
 import argparse
-import csv
 import json
 import re
-from collections import Counter, defaultdict
+
+import numpy as np
+import pandas as pd
 
 from app.infrastructure.datasets.movielens_paths import (
     ML_32M_CANDIDATES_PATH,
@@ -20,88 +21,68 @@ def main() -> None:
     args = _parse_args()
     _ensure_required_files()
 
-    movies = _load_movies()
-    ratings_summary, movies_with_ratings = _load_ratings_summary()
-    tags_by_movie_id = _load_tags(max_tags_per_movie=args.max_tags_per_movie)
-    links_by_movie_id = _load_links()
+    movies_df = _load_movies()
+    ratings_summary_df, movies_with_ratings = _load_ratings_summary()
+    tags_df = _load_tags(max_tags_per_movie=args.max_tags_per_movie)
+    links_df = _load_links()
 
-    max_rating_count = max(
-        (stats["ratingCount"] for stats in ratings_summary.values()),
-        default=1,
+    total_movies_read = len(movies_df)
+    max_rating_count = int(ratings_summary_df["ratingCount"].max()) if not ratings_summary_df.empty else 1
+
+    candidates_df = movies_df.merge(ratings_summary_df, on="movieId", how="inner")
+    candidates_df = candidates_df.merge(links_df, on="movieId", how="left")
+    candidates_df = candidates_df.merge(tags_df, on="movieId", how="left")
+
+    candidates_df["tmdbId"] = candidates_df["tmdbId"].astype("Int64")
+    candidates_df["imdbId"] = candidates_df["imdbId"].where(
+        candidates_df["imdbId"].notna(),
+        None,
+    )
+    candidates_df["userTags"] = candidates_df["userTags"].apply(
+        lambda value: value if isinstance(value, list) else []
     )
 
-    passed_min_ratings = 0
-    passed_year_filter = 0
-    candidates = []
+    min_ratings_mask = candidates_df["ratingCount"] >= args.min_ratings
+    passed_min_ratings = int(min_ratings_mask.sum())
+    candidates_df = candidates_df[min_ratings_mask].copy()
 
-    for movie_id, movie in movies.items():
-        rating_stats = ratings_summary.get(movie_id)
-        if rating_stats is None:
-            continue
+    year_mask = candidates_df["year"].notna() & (candidates_df["year"] >= args.min_year)
+    if args.max_year is not None:
+        year_mask &= candidates_df["year"] <= args.max_year
+    passed_year_filter = int(year_mask.sum())
+    candidates_df = candidates_df[year_mask].copy()
 
-        if rating_stats["ratingCount"] < args.min_ratings:
-            continue
-        passed_min_ratings += 1
-
-        year = movie["year"]
-        if year is None or year < args.min_year:
-            continue
-        if args.max_year is not None and year > args.max_year:
-            continue
-        passed_year_filter += 1
-
-        links = links_by_movie_id.get(movie_id, {"tmdbId": None, "imdbId": None})
-        user_tags = tags_by_movie_id.get(movie_id, [])
-        data_reliability_score = _compute_data_reliability_score(
-            rating_count=rating_stats["ratingCount"],
-            average_rating=rating_stats["averageRating"],
-            max_rating_count=max_rating_count,
-            tmdb_id=links["tmdbId"],
-            imdb_id=links["imdbId"],
-        )
-        recency_score = _compute_recency_score(year)
-        tag_availability_signal = 1.0 if user_tags else 0.0
-        candidate_score = round(
-            0.55 * data_reliability_score
-            + 0.30 * recency_score
-            + 0.15 * tag_availability_signal,
-            4,
-        )
-
-        candidates.append(
-            {
-                "movieId": movie_id,
-                "title": movie["title"],
-                "cleanTitle": movie["cleanTitle"],
-                "year": year,
-                "genres": movie["genres"],
-                "ratingCount": rating_stats["ratingCount"],
-                "averageRating": rating_stats["averageRating"],
-                "tmdbId": links["tmdbId"],
-                "imdbId": links["imdbId"],
-                "userTags": user_tags,
-                "candidateScore": candidate_score,
-                "dataReliabilityScore": data_reliability_score,
-                "recencyScore": recency_score,
-            }
-        )
-
-    candidates.sort(
-        key=lambda item: (
-            -item["candidateScore"],
-            -item["recencyScore"],
-            -item["dataReliabilityScore"],
-            -item["ratingCount"],
-            -item["averageRating"],
-            item["cleanTitle"],
-        )
+    candidates_df["dataReliabilityScore"] = _compute_data_reliability_scores(
+        candidates_df,
+        max_rating_count=max_rating_count,
     )
-    candidates = candidates[: args.limit]
+    candidates_df["recencyScore"] = _compute_recency_scores(candidates_df["year"])
+    candidates_df["candidateScore"] = np.round(
+        0.55 * candidates_df["dataReliabilityScore"]
+        + 0.30 * candidates_df["recencyScore"]
+        + 0.15 * candidates_df["userTags"].apply(lambda tags: 1.0 if tags else 0.0),
+        4,
+    )
+
+    candidates_df = candidates_df.sort_values(
+        by=[
+            "candidateScore",
+            "recencyScore",
+            "dataReliabilityScore",
+            "ratingCount",
+            "averageRating",
+            "cleanTitle",
+        ],
+        ascending=[False, False, False, False, False, True],
+        kind="mergesort",
+    ).head(args.limit)
+
+    candidates = _serialize_candidates(candidates_df)
 
     ML_32M_CANDIDATES_PATH.parent.mkdir(parents=True, exist_ok=True)
     ML_32M_CANDIDATES_PATH.write_text(json.dumps(candidates, indent=2), encoding="utf-8")
 
-    print(f"Total movies read: {len(movies)}")
+    print(f"Total movies read: {total_movies_read}")
     print(f"Total movies with ratings: {len(movies_with_ratings)}")
     print(f"Movies passing min ratings: {passed_min_ratings}")
     print(f"Movies passing year filter: {passed_year_filter}")
@@ -147,112 +128,146 @@ def _ensure_required_files() -> None:
         )
 
 
-def _load_movies() -> dict[int, dict]:
-    movies: dict[int, dict] = {}
-    with ML_32M_MOVIES_CSV_PATH.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            movie_id = int(row["movieId"])
-            title = row["title"]
-            movies[movie_id] = {
-                "title": title,
-                "cleanTitle": _clean_title(title),
-                "year": _parse_year_from_title(title),
-                "genres": _parse_genres(row["genres"]),
-            }
-    return movies
-
-
-def _load_ratings_summary() -> tuple[dict[int, dict[str, int | float]], set[int]]:
-    ratings_summary: dict[int, dict[str, int | float]] = defaultdict(
-        lambda: {"ratingCount": 0, "ratingSum": 0.0}
+def _load_movies() -> pd.DataFrame:
+    movies_df = pd.read_csv(
+        ML_32M_MOVIES_CSV_PATH,
+        usecols=["movieId", "title", "genres"],
+        dtype={"movieId": "int64", "title": "string", "genres": "string"},
     )
-    movies_with_ratings: set[int] = set()
-    with ML_32M_RATINGS_CSV_PATH.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            movie_id = int(row["movieId"])
-            rating = float(row["rating"])
-            ratings_summary[movie_id]["ratingCount"] += 1
-            ratings_summary[movie_id]["ratingSum"] += rating
-            movies_with_ratings.add(movie_id)
-
-    finalized_summary: dict[int, dict[str, int | float]] = {}
-    for movie_id, stats in ratings_summary.items():
-        rating_count = int(stats["ratingCount"])
-        rating_sum = float(stats["ratingSum"])
-        finalized_summary[movie_id] = {
-            "ratingCount": rating_count,
-            "averageRating": round(rating_sum / rating_count, 3),
-        }
-    return finalized_summary, movies_with_ratings
+    movies_df["cleanTitle"] = movies_df["title"].apply(_clean_title)
+    movies_df["year"] = movies_df["title"].apply(_parse_year_from_title).astype("Int64")
+    movies_df["genres"] = movies_df["genres"].apply(_parse_genres)
+    return movies_df[["movieId", "title", "cleanTitle", "year", "genres"]]
 
 
-def _load_tags(*, max_tags_per_movie: int) -> dict[int, list[str]]:
-    tag_counters: dict[int, Counter[str]] = defaultdict(Counter)
-    with ML_32M_TAGS_CSV_PATH.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            movie_id = int(row["movieId"])
-            normalized_tag = _normalize_tag(row["tag"])
-            if normalized_tag:
-                tag_counters[movie_id][normalized_tag] += 1
-
-    tags_by_movie_id: dict[int, list[str]] = {}
-    for movie_id, counter in tag_counters.items():
-        ordered_tags = sorted(counter.items(), key=lambda item: (-item[1], item[0]))
-        tags_by_movie_id[movie_id] = [tag for tag, _count in ordered_tags[:max_tags_per_movie]]
-    return tags_by_movie_id
-
-
-def _load_links() -> dict[int, dict[str, int | str | None]]:
-    links_by_movie_id: dict[int, dict[str, int | str | None]] = {}
-    with ML_32M_LINKS_CSV_PATH.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            movie_id = int(row["movieId"])
-            links_by_movie_id[movie_id] = {
-                "tmdbId": int(row["tmdbId"]) if row["tmdbId"] else None,
-                "imdbId": row["imdbId"] or None,
-            }
-    return links_by_movie_id
+def _load_ratings_summary() -> tuple[pd.DataFrame, set[int]]:
+    ratings_df = pd.read_csv(
+        ML_32M_RATINGS_CSV_PATH,
+        usecols=["movieId", "rating"],
+        dtype={"movieId": "int64", "rating": "float64"},
+    )
+    movies_with_ratings = set(ratings_df["movieId"].unique().tolist())
+    summary_df = (
+        ratings_df.groupby("movieId", sort=False)["rating"]
+        .agg(ratingCount="size", averageRating="mean")
+        .reset_index()
+    )
+    summary_df["ratingCount"] = summary_df["ratingCount"].astype("int64")
+    summary_df["averageRating"] = summary_df["averageRating"].round(3)
+    return summary_df, movies_with_ratings
 
 
-def _compute_data_reliability_score(
+def _load_tags(*, max_tags_per_movie: int) -> pd.DataFrame:
+    tags_df = pd.read_csv(
+        ML_32M_TAGS_CSV_PATH,
+        usecols=["movieId", "tag"],
+        dtype={"movieId": "int64", "tag": "string"},
+    )
+    tags_df["tag"] = tags_df["tag"].fillna("").apply(_normalize_tag)
+    tags_df = tags_df[tags_df["tag"] != ""].copy()
+    if tags_df.empty:
+        return pd.DataFrame(columns=["movieId", "userTags"])
+
+    tag_counts_df = (
+        tags_df.groupby(["movieId", "tag"], sort=False)
+        .size()
+        .reset_index(name="tagCount")
+        .sort_values(
+            by=["movieId", "tagCount", "tag"],
+            ascending=[True, False, True],
+            kind="mergesort",
+        )
+    )
+    top_tags_df = tag_counts_df.groupby("movieId", sort=False).head(max_tags_per_movie)
+    user_tags_df = (
+        top_tags_df.groupby("movieId", sort=False)["tag"]
+        .agg(list)
+        .reset_index(name="userTags")
+    )
+    return user_tags_df
+
+
+def _load_links() -> pd.DataFrame:
+    links_df = pd.read_csv(
+        ML_32M_LINKS_CSV_PATH,
+        usecols=["movieId", "imdbId", "tmdbId"],
+        dtype={"movieId": "int64", "imdbId": "string", "tmdbId": "string"},
+    )
+    links_df["imdbId"] = links_df["imdbId"].replace({"": pd.NA})
+    links_df["tmdbId"] = pd.to_numeric(links_df["tmdbId"], errors="coerce").astype("Int64")
+    return links_df
+
+
+def _compute_data_reliability_scores(
+    candidates_df: pd.DataFrame,
     *,
-    rating_count: int,
-    average_rating: float,
     max_rating_count: int,
-    tmdb_id: int | None,
-    imdb_id: str | None,
-) -> float:
-    rating_count_signal = min(rating_count / max_rating_count, 1.0) if max_rating_count else 0.0
-    average_rating_signal = average_rating / 5
-    metadata_signal = 1.0 if tmdb_id is not None and imdb_id is not None else 0.5 if tmdb_id is not None or imdb_id is not None else 0.0
-    return round(
+) -> pd.Series:
+    rating_count_signal = np.minimum(
+        candidates_df["ratingCount"].to_numpy(dtype=float) / max_rating_count,
+        1.0,
+    ) if max_rating_count else np.zeros(len(candidates_df), dtype=float)
+    average_rating_signal = candidates_df["averageRating"].to_numpy(dtype=float) / 5.0
+    has_tmdb = candidates_df["tmdbId"].notna().to_numpy()
+    has_imdb = candidates_df["imdbId"].notna().to_numpy()
+    metadata_signal = np.select(
+        [has_tmdb & has_imdb, has_tmdb | has_imdb],
+        [1.0, 0.5],
+        default=0.0,
+    )
+    return pd.Series(
+        np.round(
         0.55 * rating_count_signal
         + 0.30 * average_rating_signal
         + 0.15 * metadata_signal,
         4,
+        ),
+        index=candidates_df.index,
     )
 
 
-def _compute_recency_score(year: int | None) -> float:
-    if year is None:
-        return 0.0
-    if year >= 2020:
-        return 1.0
-    if year >= 2015:
-        return 0.9
-    if year >= 2010:
-        return 0.8
-    if year >= 2000:
-        return 0.7
-    if year >= 1995:
-        return 0.55
-    if year >= 1990:
-        return 0.45
-    return 0.25
+def _compute_recency_scores(years: pd.Series) -> pd.Series:
+    year_values = years.astype("float64").to_numpy()
+    scores = np.select(
+        [
+            year_values >= 2020,
+            year_values >= 2015,
+            year_values >= 2010,
+            year_values >= 2000,
+            year_values >= 1995,
+            year_values >= 1990,
+        ],
+        [1.0, 0.9, 0.8, 0.7, 0.55, 0.45],
+        default=0.25,
+    )
+    scores[np.isnan(year_values)] = 0.0
+    return pd.Series(scores, index=years.index)
+
+
+def _serialize_candidates(candidates_df: pd.DataFrame) -> list[dict[str, object]]:
+    candidates: list[dict[str, object]] = []
+    for row in candidates_df.itertuples(index=False):
+        tmdb_id = None if pd.isna(row.tmdbId) else int(row.tmdbId)
+        imdb_id = None if pd.isna(row.imdbId) else str(row.imdbId)
+        year = None if pd.isna(row.year) else int(row.year)
+        candidates.append(
+            {
+                "movieId": int(row.movieId),
+                "title": str(row.title),
+                "cleanTitle": str(row.cleanTitle),
+                "year": year,
+                "genres": [str(genre) for genre in row.genres],
+                "ratingCount": int(row.ratingCount),
+                "averageRating": float(row.averageRating),
+                "tmdbId": tmdb_id,
+                "imdbId": imdb_id,
+                "userTags": [str(tag) for tag in row.userTags],
+                "candidateScore": float(row.candidateScore),
+                "dataReliabilityScore": float(row.dataReliabilityScore),
+                "recencyScore": float(row.recencyScore),
+            }
+        )
+    return candidates
 
 
 def _clean_title(title: str) -> str:
