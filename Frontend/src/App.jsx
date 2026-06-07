@@ -12,15 +12,18 @@ import StepShell from './shared/components/StepShell'
 const STEPS = [
   {
     id: 1,
-    title: 'Rate',
+    title: 'Rate movies',
+    description: 'Build your taste profile',
   },
   {
     id: 2,
-    title: 'Review',
+    title: 'Review profile',
+    description: 'Check your ratings',
   },
   {
     id: 3,
     title: 'Recommend',
+    description: 'Get your movie picks',
   },
 ]
 

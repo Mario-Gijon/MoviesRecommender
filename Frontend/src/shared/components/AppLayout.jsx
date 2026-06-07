@@ -3,8 +3,7 @@ function AppLayout({ activeStep, steps, onStepSelect, children }) {
     <div className="game-shell">
       <header className="game-header">
         <div className="game-brand">
-          <span className="game-brand-mark">UJA</span>
-          <span className="game-brand-title">Movie Recommender</span>
+          <img className="game-brand-logo" src="/sinbad2-logo-white.png" alt="SINBAD2" />
         </div>
 
         <nav className="game-steps" aria-label="Demo steps">
@@ -17,7 +16,10 @@ function AppLayout({ activeStep, steps, onStepSelect, children }) {
               aria-current={step.id === activeStep ? 'step' : undefined}
             >
               <span>{step.id}</span>
-              <strong>{step.title}</strong>
+              <div className="game-step-copy">
+                <strong>{step.title}</strong>
+                <small>{step.description}</small>
+              </div>
             </button>
           ))}
         </nav>

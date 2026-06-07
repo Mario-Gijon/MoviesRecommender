@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from app.infrastructure.datasets.movielens_paths import (
     OFFLINE_DATASET_AUDIT_DIR,
     OFFLINE_DATASET_AUDIT_INDEX_PATH,
     OFFLINE_DATASET_AUDIT_TABLES_DIR,
+    OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
     OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
     OFFLINE_DATASET_EXCLUDED_MOVIES_CSV_PATH,
     OFFLINE_DATASET_MANIFEST_PATH,
@@ -32,9 +34,37 @@ LOW_RATING_COUNT = 250
 LOW_TMDB_POPULARITY = 1.0
 OLD_PUBLIC_YEAR = 2000
 COMMON_PUBLIC_LANGUAGES = {"en", "es", "ja", "fr", "it", "de"}
+RATINGS_CHUNK_SIZE = 1_000_000
 
 SUMMARY_MD_PATH = OFFLINE_DATASET_AUDIT_DIR / "summary.md"
 SUMMARY_JSON_PATH = OFFLINE_DATASET_AUDIT_DIR / "summary.json"
+
+PARTITION_ORDER = ["public", "collaborative_support", "excluded"]
+PARTITION_LABELS = {
+    "public": "Catálogo público",
+    "collaborative_support": "Soporte colaborativo",
+    "excluded": "Excluidas",
+}
+PARTITION_COLORS = {
+    "Catálogo público": "#4da3ff",
+    "Soporte colaborativo": "#e3b341",
+    "Excluidas": "#ff6b6b",
+}
+DATASET_ROLE_LABELS = {
+    "public": "Catálogo público",
+    "collaborative_support": "Soporte colaborativo",
+    "excluded": "Excluidas",
+}
+USER_BUCKET_ORDER = ["1-4", "5-9", "10-24", "25-49", "50-99", "100-249", "250+"]
+RATING_VALUE_ORDER = [value / 2 for value in range(1, 11)]
+
+SINBAD_BLUE = "#4da3ff"
+SINBAD_GOLD = "#e3b341"
+SINBAD_CYAN = "#67d9ff"
+SINBAD_RED = "#ff6b6b"
+SINBAD_GREEN = "#6bd6a7"
+SINBAD_BG = "#08111f"
+SINBAD_PANEL = "#101a2f"
 
 DETAIL_COLUMNS = [
     "auditPartition",
@@ -87,24 +117,97 @@ NUMERIC_COLUMNS = [
     "dataReliabilityScore",
     "tmdbPopularity",
 ]
-PIPE_COLUMNS = [
-    "genres",
-    "publicBlockedTerms",
-    "publicExclusionReasons",
-    "exclusionReasons",
-]
-PARTITION_LABELS = {
-    "public": "Público",
-    "collaborative_support": "Soporte colaborativo",
-    "excluded": "Excluidas",
+
+EXPLANATIONS = {
+    "section_partitions": {
+        "what": "Resume cómo se reparte el dataset entre catálogo público, soporte colaborativo y películas excluidas.",
+        "how": "Si soporte colaborativo es mucho mayor que el catálogo público, eso es normal: sirve para perfilar usuarios aunque no sea visible.",
+    },
+    "partition_chart": {
+        "what": "Compara cuántas películas hay en catálogo público, soporte colaborativo y excluidas.",
+        "how": "El catálogo público es lo que el usuario ve. El soporte colaborativo puede ser mucho mayor porque incluye películas útiles para construir perfiles.",
+    },
+    "section_suitability": {
+        "what": "Compara la composición por suitabilityCategory entre particiones.",
+        "how": "Sirve para comprobar si el contenido sensible queda fuera del catálogo visible y si las particiones reflejan el objetivo del proyecto.",
+    },
+    "suitability_chart": {
+        "what": "Distribuye las películas según suitabilityCategory en cada partición.",
+        "how": "El catálogo público debería concentrarse en family_friendly y teen. adult_or_sensitive debería aparecer sobre todo en soporte colaborativo o excluidas.",
+    },
+    "section_public": {
+        "what": "Analiza idioma, época, género y señales de calidad visual del catálogo público.",
+        "how": "Ayuda a detectar sesgos de idioma, exceso de títulos antiguos o películas con baja señal para la experiencia del stand.",
+    },
+    "public_languages_chart": {
+        "what": "Muestra los idiomas originales más frecuentes dentro del catálogo público.",
+        "how": "Permite detectar si el catálogo público está demasiado sesgado hacia un idioma o si entran películas poco alineadas con el público objetivo.",
+    },
+    "public_decades_chart": {
+        "what": "Resume de qué décadas proceden las películas públicas.",
+        "how": "Una mezcla muy antigua puede indicar que la selección pública necesita reforzar recencia o relevancia cultural actual.",
+    },
+    "public_genres_chart": {
+        "what": "Muestra los géneros dominantes del catálogo público.",
+        "how": "Sirve para ver si la oferta visible está equilibrada o si depende demasiado de pocos géneros.",
+    },
+    "public_score_distribution_chart": {
+        "what": "Muestra cómo se distribuye la puntuación usada para ordenar visualmente el catálogo público.",
+        "how": "Una concentración alta en valores bajos puede indicar que el catálogo público contiene demasiadas películas poco atractivas para el stand.",
+    },
+    "public_scatter_chart": {
+        "what": "Relaciona popularidad/cobertura en MovieLens con la puntuación visual del stand.",
+        "how": "Las películas con muchos ratings y score alto son candidatas sólidas. Las de pocos ratings y score bajo suelen requerir revisión.",
+    },
+    "section_support": {
+        "what": "Explica por qué muchas películas son útiles colaborativamente pero no llegan al catálogo público.",
+        "how": "Las razones de bloqueo ayudan a ajustar heurísticas futuras sin romper el rol del soporte colaborativo.",
+    },
+    "support_blocked_terms_chart": {
+        "what": "Resume los blocked terms más frecuentes en soporte colaborativo.",
+        "how": "Si pocos términos concentran muchos casos, son una señal fuerte del tipo de contenido que se está filtrando del catálogo público.",
+    },
+    "section_excluded": {
+        "what": "Resume las causas de exclusión total del dataset visible y de soporte.",
+        "how": "Si predominan fallos técnicos o de enriquecimiento, hay margen de mejora de pipeline sin tocar heurísticas de recomendación.",
+    },
+    "excluded_reasons_chart": {
+        "what": "Cuenta las razones de exclusión más frecuentes.",
+        "how": "Sirve para distinguir exclusiones por política de contenido frente a exclusiones por falta de datos o errores de enriquecimiento.",
+    },
+    "section_collaborative": {
+        "what": "Analiza la señal colaborativa sin volcar millones de ratings en el HTML.",
+        "how": "Estas métricas indican fuerza de perfiles, sesgo de ratings y densidad de la matriz usuario-película.",
+    },
+    "collaborative_rating_distribution_chart": {
+        "what": "Muestra cómo se reparten los valores de rating entre 0.5 y 5.0.",
+        "how": "Permite ver si los usuarios tienden a puntuar demasiado alto, demasiado bajo o de forma concentrada.",
+    },
+    "collaborative_user_buckets_chart": {
+        "what": "Agrupa usuarios por número de ratings emitidos.",
+        "how": "Sirve para medir fortaleza de perfiles: más usuarios en tramos altos implica mejor señal colaborativa para recomendar.",
+    },
+    "collaborative_year_chart": {
+        "what": "Cuenta ratings por año usando el timestamp del dataset colaborativo.",
+        "how": "Ayuda a detectar concentración temporal de actividad y a ver si la señal proviene de pocas oleadas históricas.",
+    },
+    "collaborative_top_movies_chart": {
+        "what": "Muestra qué películas concentran más filtered ratings en el dataset offline.",
+        "how": "Una cola demasiado concentrada puede indicar que unas pocas películas dominan la señal colaborativa disponible.",
+    },
+    "section_tables": {
+        "what": "Muestra solo tablas pequeñas y accionables.",
+        "how": "Las tablas completas siguen disponibles en CSV dentro de audit/tables y audit/detailed para inspección más profunda.",
+    },
+    "section_static": {
+        "what": "Expone las versiones PNG de los gráficos para README y documentación.",
+        "how": "Esto permite reutilizar el análisis sin depender del dashboard interactivo.",
+    },
+    "section_conclusions": {
+        "what": "Resume hallazgos automáticos derivados de los datos.",
+        "how": "No son reglas de producto; son señales rápidas para orientar revisión de pipeline y heurísticas futuras.",
+    },
 }
-SINBAD_BLUE = "#4da3ff"
-SINBAD_GOLD = "#e3b341"
-SINBAD_CYAN = "#67d9ff"
-SINBAD_RED = "#ff6b6b"
-SINBAD_SLATE = "#8fa3bf"
-SINBAD_BG = "#08111f"
-SINBAD_PANEL = "#101a2f"
 
 
 def main() -> None:
@@ -127,24 +230,28 @@ def main() -> None:
         ratings_summary_df=ratings_summary_df,
     )
     suspicious_public_df = _build_suspicious_public_df(combined_df)
+    collaborative_signals = _analyze_collaborative_ratings(combined_df)
 
     _write_detailed_outputs(combined_df, suspicious_public_df)
 
     tables = _build_summary_tables(
         combined_df=combined_df,
         suspicious_public_df=suspicious_public_df,
+        collaborative_signals=collaborative_signals,
     )
     _write_summary_tables(tables)
 
     chart_paths = _generate_static_charts(
         combined_df=combined_df,
         tables=tables,
+        collaborative_signals=collaborative_signals,
     )
     conclusions = _build_conclusions(
         manifest=manifest,
         combined_df=combined_df,
         tables=tables,
         suspicious_public_df=suspicious_public_df,
+        collaborative_signals=collaborative_signals,
     )
 
     dashboard_html = _build_dashboard_html(
@@ -154,6 +261,7 @@ def main() -> None:
         tables=tables,
         chart_paths=chart_paths,
         conclusions=conclusions,
+        collaborative_signals=collaborative_signals,
     )
     OFFLINE_DATASET_AUDIT_DASHBOARD_PATH.write_text(dashboard_html, encoding="utf-8")
     OFFLINE_DATASET_AUDIT_INDEX_PATH.write_text(dashboard_html, encoding="utf-8")
@@ -165,6 +273,7 @@ def main() -> None:
         tables=tables,
         chart_paths=chart_paths,
         conclusions=conclusions,
+        collaborative_signals=collaborative_signals,
     )
     SUMMARY_MD_PATH.write_text(summary_markdown, encoding="utf-8")
 
@@ -173,11 +282,20 @@ def main() -> None:
         combined_df=combined_df,
         suspicious_public_df=suspicious_public_df,
         tables=tables,
+        collaborative_signals=collaborative_signals,
     )
     SUMMARY_JSON_PATH.write_text(
         json.dumps(summary_json, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+    print(f"Audit dashboard written: {OFFLINE_DATASET_AUDIT_DASHBOARD_PATH}")
+    print(f"Audit index written: {OFFLINE_DATASET_AUDIT_INDEX_PATH}")
+    print(f"Summary written: {SUMMARY_MD_PATH}")
+    print(f"Tables written: {OFFLINE_DATASET_AUDIT_TABLES_DIR}")
+    print(f"Detailed files written: {OFFLINE_DATASET_AUDIT_DETAILED_DIR}")
+    print(f"Charts written: {OFFLINE_DATASET_AUDIT_CHARTS_DIR}")
+    print("Backend route: /offline/audit/")
 
 
 def _ensure_required_inputs() -> None:
@@ -187,6 +305,7 @@ def _ensure_required_inputs() -> None:
         OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
         OFFLINE_DATASET_EXCLUDED_MOVIES_CSV_PATH,
         OFFLINE_DATASET_MOVIE_RATINGS_SUMMARY_CSV_PATH,
+        OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
     ]
     missing_paths = [path for path in required_paths if not path.exists()]
     if missing_paths:
@@ -253,10 +372,7 @@ def _build_combined_dataframe(
         if column not in combined_df.columns:
             combined_df[column] = pd.NA
 
-    combined_df["title"] = _coalesce_text(
-        combined_df.get("title"),
-        combined_df.get("summaryTitle"),
-    )
+    combined_df["title"] = _coalesce_text(combined_df.get("title"), combined_df.get("summaryTitle"))
     combined_df["displayTitle"] = _coalesce_text(
         combined_df.get("displayTitle"),
         combined_df.get("summaryDisplayTitle"),
@@ -292,6 +408,7 @@ def _build_combined_dataframe(
         combined_df["displayLabel"] != "",
         "(sin título)",
     )
+    combined_df["partitionLabel"] = combined_df["auditPartition"].map(PARTITION_LABELS)
     combined_df["decade"] = combined_df["year"].apply(_year_to_decade_label)
     combined_df["auditFlags"] = ""
 
@@ -326,6 +443,203 @@ def _build_suspicious_public_df(combined_df: pd.DataFrame) -> pd.DataFrame:
     return suspicious_df
 
 
+def _analyze_collaborative_ratings(combined_df: pd.DataFrame) -> dict[str, Any]:
+    total_ratings = 0
+    unique_movie_ids: set[int] = set()
+    user_counts: dict[int, int] = defaultdict(int)
+    rating_value_counts: dict[float, int] = defaultdict(int)
+    ratings_by_year: dict[int, int] = defaultdict(int)
+
+    for chunk_df in pd.read_csv(
+        OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
+        usecols=["userId", "movieId", "rating", "timestamp"],
+        dtype={
+            "userId": "int64",
+            "movieId": "int64",
+            "rating": "float64",
+            "timestamp": "int64",
+        },
+        chunksize=RATINGS_CHUNK_SIZE,
+    ):
+        total_ratings += int(len(chunk_df))
+        unique_movie_ids.update(int(movie_id) for movie_id in chunk_df["movieId"].unique().tolist())
+
+        user_chunk = chunk_df.groupby("userId", sort=False).size()
+        for user_id, count in user_chunk.items():
+            user_counts[int(user_id)] += int(count)
+
+        rating_chunk = chunk_df["rating"].value_counts(sort=False)
+        for rating_value, count in rating_chunk.items():
+            rating_value_counts[float(rating_value)] += int(count)
+
+        years = pd.to_datetime(chunk_df["timestamp"], unit="s", utc=True, errors="coerce").dt.year
+        year_chunk = years.dropna().astype(int).value_counts(sort=False)
+        for year, count in year_chunk.items():
+            ratings_by_year[int(year)] += int(count)
+
+    user_counts_series = pd.Series(user_counts, dtype="int64")
+    movie_counts_series = combined_df["filteredRatingCount"].dropna()
+    movie_counts_series = movie_counts_series[movie_counts_series > 0]
+
+    unique_users = int(len(user_counts_series))
+    unique_rated_movies = int(len(unique_movie_ids))
+    matrix_density = (
+        total_ratings / (unique_users * unique_rated_movies)
+        if unique_users > 0 and unique_rated_movies > 0
+        else 0.0
+    )
+
+    rating_distribution_df = _build_rating_distribution_table(rating_value_counts, total_ratings)
+    ratings_by_year_df = _build_ratings_by_year_table(ratings_by_year, total_ratings)
+    user_buckets_df = _build_user_buckets_table(user_counts_series)
+    top_users_df = _build_top_users_table(user_counts_series)
+    top_movies_df = _build_top_movies_by_filtered_ratings_table(combined_df)
+    collaborative_summary_df = _build_collaborative_summary_table(
+        total_ratings=total_ratings,
+        unique_users=unique_users,
+        unique_rated_movies=unique_rated_movies,
+        matrix_density=matrix_density,
+        average_ratings_per_user=float(user_counts_series.mean()) if not user_counts_series.empty else 0.0,
+        median_ratings_per_user=float(user_counts_series.median()) if not user_counts_series.empty else 0.0,
+        max_ratings_per_user=int(user_counts_series.max()) if not user_counts_series.empty else 0,
+        average_ratings_per_movie=float(movie_counts_series.mean()) if not movie_counts_series.empty else 0.0,
+        median_ratings_per_movie=float(movie_counts_series.median()) if not movie_counts_series.empty else 0.0,
+    )
+
+    summary_records = collaborative_summary_df.set_index("metric")["value"].to_dict()
+
+    return {
+        "totalRatings": int(total_ratings),
+        "uniqueUsers": unique_users,
+        "uniqueRatedMovies": unique_rated_movies,
+        "matrixDensity": round(matrix_density, 8),
+        "averageRatingsPerUser": round(float(summary_records["averageRatingsPerUser"]), 4),
+        "medianRatingsPerUser": round(float(summary_records["medianRatingsPerUser"]), 4),
+        "maxRatingsPerUser": int(summary_records["maxRatingsPerUser"]),
+        "averageRatingsPerMovie": round(float(summary_records["averageRatingsPerMovie"]), 4),
+        "medianRatingsPerMovie": round(float(summary_records["medianRatingsPerMovie"]), 4),
+        "tables": {
+            "collaborative_summary": collaborative_summary_df,
+            "rating_distribution": rating_distribution_df,
+            "ratings_by_year": ratings_by_year_df,
+            "ratings_per_user_buckets": user_buckets_df,
+            "top_movies_by_filtered_ratings": top_movies_df,
+            "top_users_by_rating_count": top_users_df,
+        },
+    }
+
+
+def _build_rating_distribution_table(
+    rating_value_counts: dict[float, int],
+    total_ratings: int,
+) -> pd.DataFrame:
+    rows = []
+    for rating_value in RATING_VALUE_ORDER:
+        count = int(rating_value_counts.get(rating_value, 0))
+        share = round((count / total_ratings) * 100, 4) if total_ratings else 0.0
+        rows.append(
+            {
+                "ratingValue": float(rating_value),
+                "ratingLabel": f"{rating_value:.1f}",
+                "ratingCount": count,
+                "sharePercent": share,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_ratings_by_year_table(
+    ratings_by_year: dict[int, int],
+    total_ratings: int,
+) -> pd.DataFrame:
+    rows = []
+    for year in sorted(ratings_by_year):
+        count = int(ratings_by_year[year])
+        share = round((count / total_ratings) * 100, 4) if total_ratings else 0.0
+        rows.append({"year": int(year), "ratingCount": count, "sharePercent": share})
+    return pd.DataFrame(rows)
+
+
+def _build_user_buckets_table(user_counts_series: pd.Series) -> pd.DataFrame:
+    bucket_counts: dict[str, int] = {bucket: 0 for bucket in USER_BUCKET_ORDER}
+    for count in user_counts_series.tolist():
+        bucket_counts[_bucket_user_count(int(count))] += 1
+
+    total_users = int(len(user_counts_series))
+    rows = []
+    for bucket in USER_BUCKET_ORDER:
+        user_count = int(bucket_counts[bucket])
+        share = round((user_count / total_users) * 100, 4) if total_users else 0.0
+        rows.append(
+            {
+                "bucket": bucket,
+                "userCount": user_count,
+                "sharePercent": share,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _build_top_users_table(user_counts_series: pd.Series) -> pd.DataFrame:
+    if user_counts_series.empty:
+        return pd.DataFrame(columns=["userId", "ratingCount"])
+    top_users = user_counts_series.sort_values(ascending=False).head(100)
+    return pd.DataFrame(
+        {
+            "userId": [int(user_id) for user_id in top_users.index.tolist()],
+            "ratingCount": [int(value) for value in top_users.tolist()],
+        }
+    )
+
+
+def _build_top_movies_by_filtered_ratings_table(combined_df: pd.DataFrame) -> pd.DataFrame:
+    movie_df = combined_df[combined_df["filteredRatingCount"].fillna(0) > 0].copy()
+    movie_df["datasetRoleLabel"] = movie_df["auditPartition"].map(DATASET_ROLE_LABELS)
+    movie_df = movie_df.sort_values(
+        by=["filteredRatingCount", "filteredAverageRating", "displayLabel"],
+        ascending=[False, False, True],
+        na_position="last",
+        kind="mergesort",
+    )
+    return movie_df[
+        [
+            "movieId",
+            "displayLabel",
+            "datasetRoleLabel",
+            "filteredRatingCount",
+            "filteredAverageRating",
+            "ratingCount",
+            "averageRating",
+        ]
+    ].head(100)
+
+
+def _build_collaborative_summary_table(
+    *,
+    total_ratings: int,
+    unique_users: int,
+    unique_rated_movies: int,
+    matrix_density: float,
+    average_ratings_per_user: float,
+    median_ratings_per_user: float,
+    max_ratings_per_user: int,
+    average_ratings_per_movie: float,
+    median_ratings_per_movie: float,
+) -> pd.DataFrame:
+    rows = [
+        ("totalRatings", total_ratings),
+        ("uniqueUsers", unique_users),
+        ("uniqueRatedMovies", unique_rated_movies),
+        ("matrixDensity", round(matrix_density, 8)),
+        ("averageRatingsPerUser", round(average_ratings_per_user, 4)),
+        ("medianRatingsPerUser", round(median_ratings_per_user, 4)),
+        ("maxRatingsPerUser", max_ratings_per_user),
+        ("averageRatingsPerMovie", round(average_ratings_per_movie, 4)),
+        ("medianRatingsPerMovie", round(median_ratings_per_movie, 4)),
+    ]
+    return pd.DataFrame(rows, columns=["metric", "value"])
+
+
 def _write_detailed_outputs(
     combined_df: pd.DataFrame,
     suspicious_public_df: pd.DataFrame,
@@ -358,6 +672,7 @@ def _build_summary_tables(
     *,
     combined_df: pd.DataFrame,
     suspicious_public_df: pd.DataFrame,
+    collaborative_signals: dict[str, Any],
 ) -> dict[str, pd.DataFrame]:
     public_df = combined_df[combined_df["auditPartition"] == "public"].copy()
     support_df = combined_df[combined_df["auditPartition"] == "collaborative_support"].copy()
@@ -366,7 +681,7 @@ def _build_summary_tables(
     comparison_by_partition = (
         combined_df.groupby("auditPartition", dropna=False)
         .agg(
-            movieCount=("movieId", "size"),
+            movieCount=("movieId", "nunique"),
             moviesWithRatings=("ratingCount", lambda series: int(series.fillna(0).gt(0).sum())),
             moviesWithFilteredRatings=(
                 "filteredRatingCount",
@@ -439,51 +754,57 @@ def _build_summary_tables(
         "public_top_movies": public_top_movies[
             [
                 "movieId",
-                "displayTitle",
+                "displayLabel",
                 "year",
+                "originalLanguage",
+                "genres",
                 "standDisplayScore",
                 "ratingCount",
-                "filteredRatingCount",
-                "tmdbPopularity",
                 "suitabilityCategory",
             ]
-        ],
+        ].rename(columns={"displayLabel": "displayTitle"}),
         "public_low_score_movies": public_low_score_movies[
             [
                 "movieId",
-                "displayTitle",
+                "displayLabel",
                 "year",
+                "originalLanguage",
+                "genres",
                 "standDisplayScore",
                 "ratingCount",
-                "filteredRatingCount",
-                "tmdbPopularity",
                 "suitabilityCategory",
             ]
-        ],
+        ].rename(columns={"displayLabel": "displayTitle"}),
         "suspicious_public_movies_sample": suspicious_public_movies_sample[
             [
                 "movieId",
-                "displayTitle",
+                "displayLabel",
                 "year",
+                "originalLanguage",
+                "genres",
                 "standDisplayScore",
                 "ratingCount",
-                "tmdbPopularity",
-                "auditFlagCount",
                 "auditFlags",
-                "publicBlockedTerms",
-                "publicExclusionReasons",
             ]
-        ],
+        ].rename(columns={"displayLabel": "displayTitle"}),
         "support_examples": support_df[
             [
                 "movieId",
-                "displayTitle",
+                "displayLabel",
                 "year",
                 "publicBlockedTerms",
                 "publicExclusionReasons",
                 "suitabilityReasons",
             ]
-        ].copy(),
+        ].head(100).rename(columns={"displayLabel": "displayTitle"}),
+        "collaborative_summary": collaborative_signals["tables"]["collaborative_summary"],
+        "rating_distribution": collaborative_signals["tables"]["rating_distribution"],
+        "ratings_by_year": collaborative_signals["tables"]["ratings_by_year"],
+        "ratings_per_user_buckets": collaborative_signals["tables"]["ratings_per_user_buckets"],
+        "top_movies_by_filtered_ratings": collaborative_signals["tables"][
+            "top_movies_by_filtered_ratings"
+        ],
+        "top_users_by_rating_count": collaborative_signals["tables"]["top_users_by_rating_count"],
     }
 
 
@@ -498,7 +819,10 @@ def _generate_static_charts(
     *,
     combined_df: pd.DataFrame,
     tables: dict[str, pd.DataFrame],
+    collaborative_signals: dict[str, Any],
 ) -> dict[str, str]:
+    del collaborative_signals
+
     sns.set_theme(
         style="darkgrid",
         rc={
@@ -522,18 +846,26 @@ def _generate_static_charts(
         "support_blocked_terms": "charts/support_blocked_terms.png",
         "stand_display_score_distribution": "charts/stand_display_score_distribution.png",
         "rating_count_vs_stand_score": "charts/rating_count_vs_stand_score.png",
+        "rating_distribution": "charts/rating_distribution.png",
+        "ratings_per_user_buckets": "charts/ratings_per_user_buckets.png",
+        "ratings_by_year": "charts/ratings_by_year.png",
+        "top_movies_by_filtered_ratings": "charts/top_movies_by_filtered_ratings.png",
     }
 
-    comparison_df = tables["comparison_by_partition"].copy()
+    comparison_df = _with_partition_labels(tables["comparison_by_partition"])
     if comparison_df.empty:
         _save_empty_chart("Conteo por partición", OFFLINE_DATASET_AUDIT_CHARTS_DIR / "partition_counts.png")
     else:
-        plt.figure(figsize=(9, 5))
+        plt.figure(figsize=(10, 5.5))
         ax = sns.barplot(
             data=comparison_df,
-            x="auditPartition",
+            x="partitionLabel",
             y="movieCount",
-            palette=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_RED],
+            hue="partitionLabel",
+            order=list(PARTITION_COLORS.keys()),
+            hue_order=list(PARTITION_COLORS.keys()),
+            palette=PARTITION_COLORS,
+            legend=False,
         )
         _style_axes(
             ax,
@@ -541,27 +873,26 @@ def _generate_static_charts(
             xlabel="Partición",
             ylabel="Películas",
         )
-        ax.set_xticklabels([PARTITION_LABELS.get(label.get_text(), label.get_text()) for label in ax.get_xticklabels()])
         _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "partition_counts.png")
 
-    suitability_df = tables["suitability_by_partition"].copy()
+    suitability_df = _with_partition_labels(tables["suitability_by_partition"])
     if suitability_df.empty:
         _save_empty_chart(
             "Suitability por partición",
             OFFLINE_DATASET_AUDIT_CHARTS_DIR / "suitability_by_partition.png",
         )
     else:
-        plt.figure(figsize=(11, 6))
         pivot_df = suitability_df.pivot(
             index="suitabilityCategory",
-            columns="auditPartition",
+            columns="partitionLabel",
             values="movieCount",
         ).fillna(0)
-        pivot_df = pivot_df.sort_values(by=list(pivot_df.columns), ascending=False)
+        ordered_columns = [label for label in PARTITION_COLORS if label in pivot_df.columns]
+        pivot_df = pivot_df[ordered_columns]
         ax = pivot_df.plot(
             kind="bar",
-            color=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_RED],
-            figsize=(11, 6),
+            color=[PARTITION_COLORS[label] for label in ordered_columns],
+            figsize=(12, 6),
         )
         _style_axes(
             ax,
@@ -570,6 +901,7 @@ def _generate_static_charts(
             ylabel="Películas",
         )
         ax.legend(title="Partición")
+        plt.xticks(rotation=35, ha="right")
         _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "suitability_by_partition.png")
 
     public_languages_df = tables["language_by_partition"].copy()
@@ -630,7 +962,7 @@ def _generate_static_charts(
             OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_genres.png",
         )
     else:
-        plt.figure(figsize=(11, 6))
+        plt.figure(figsize=(12, 6))
         ax = sns.barplot(
             data=public_genres_df,
             x="movieCount",
@@ -655,7 +987,7 @@ def _generate_static_charts(
             OFFLINE_DATASET_AUDIT_CHARTS_DIR / "support_blocked_terms.png",
         )
     else:
-        plt.figure(figsize=(11, 6))
+        plt.figure(figsize=(12, 6))
         ax = sns.barplot(
             data=support_blocked_terms_df,
             x="movieCount",
@@ -677,10 +1009,10 @@ def _generate_static_charts(
             OFFLINE_DATASET_AUDIT_CHARTS_DIR / "stand_display_score_distribution.png",
         )
     else:
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(12, 5.5))
         ax = sns.histplot(
             public_df["standDisplayScore"].dropna(),
-            bins=20,
+            bins=22,
             color=SINBAD_BLUE,
             edgecolor="#dbe6f8",
         )
@@ -697,11 +1029,11 @@ def _generate_static_charts(
     scatter_df = public_df.dropna(subset=["ratingCount", "standDisplayScore"]).copy()
     if scatter_df.empty:
         _save_empty_chart(
-            "RatingCount vs standDisplayScore",
+            "ratingCount vs standDisplayScore",
             OFFLINE_DATASET_AUDIT_CHARTS_DIR / "rating_count_vs_stand_score.png",
         )
     else:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(13.5, 6.5))
         ax = sns.scatterplot(
             data=scatter_df,
             x="ratingCount",
@@ -709,7 +1041,7 @@ def _generate_static_charts(
             hue="suitabilityCategory",
             palette="crest",
             alpha=0.75,
-            s=55,
+            s=58,
         )
         ax.set_xscale("log")
         _style_axes(
@@ -721,6 +1053,96 @@ def _generate_static_charts(
         ax.legend(title="Suitability", loc="best", fontsize=8)
         _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "rating_count_vs_stand_score.png")
 
+    rating_distribution_df = tables["rating_distribution"].copy()
+    if rating_distribution_df.empty:
+        _save_empty_chart(
+            "Distribución de ratings",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "rating_distribution.png",
+        )
+    else:
+        plt.figure(figsize=(11, 5))
+        ax = sns.barplot(
+            data=rating_distribution_df,
+            x="ratingLabel",
+            y="ratingCount",
+            color=SINBAD_GREEN,
+        )
+        _style_axes(
+            ax,
+            title="Distribución de valores de rating",
+            xlabel="Valor de rating",
+            ylabel="Ratings",
+        )
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "rating_distribution.png")
+
+    user_buckets_df = tables["ratings_per_user_buckets"].copy()
+    if user_buckets_df.empty:
+        _save_empty_chart(
+            "Ratings por usuario",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "ratings_per_user_buckets.png",
+        )
+    else:
+        plt.figure(figsize=(11, 5))
+        ax = sns.barplot(
+            data=user_buckets_df,
+            x="bucket",
+            y="userCount",
+            color=SINBAD_GOLD,
+            order=USER_BUCKET_ORDER,
+        )
+        _style_axes(
+            ax,
+            title="Usuarios agrupados por número de ratings",
+            xlabel="Bucket de ratings por usuario",
+            ylabel="Usuarios",
+        )
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "ratings_per_user_buckets.png")
+
+    ratings_by_year_df = tables["ratings_by_year"].copy()
+    if ratings_by_year_df.empty:
+        _save_empty_chart(
+            "Ratings por año",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "ratings_by_year.png",
+        )
+    else:
+        plt.figure(figsize=(12, 5))
+        ax = sns.lineplot(
+            data=ratings_by_year_df,
+            x="year",
+            y="ratingCount",
+            marker="o",
+            color=SINBAD_BLUE,
+        )
+        _style_axes(
+            ax,
+            title="Ratings colaborativos por año",
+            xlabel="Año",
+            ylabel="Ratings",
+        )
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "ratings_by_year.png")
+
+    top_movies_df = tables["top_movies_by_filtered_ratings"].copy().head(15)
+    if top_movies_df.empty:
+        _save_empty_chart(
+            "Top películas por filtered ratings",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "top_movies_by_filtered_ratings.png",
+        )
+    else:
+        plt.figure(figsize=(13, 6.5))
+        ax = sns.barplot(
+            data=top_movies_df,
+            x="filteredRatingCount",
+            y="displayLabel",
+            color=SINBAD_CYAN,
+        )
+        _style_axes(
+            ax,
+            title="Top películas por filteredRatingCount",
+            xlabel="filteredRatingCount",
+            ylabel="Película",
+        )
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "top_movies_by_filtered_ratings.png")
+
     return chart_paths
 
 
@@ -730,28 +1152,39 @@ def _build_conclusions(
     combined_df: pd.DataFrame,
     tables: dict[str, pd.DataFrame],
     suspicious_public_df: pd.DataFrame,
+    collaborative_signals: dict[str, Any],
 ) -> list[str]:
     counts = combined_df["auditPartition"].value_counts()
+
     public_languages = tables["language_by_partition"]
     public_languages = public_languages[public_languages["auditPartition"] == "public"]
-    top_language = public_languages.iloc[0]["originalLanguage"] if not public_languages.empty else "unknown"
+    top_language = (
+        str(public_languages.iloc[0]["originalLanguage"])
+        if not public_languages.empty
+        else "unknown"
+    )
 
     public_decades = tables["decade_by_partition"]
     public_decades = public_decades[public_decades["auditPartition"] == "public"]
-    top_decade = public_decades.iloc[0]["decade"] if not public_decades.empty else "unknown"
+    top_decade = str(public_decades.iloc[0]["decade"]) if not public_decades.empty else "unknown"
 
     blocked_terms = tables["blocked_terms_by_partition"]
     blocked_terms = blocked_terms[blocked_terms["auditPartition"] == "collaborative_support"]
-    top_blocked_term = blocked_terms.iloc[0]["blockedTerm"] if not blocked_terms.empty else "sin señal dominante"
+    top_blocked_term = (
+        str(blocked_terms.iloc[0]["blockedTerm"])
+        if not blocked_terms.empty
+        else "sin señal dominante"
+    )
 
     excluded_reasons = tables["excluded_reasons"]
     top_excluded_reason = (
-        excluded_reasons.iloc[0]["exclusionReason"]
+        str(excluded_reasons.iloc[0]["exclusionReason"])
         if not excluded_reasons.empty
         else "sin razón dominante"
     )
 
-    collaborative_ratings = manifest.get("counts", {}).get("collaborativeRatings", 0)
+    collaborative_ratings_manifest = int(manifest.get("counts", {}).get("collaborativeRatings", 0))
+    density_percent = round(collaborative_signals["matrixDensity"] * 100, 4)
 
     return [
         (
@@ -761,8 +1194,13 @@ def _build_conclusions(
             f"{int(counts.get('excluded', 0))} excluidas."
         ),
         (
-            "El dataset offline conserva un volumen colaborativo alto con "
-            f"{_format_int(collaborative_ratings)} ratings filtrados según el manifest."
+            "El dataset offline conserva una señal colaborativa grande: "
+            f"{_format_int(collaborative_signals['totalRatings'])} ratings procesados "
+            f"frente a {_format_int(collaborative_ratings_manifest)} declarados en el manifest."
+        ),
+        (
+            "La matriz usuario-película sigue siendo muy dispersa "
+            f"({density_percent}% de densidad), lo que es esperable en recomendación colaborativa."
         ),
         (
             "En el catálogo público domina el idioma "
@@ -780,6 +1218,11 @@ def _build_conclusions(
             "Entre las películas excluidas predomina la razón "
             f"{top_excluded_reason}, lo que sugiere revisar primero fallos técnicos y de enriquecimiento."
         ),
+        (
+            "Los perfiles colaborativos tienen una media de "
+            f"{round(collaborative_signals['averageRatingsPerUser'], 2)} ratings por usuario y una mediana de "
+            f"{round(collaborative_signals['medianRatingsPerUser'], 2)}."
+        ),
     ]
 
 
@@ -791,66 +1234,69 @@ def _build_dashboard_html(
     tables: dict[str, pd.DataFrame],
     chart_paths: dict[str, str],
     conclusions: list[str],
+    collaborative_signals: dict[str, Any],
 ) -> str:
     public_df = combined_df[combined_df["auditPartition"] == "public"].copy()
+    comparison_df = _with_partition_labels(tables["comparison_by_partition"])
+    suitability_df = _with_partition_labels(tables["suitability_by_partition"])
+    support_examples = tables["support_examples"].copy()
+    support_examples = support_examples[
+        (support_examples["publicBlockedTerms"].fillna("") != "")
+        | (support_examples["publicExclusionReasons"].fillna("") != "")
+    ].head(12)
+
     counts = combined_df["auditPartition"].value_counts()
-    collaborative_ratings = int(manifest.get("counts", {}).get("collaborativeRatings", 0))
+    collaborative_ratings_manifest = int(manifest.get("counts", {}).get("collaborativeRatings", 0))
 
     partition_fig = px.bar(
-        tables["comparison_by_partition"],
-        x="auditPartition",
+        comparison_df,
+        x="partitionLabel",
         y="movieCount",
-        color="auditPartition",
-        color_discrete_map={
-            "public": SINBAD_BLUE,
-            "collaborative_support": SINBAD_GOLD,
-            "excluded": SINBAD_RED,
-        },
+        color="partitionLabel",
+        category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
+        color_discrete_map=PARTITION_COLORS,
         title="Películas analizadas por partición",
     )
     _style_plotly_figure(partition_fig)
 
     suitability_fig = px.bar(
-        tables["suitability_by_partition"],
+        suitability_df,
         x="suitabilityCategory",
         y="movieCount",
-        color="auditPartition",
+        color="partitionLabel",
         barmode="group",
-        color_discrete_map={
-            "public": SINBAD_BLUE,
-            "collaborative_support": SINBAD_GOLD,
-            "excluded": SINBAD_RED,
-        },
+        category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
+        color_discrete_map=PARTITION_COLORS,
         title="suitabilityCategory por partición",
     )
     _style_plotly_figure(suitability_fig)
 
-    language_fig = px.bar(
+    public_languages_fig = px.bar(
         tables["language_by_partition"].query("auditPartition == 'public'").head(10),
         x="originalLanguage",
         y="movieCount",
         color_discrete_sequence=[SINBAD_BLUE],
         title="Idiomas principales del catálogo público",
     )
-    _style_plotly_figure(language_fig)
+    _style_plotly_figure(public_languages_fig)
 
-    decade_fig = px.bar(
+    public_decades_fig = px.bar(
         tables["decade_by_partition"].query("auditPartition == 'public'"),
         x="decade",
         y="movieCount",
         color_discrete_sequence=[SINBAD_GOLD],
         title="Décadas dominantes del catálogo público",
     )
-    _style_plotly_figure(decade_fig)
+    _style_plotly_figure(public_decades_fig)
 
-    genre_fig = px.bar(
+    public_genres_fig = px.bar(
         tables["genre_by_partition"].query("auditPartition == 'public'").head(12),
         x="genre",
         y="movieCount",
         color_discrete_sequence=[SINBAD_CYAN],
         title="Géneros principales del catálogo público",
     )
-    _style_plotly_figure(genre_fig)
+    _style_plotly_figure(public_genres_fig)
 
     score_dist_fig = px.histogram(
         public_df.dropna(subset=["standDisplayScore"]),
@@ -866,14 +1312,14 @@ def _build_dashboard_html(
         x="ratingCount",
         y="standDisplayScore",
         color="suitabilityCategory",
-        hover_data=["displayTitle", "year", "tmdbPopularity"],
+        hover_data=["displayLabel", "year", "tmdbPopularity"],
         log_x=True,
         title="ratingCount vs standDisplayScore",
         color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_CYAN, SINBAD_RED],
     )
     _style_plotly_figure(scatter_fig)
 
-    blocked_terms_fig = px.bar(
+    support_blocked_terms_fig = px.bar(
         tables["blocked_terms_by_partition"]
         .query("auditPartition == 'collaborative_support'")
         .head(12),
@@ -882,7 +1328,7 @@ def _build_dashboard_html(
         color_discrete_sequence=[SINBAD_RED],
         title="Blocked terms del soporte colaborativo",
     )
-    _style_plotly_figure(blocked_terms_fig)
+    _style_plotly_figure(support_blocked_terms_fig)
 
     excluded_reasons_fig = px.bar(
         tables["excluded_reasons"].head(12),
@@ -893,25 +1339,65 @@ def _build_dashboard_html(
     )
     _style_plotly_figure(excluded_reasons_fig)
 
-    plotly_sections = [
+    rating_distribution_fig = px.bar(
+        tables["rating_distribution"],
+        x="ratingLabel",
+        y="ratingCount",
+        color_discrete_sequence=[SINBAD_GREEN],
+        title="Distribución de valores de rating",
+    )
+    _style_plotly_figure(rating_distribution_fig)
+
+    user_buckets_fig = px.bar(
+        tables["ratings_per_user_buckets"],
+        x="bucket",
+        y="userCount",
+        category_orders={"bucket": USER_BUCKET_ORDER},
+        color_discrete_sequence=[SINBAD_GOLD],
+        title="Usuarios agrupados por número de ratings",
+    )
+    _style_plotly_figure(user_buckets_fig)
+
+    ratings_by_year_fig = px.line(
+        tables["ratings_by_year"],
+        x="year",
+        y="ratingCount",
+        markers=True,
+        title="Ratings colaborativos por año",
+    )
+    ratings_by_year_fig.update_traces(line_color=SINBAD_BLUE)
+    _style_plotly_figure(ratings_by_year_fig)
+
+    top_movies_fig = px.bar(
+        tables["top_movies_by_filtered_ratings"].head(15).sort_values(
+            by="filteredRatingCount",
+            ascending=True,
+        ),
+        x="filteredRatingCount",
+        y="displayLabel",
+        orientation="h",
+        color_discrete_sequence=[SINBAD_CYAN],
+        title="Top películas por filteredRatingCount",
+    )
+    _style_plotly_figure(top_movies_fig)
+
+    plot_blocks = [
         partition_fig.to_html(full_html=False, include_plotlyjs="inline"),
         suitability_fig.to_html(full_html=False, include_plotlyjs=False),
-        language_fig.to_html(full_html=False, include_plotlyjs=False),
-        decade_fig.to_html(full_html=False, include_plotlyjs=False),
-        genre_fig.to_html(full_html=False, include_plotlyjs=False),
+        public_languages_fig.to_html(full_html=False, include_plotlyjs=False),
+        public_decades_fig.to_html(full_html=False, include_plotlyjs=False),
+        public_genres_fig.to_html(full_html=False, include_plotlyjs=False),
         score_dist_fig.to_html(full_html=False, include_plotlyjs=False),
         scatter_fig.to_html(full_html=False, include_plotlyjs=False),
-        blocked_terms_fig.to_html(full_html=False, include_plotlyjs=False),
+        support_blocked_terms_fig.to_html(full_html=False, include_plotlyjs=False),
         excluded_reasons_fig.to_html(full_html=False, include_plotlyjs=False),
+        rating_distribution_fig.to_html(full_html=False, include_plotlyjs=False),
+        user_buckets_fig.to_html(full_html=False, include_plotlyjs=False),
+        ratings_by_year_fig.to_html(full_html=False, include_plotlyjs=False),
+        top_movies_fig.to_html(full_html=False, include_plotlyjs=False),
     ]
 
-    support_examples = tables["support_examples"].copy()
-    support_examples = support_examples[
-        (support_examples["publicBlockedTerms"].fillna("") != "")
-        | (support_examples["publicExclusionReasons"].fillna("") != "")
-    ].head(12)
-
-    kpis = [
+    headline_kpis = [
         ("Películas públicas", _format_int(int(counts.get("public", 0)))),
         (
             "Soporte colaborativo",
@@ -919,24 +1405,39 @@ def _build_dashboard_html(
         ),
         ("Películas excluidas", _format_int(int(counts.get("excluded", 0)))),
         ("Total analizado", _format_int(int(len(combined_df)))),
-        ("Ratings colaborativos", _format_int(collaborative_ratings)),
+        ("Ratings colaborativos", _format_int(collaborative_ratings_manifest)),
         ("Públicas revisables", _format_int(int(len(suspicious_public_df)))),
+    ]
+    collaborative_kpis = [
+        ("Usuarios únicos", _format_int(collaborative_signals["uniqueUsers"])),
+        ("Películas con ratings", _format_int(collaborative_signals["uniqueRatedMovies"])),
+        ("Densidad matriz", f"{collaborative_signals['matrixDensity'] * 100:.4f}%"),
+        (
+            "Media ratings/usuario",
+            f"{collaborative_signals['averageRatingsPerUser']:.2f}",
+        ),
+        (
+            "Mediana ratings/usuario",
+            f"{collaborative_signals['medianRatingsPerUser']:.2f}",
+        ),
+        (
+            "Media ratings/película",
+            f"{collaborative_signals['averageRatingsPerMovie']:.2f}",
+        ),
+        (
+            "Mediana ratings/película",
+            f"{collaborative_signals['medianRatingsPerMovie']:.2f}",
+        ),
     ]
 
     chart_gallery = "".join(
         [
             _chart_card_html("Conteo por partición", chart_paths["partition_counts"]),
-            _chart_card_html(
-                "Suitability por partición",
-                chart_paths["suitability_by_partition"],
-            ),
+            _chart_card_html("Suitability por partición", chart_paths["suitability_by_partition"]),
             _chart_card_html("Idiomas públicos", chart_paths["public_languages"]),
             _chart_card_html("Décadas públicas", chart_paths["public_decades"]),
             _chart_card_html("Géneros públicos", chart_paths["public_genres"]),
-            _chart_card_html(
-                "Blocked terms de soporte",
-                chart_paths["support_blocked_terms"],
-            ),
+            _chart_card_html("Blocked terms de soporte", chart_paths["support_blocked_terms"]),
             _chart_card_html(
                 "Distribución de standDisplayScore",
                 chart_paths["stand_display_score_distribution"],
@@ -945,8 +1446,32 @@ def _build_dashboard_html(
                 "ratingCount vs standDisplayScore",
                 chart_paths["rating_count_vs_stand_score"],
             ),
+            _chart_card_html("Distribución de ratings", chart_paths["rating_distribution"]),
+            _chart_card_html(
+                "Ratings por usuario",
+                chart_paths["ratings_per_user_buckets"],
+            ),
+            _chart_card_html("Ratings por año", chart_paths["ratings_by_year"]),
+            _chart_card_html(
+                "Top películas por filtered ratings",
+                chart_paths["top_movies_by_filtered_ratings"],
+            ),
         ]
     )
+
+    headline_kpis_html = "".join(
+        [
+            f'<div class="kpi"><div class="label">{escape(label)}</div><div class="value">{escape(value)}</div></div>'
+            for label, value in headline_kpis
+        ]
+    )
+    collaborative_kpis_html = "".join(
+        [
+            f'<div class="kpi"><div class="label">{escape(label)}</div><div class="value">{escape(value)}</div></div>'
+            for label, value in collaborative_kpis
+        ]
+    )
+    conclusions_html = "".join([f"<li>{escape(line)}</li>" for line in conclusions])
 
     html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -965,6 +1490,7 @@ def _build_dashboard_html(
       --gold: {SINBAD_GOLD};
       --cyan: {SINBAD_CYAN};
       --red: {SINBAD_RED};
+      --green: {SINBAD_GREEN};
       --border: #223252;
       --shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
     }}
@@ -979,7 +1505,7 @@ def _build_dashboard_html(
       color: var(--text);
     }}
     .wrap {{
-      width: min(1380px, calc(100% - 32px));
+      width: min(1440px, calc(100% - 32px));
       margin: 0 auto;
       padding: 28px 0 40px;
     }}
@@ -1005,7 +1531,7 @@ def _build_dashboard_html(
     .subtitle {{
       margin: 0;
       color: var(--muted);
-      max-width: 920px;
+      max-width: 980px;
       font-size: 17px;
       line-height: 1.6;
     }}
@@ -1056,6 +1582,27 @@ def _build_dashboard_html(
     .three {{
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }}
+    .chart-grid {{
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }}
+    .chart-card {{
+      grid-column: span 12;
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+    }}
+    .chart-card.half {{
+      grid-column: span 6;
+    }}
+    .chart-card.wide {{
+      grid-column: span 8;
+    }}
+    .chart-card.third {{
+      grid-column: span 4;
+    }}
     .card {{
       background: var(--panel-soft);
       border: 1px solid var(--border);
@@ -1067,6 +1614,23 @@ def _build_dashboard_html(
       border-radius: 16px;
       background: rgba(8, 17, 31, 0.85);
       border: 1px solid #1d2d4e;
+    }}
+    .explanation {{
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid #223252;
+      background: rgba(8, 17, 31, 0.74);
+    }}
+    .explanation strong {{
+      color: var(--gold);
+    }}
+    .explanation p {{
+      margin: 0 0 8px;
+      color: var(--text);
+    }}
+    .explanation p:last-child {{
+      margin-bottom: 0;
     }}
     .gallery-card img {{
       width: 100%;
@@ -1117,6 +1681,13 @@ def _build_dashboard_html(
     a {{
       color: var(--cyan);
     }}
+    @media (max-width: 1000px) {{
+      .chart-card.half,
+      .chart-card.wide,
+      .chart-card.third {{
+        grid-column: span 12;
+      }}
+    }}
   </style>
 </head>
 <body>
@@ -1128,53 +1699,110 @@ def _build_dashboard_html(
         Este panel analiza el dataset portable offline del recomendador y resume cómo se distribuyen
         las películas públicas, el soporte colaborativo y las exclusiones, sin tocar heurísticas ni lógica de recomendación.
       </p>
-      <div class="grid kpis">
-        {''.join([f'<div class="kpi"><div class="label">{escape(label)}</div><div class="value">{escape(value)}</div></div>' for label, value in kpis])}
-      </div>
+      <div class="grid kpis">{headline_kpis_html}</div>
     </section>
 
     <section class="section">
       <h2>A. Particiones principales</h2>
-      <p>Vista general del reparto entre catálogo público, soporte colaborativo y películas excluidas.</p>
-      <div class="plot">{plotly_sections[0]}</div>
+      {_explanation_html("section_partitions")}
+      <div class="chart-grid">
+        <div class="chart-card">
+          {_explanation_html("partition_chart")}
+          <div class="plot">{plot_blocks[0]}</div>
+        </div>
+      </div>
     </section>
 
     <section class="section">
       <h2>B. Comparación de suitability</h2>
-      <p>Distribución de <code>suitabilityCategory</code> por partición para detectar sesgos de segmentación.</p>
-      <div class="plot">{plotly_sections[1]}</div>
+      {_explanation_html("section_suitability")}
+      <div class="chart-grid">
+        <div class="chart-card">
+          {_explanation_html("suitability_chart")}
+          <div class="plot">{plot_blocks[1]}</div>
+        </div>
+      </div>
     </section>
 
     <section class="section">
       <h2>C. Catálogo público</h2>
-      <p>Idiomas, décadas, géneros y señales de calidad visual del catálogo visible para la demo.</p>
-      <div class="grid two">
-        <div class="plot">{plotly_sections[2]}</div>
-        <div class="plot">{plotly_sections[3]}</div>
-        <div class="plot">{plotly_sections[4]}</div>
-        <div class="plot">{plotly_sections[5]}</div>
-        <div class="plot">{plotly_sections[6]}</div>
+      {_explanation_html("section_public")}
+      <div class="chart-grid">
+        <div class="chart-card half">
+          {_explanation_html("public_languages_chart")}
+          <div class="plot">{plot_blocks[2]}</div>
+        </div>
+        <div class="chart-card half">
+          {_explanation_html("public_decades_chart")}
+          <div class="plot">{plot_blocks[3]}</div>
+        </div>
+        <div class="chart-card wide">
+          {_explanation_html("public_genres_chart")}
+          <div class="plot">{plot_blocks[4]}</div>
+        </div>
+        <div class="chart-card wide">
+          {_explanation_html("public_score_distribution_chart")}
+          <div class="plot">{plot_blocks[5]}</div>
+        </div>
+        <div class="chart-card">
+          {_explanation_html("public_scatter_chart")}
+          <div class="plot">{plot_blocks[6]}</div>
+        </div>
       </div>
     </section>
 
     <section class="section">
       <h2>D. Soporte colaborativo</h2>
-      <p>Qué señales bloquean la entrada al catálogo público y qué ejemplos merecen revisión.</p>
-      <div class="plot">{plotly_sections[7]}</div>
-      <div class="table-wrap" style="margin-top:16px;">
-        {_render_html_table(support_examples, limit=12)}
+      {_explanation_html("section_support")}
+      <div class="chart-grid">
+        <div class="chart-card wide">
+          {_explanation_html("support_blocked_terms_chart")}
+          <div class="plot">{plot_blocks[7]}</div>
+        </div>
+        <div class="chart-card wide">
+          <div class="table-wrap">{_render_html_table(support_examples, limit=12)}</div>
+        </div>
       </div>
     </section>
 
     <section class="section">
       <h2>E. Películas excluidas</h2>
-      <p>Resumen de razones de exclusión para distinguir contenido descartado por política frente a fallos de enriquecimiento o cobertura.</p>
-      <div class="plot">{plotly_sections[8]}</div>
+      {_explanation_html("section_excluded")}
+      <div class="chart-grid">
+        <div class="chart-card">
+          {_explanation_html("excluded_reasons_chart")}
+          <div class="plot">{plot_blocks[8]}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>I. Señales colaborativas</h2>
+      {_explanation_html("section_collaborative")}
+      <div class="grid kpis">{collaborative_kpis_html}</div>
+      <div class="chart-grid" style="margin-top: 18px;">
+        <div class="chart-card half">
+          {_explanation_html("collaborative_rating_distribution_chart")}
+          <div class="plot">{plot_blocks[9]}</div>
+        </div>
+        <div class="chart-card half">
+          {_explanation_html("collaborative_user_buckets_chart")}
+          <div class="plot">{plot_blocks[10]}</div>
+        </div>
+        <div class="chart-card half">
+          {_explanation_html("collaborative_year_chart")}
+          <div class="plot">{plot_blocks[11]}</div>
+        </div>
+        <div class="chart-card half">
+          {_explanation_html("collaborative_top_movies_chart")}
+          <div class="plot">{plot_blocks[12]}</div>
+        </div>
+      </div>
     </section>
 
     <section class="section">
       <h2>F. Tablas de revisión</h2>
-      <p>Se muestran solo muestras pequeñas y accionables, no un volcado masivo del dataset.</p>
+      {_explanation_html("section_tables")}
       <div class="grid three">
         <div class="card">
           <h3>Top 25 públicas</h3>
@@ -1193,17 +1821,14 @@ def _build_dashboard_html(
 
     <section class="section">
       <h2>G. Gráficos estáticos para documentación</h2>
-      <p>Estos PNG quedan listos para README, informes o documentación interna.</p>
-      <div class="grid two">
-        {chart_gallery}
-      </div>
+      {_explanation_html("section_static")}
+      <div class="grid two">{chart_gallery}</div>
     </section>
 
     <section class="section">
       <h2>H. Conclusiones automáticas</h2>
-      <ul class="conclusions">
-        {''.join([f"<li>{escape(line)}</li>" for line in conclusions])}
-      </ul>
+      {_explanation_html("section_conclusions")}
+      <ul class="conclusions">{conclusions_html}</ul>
       <p class="muted" style="margin-top:16px;">
         Archivos adicionales: <a href="summary.md">summary.md</a>,
         <a href="summary.json">summary.json</a>,
@@ -1225,11 +1850,13 @@ def _build_markdown_summary(
     tables: dict[str, pd.DataFrame],
     chart_paths: dict[str, str],
     conclusions: list[str],
+    collaborative_signals: dict[str, Any],
 ) -> str:
     counts = combined_df["auditPartition"].value_counts()
     blocked_terms = tables["blocked_terms_by_partition"]
     blocked_terms = blocked_terms[blocked_terms["auditPartition"] == "collaborative_support"].head(10)
     excluded_reasons = tables["excluded_reasons"].head(10)
+    top_movies = tables["top_movies_by_filtered_ratings"].head(10)
 
     chart_list = "\n".join([f"- `{path}`" for path in chart_paths.values()])
     table_list = "\n".join(
@@ -1245,6 +1872,12 @@ def _build_markdown_summary(
             "- `tables/public_top_movies.csv`",
             "- `tables/public_low_score_movies.csv`",
             "- `tables/suspicious_public_movies_sample.csv`",
+            "- `tables/collaborative_summary.csv`",
+            "- `tables/rating_distribution.csv`",
+            "- `tables/ratings_by_year.csv`",
+            "- `tables/ratings_per_user_buckets.csv`",
+            "- `tables/top_movies_by_filtered_ratings.csv`",
+            "- `tables/top_users_by_rating_count.csv`",
         ]
     )
 
@@ -1261,9 +1894,8 @@ def _build_markdown_summary(
 
 ## Catálogo público
 
-- El catálogo público concentra las películas visibles por la demo.
-- Se generaron tablas de top y bottom por `standDisplayScore`.
-- También se generó una muestra de películas públicas revisables en `tables/suspicious_public_movies_sample.csv`.
+- Qué muestra: idioma, década, géneros y señales de score del catálogo visible.
+- Cómo interpretarlo: ayuda a detectar sesgos de idioma, exceso de títulos antiguos o demasiados títulos con señal visual baja.
 
 ![Conteo por partición]({chart_paths["partition_counts"]})
 ![Idiomas públicos]({chart_paths["public_languages"]})
@@ -1274,19 +1906,42 @@ def _build_markdown_summary(
 
 ## Soporte colaborativo
 
-- Se analizaron señales de `publicBlockedTerms` y `publicExclusionReasons`.
-- El dashboard incluye ejemplos pequeños de películas bloqueadas para revisión manual.
+- Qué muestra: por qué muchas películas útiles para perfilar usuarios no llegan al catálogo público.
+- Cómo interpretarlo: los blocked terms y razones de exclusión pública orientan mejoras futuras de heurística sin tocar la lógica actual.
 
 Top blocked terms:
 {_markdown_records(blocked_terms, ["blockedTerm", "movieCount", "exampleTitles"])}
 
 ## Películas excluidas
 
-- Las excluidas se resumen sin tocar el dataset portable original.
-- Se desglosan `exclusionCategory` y `exclusionReasons` en tablas separadas.
+- Qué muestra: razones de exclusión total del dataset visible y de soporte.
+- Cómo interpretarlo: si dominan fallos técnicos o de enriquecimiento, el problema es de pipeline y no de recomendación.
 
 Top exclusion reasons:
 {_markdown_records(excluded_reasons, ["exclusionReason", "movieCount", "exampleTitles"])}
+
+## Señales colaborativas
+
+- Total ratings: {_format_int(collaborative_signals["totalRatings"])}
+- Usuarios únicos: {_format_int(collaborative_signals["uniqueUsers"])}
+- Películas con ratings: {_format_int(collaborative_signals["uniqueRatedMovies"])}
+- Densidad de matriz: {collaborative_signals["matrixDensity"] * 100:.4f}%
+- Media ratings/usuario: {collaborative_signals["averageRatingsPerUser"]:.2f}
+- Mediana ratings/usuario: {collaborative_signals["medianRatingsPerUser"]:.2f}
+- Máximo ratings/usuario: {_format_int(collaborative_signals["maxRatingsPerUser"])}
+- Media ratings/película: {collaborative_signals["averageRatingsPerMovie"]:.2f}
+- Mediana ratings/película: {collaborative_signals["medianRatingsPerMovie"]:.2f}
+
+- Qué muestra: fuerza de perfiles, sesgo de valores de rating y dispersión de la matriz usuario-película.
+- Cómo interpretarlo: una matriz muy dispersa es normal, pero perfiles demasiado débiles o una distribución sesgada pueden limitar el valor colaborativo.
+
+![Distribución de ratings]({chart_paths["rating_distribution"]})
+![Ratings por usuario]({chart_paths["ratings_per_user_buckets"]})
+![Ratings por año]({chart_paths["ratings_by_year"]})
+![Top películas por filtered ratings]({chart_paths["top_movies_by_filtered_ratings"]})
+
+Top películas por filtered ratings:
+{_markdown_records(top_movies, ["displayLabel", "filteredRatingCount", "datasetRoleLabel"])}
 
 ## Gráficos generados
 
@@ -1308,6 +1963,7 @@ def _build_summary_json(
     combined_df: pd.DataFrame,
     suspicious_public_df: pd.DataFrame,
     tables: dict[str, pd.DataFrame],
+    collaborative_signals: dict[str, Any],
 ) -> dict[str, Any]:
     counts_by_partition = {
         partition: int(count)
@@ -1332,45 +1988,42 @@ def _build_summary_json(
             "missingPublicPosters": int(manifest.get("missingPublicPosters", 0)),
             "failedPublicPosterDownloads": int(manifest.get("failedPublicPosterDownloads", 0)),
         },
-        "suitabilityCounts": _records_from_dataframe(
-            tables["suitability_by_partition"],
-            limit=100,
-        ),
-        "languageCounts": _records_from_dataframe(
-            tables["language_by_partition"],
-            limit=100,
-        ),
-        "decadeCounts": _records_from_dataframe(
-            tables["decade_by_partition"],
-            limit=100,
-        ),
-        "genreCounts": _records_from_dataframe(
-            tables["genre_by_partition"],
-            limit=120,
-        ),
+        "suitabilityCounts": _records_from_dataframe(tables["suitability_by_partition"], limit=100),
+        "languageCounts": _records_from_dataframe(tables["language_by_partition"], limit=100),
+        "decadeCounts": _records_from_dataframe(tables["decade_by_partition"], limit=100),
+        "genreCounts": _records_from_dataframe(tables["genre_by_partition"], limit=120),
         "topBlockedTerms": _records_from_dataframe(
-            tables["blocked_terms_by_partition"].query(
-                "auditPartition == 'collaborative_support'"
-            ),
+            tables["blocked_terms_by_partition"].query("auditPartition == 'collaborative_support'"),
             limit=20,
         ),
         "topPublicExclusionReasons": _records_from_dataframe(
             tables["public_exclusion_reasons_by_partition"],
             limit=20,
         ),
-        "excludedReasonCounts": _records_from_dataframe(
-            tables["excluded_reasons"],
-            limit=20,
-        ),
+        "excludedReasonCounts": _records_from_dataframe(tables["excluded_reasons"], limit=20),
         "suspiciousPublicMovieCount": int(len(suspicious_public_df)),
-        "topPublicMovieSamples": _records_from_dataframe(
-            tables["public_top_movies"],
-            limit=10,
-        ),
+        "topPublicMovieSamples": _records_from_dataframe(tables["public_top_movies"], limit=10),
         "bottomPublicMovieSamples": _records_from_dataframe(
             tables["public_low_score_movies"],
             limit=10,
         ),
+        "collaborativeSignals": {
+            "totalRatings": int(collaborative_signals["totalRatings"]),
+            "uniqueUsers": int(collaborative_signals["uniqueUsers"]),
+            "uniqueRatedMovies": int(collaborative_signals["uniqueRatedMovies"]),
+            "matrixDensity": float(collaborative_signals["matrixDensity"]),
+            "averageRatingsPerUser": float(collaborative_signals["averageRatingsPerUser"]),
+            "medianRatingsPerUser": float(collaborative_signals["medianRatingsPerUser"]),
+            "maxRatingsPerUser": int(collaborative_signals["maxRatingsPerUser"]),
+            "averageRatingsPerMovie": float(collaborative_signals["averageRatingsPerMovie"]),
+            "medianRatingsPerMovie": float(collaborative_signals["medianRatingsPerMovie"]),
+            "ratingDistribution": _records_from_dataframe(tables["rating_distribution"], limit=20),
+            "ratingsByYear": _records_from_dataframe(tables["ratings_by_year"], limit=100),
+            "userRatingBuckets": _records_from_dataframe(
+                tables["ratings_per_user_buckets"],
+                limit=20,
+            ),
+        },
     }
 
 
@@ -1452,7 +2105,11 @@ def _explode_pipe_field(
         )
         .reset_index()
         .sort_values(
-            by=(["auditPartition", "movieCount", value_column] if include_partition else ["movieCount", value_column]),
+            by=(
+                ["auditPartition", "movieCount", value_column]
+                if include_partition
+                else ["movieCount", value_column]
+            ),
             ascending=([True, False, True] if include_partition else [False, True]),
             kind="mergesort",
         )
@@ -1476,6 +2133,17 @@ def _select_public_movies(public_df: pd.DataFrame, *, ascending: bool) -> pd.Dat
     )
 
 
+def _with_partition_labels(dataframe: pd.DataFrame) -> pd.DataFrame:
+    display_df = dataframe.copy()
+    display_df["partitionLabel"] = display_df["auditPartition"].map(PARTITION_LABELS)
+    display_df["partitionLabel"] = pd.Categorical(
+        display_df["partitionLabel"],
+        categories=list(PARTITION_COLORS.keys()),
+        ordered=True,
+    )
+    return display_df.sort_values("partitionLabel", kind="mergesort")
+
+
 def _style_axes(ax: Any, *, title: str, xlabel: str, ylabel: str) -> None:
     ax.set_title(title, fontsize=14, pad=14, color="#eef5ff")
     ax.set_xlabel(xlabel)
@@ -1490,7 +2158,15 @@ def _finalize_chart(path: Path) -> None:
 
 def _save_empty_chart(title: str, path: Path) -> None:
     plt.figure(figsize=(8, 4.5))
-    plt.text(0.5, 0.5, "Sin datos disponibles", ha="center", va="center", fontsize=16, color="#eef5ff")
+    plt.text(
+        0.5,
+        0.5,
+        "Sin datos disponibles",
+        ha="center",
+        va="center",
+        fontsize=16,
+        color="#eef5ff",
+    )
     plt.title(title, color="#eef5ff")
     plt.axis("off")
     _finalize_chart(path)
@@ -1530,8 +2206,20 @@ def _chart_card_html(title: str, relative_path: str) -> str:
     )
 
 
+def _explanation_html(key: str) -> str:
+    text = EXPLANATIONS[key]
+    return (
+        '<div class="explanation">'
+        f"<p><strong>Qué muestra:</strong> {escape(text['what'])}</p>"
+        f"<p><strong>Cómo interpretarlo:</strong> {escape(text['how'])}</p>"
+        "</div>"
+    )
+
+
 def _coalesce_text(primary: pd.Series | None, fallback: pd.Series | None) -> pd.Series:
-    primary_series = _normalize_text_series(primary if primary is not None else pd.Series(dtype="object"))
+    primary_series = _normalize_text_series(
+        primary if primary is not None else pd.Series(dtype="object")
+    )
     if fallback is None:
         return primary_series
     fallback_series = _normalize_text_series(fallback)
@@ -1539,7 +2227,11 @@ def _coalesce_text(primary: pd.Series | None, fallback: pd.Series | None) -> pd.
 
 
 def _coalesce_numeric(primary: pd.Series | None, fallback: pd.Series | None) -> pd.Series:
-    primary_series = pd.to_numeric(primary, errors="coerce") if primary is not None else pd.Series(dtype="float64")
+    primary_series = (
+        pd.to_numeric(primary, errors="coerce")
+        if primary is not None
+        else pd.Series(dtype="float64")
+    )
     if fallback is None:
         return primary_series
     fallback_series = pd.to_numeric(fallback, errors="coerce")
@@ -1560,7 +2252,7 @@ def _year_to_decade_label(year: object) -> str:
 
 
 def _join_example_titles(values: pd.Series) -> str:
-    unique_titles = []
+    unique_titles: list[str] = []
     for value in values:
         normalized = str(value).strip()
         if normalized and normalized not in unique_titles:
@@ -1568,6 +2260,22 @@ def _join_example_titles(values: pd.Series) -> str:
         if len(unique_titles) >= 8:
             break
     return " | ".join(unique_titles)
+
+
+def _bucket_user_count(count: int) -> str:
+    if count <= 4:
+        return "1-4"
+    if count <= 9:
+        return "5-9"
+    if count <= 24:
+        return "10-24"
+    if count <= 49:
+        return "25-49"
+    if count <= 99:
+        return "50-99"
+    if count <= 249:
+        return "100-249"
+    return "250+"
 
 
 def _format_int(value: int) -> str:
@@ -1592,9 +2300,14 @@ def _records_from_dataframe(dataframe: pd.DataFrame, *, limit: int) -> list[dict
 
 
 def _json_safe_value(value: Any) -> Any:
-    if pd.isna(value):
-        return None
-    if isinstance(value, (pd.Timestamp,)):
+    if isinstance(value, (list, dict)):
+        return value
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    if isinstance(value, pd.Timestamp):
         return value.isoformat()
     if hasattr(value, "item"):
         try:
