@@ -39,7 +39,7 @@ app.include_router(catalog_router)
 app.include_router(recommendation_router)
 app.mount("/offline/posters", StaticFiles(directory=OFFLINE_DATASET_POSTERS_DIR), name="offline-posters")
 app.mount(
-    "/offline/audit",
+    "/audit",
     StaticFiles(directory=OFFLINE_DATASET_AUDIT_DIR, html=True),
     name="offline-audit",
 )

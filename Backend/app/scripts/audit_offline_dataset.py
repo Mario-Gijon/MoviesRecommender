@@ -229,7 +229,7 @@ def main() -> None:
     print(f"Tables written: {OFFLINE_DATASET_AUDIT_TABLES_DIR}")
     print(f"Detailed files written: {OFFLINE_DATASET_AUDIT_DETAILED_DIR}")
     print(f"Charts written: {OFFLINE_DATASET_AUDIT_CHARTS_DIR}")
-    print("Backend route: /offline/audit/")
+    print("Backend route: /audit/")
 
 
 def _ensure_required_inputs() -> None:
