@@ -1,4 +1,7 @@
-from app.domain.catalog_heuristics.constants import BOOST_GENRES, FAMILY_KEYWORDS
+from app.domain.catalog_heuristics.constants import (
+    BOOST_SIGNAL_GENRES,
+    FAMILY_POSITIVE_TERMS,
+)
 
 
 def compute_stand_display_score(item: dict) -> tuple[float, list[str]]:
@@ -12,9 +15,9 @@ def compute_stand_display_score(item: dict) -> tuple[float, list[str]]:
     candidate_score = float(item.get("candidateScore") or 0.0)
     tmdb_popularity_signal = min(float(tmdb.get("popularity") or 0.0) / 100.0, 1.0)
 
-    genre_match_count = len(genres & BOOST_GENRES)
+    genre_match_count = len(genres & BOOST_SIGNAL_GENRES)
     genre_appeal_signal = min(genre_match_count / 4.0, 1.0)
-    keyword_appeal_signal = min(len(keyword_set & FAMILY_KEYWORDS) / 4.0, 1.0)
+    keyword_appeal_signal = min(len(keyword_set & FAMILY_POSITIVE_TERMS) / 4.0, 1.0)
 
     penalty = 0.0
     if item.get("suitabilityCategory") == "adult_or_sensitive":

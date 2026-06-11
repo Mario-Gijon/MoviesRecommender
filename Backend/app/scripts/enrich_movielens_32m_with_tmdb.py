@@ -53,20 +53,30 @@ def main() -> None:
     fully_enriched_count = 0
     display_backfilled_count = 0
     already_complete_count = 0
+    base_fields_refreshed_count = 0
     failed_count = 0
     updated_by_movie_id = dict(existing_by_movie_id)
 
     for candidate in selected_candidates:
         movie_id = candidate["movieId"]
         existing_candidate = updated_by_movie_id.get(movie_id)
+        refreshed_candidate = None
+        if existing_candidate is not None:
+            refreshed_candidate = _refresh_candidate_base_fields(
+                existing_item=existing_candidate,
+                candidate=candidate,
+            )
+            base_fields_refreshed_count += 1
+
         if args.resume and existing_candidate is not None:
-            existing_tmdb = existing_candidate.get("tmdb", {})
+            existing_tmdb = refreshed_candidate.get("tmdb", {}) if refreshed_candidate is not None else {}
             if _has_complete_display_metadata(existing_tmdb):
+                updated_by_movie_id[movie_id] = refreshed_candidate
                 already_complete_count += 1
                 continue
 
         tmdb_id = candidate.get("tmdbId")
-        enriched_candidate = dict(existing_candidate or candidate)
+        enriched_candidate = dict(refreshed_candidate or candidate)
 
         if tmdb_id is None:
             if "tmdb" not in enriched_candidate:
@@ -77,8 +87,8 @@ def main() -> None:
         else:
             attempted += 1
             try:
-                if existing_candidate is not None and _has_canonical_tmdb_metadata(
-                    existing_candidate.get("tmdb", {})
+                if refreshed_candidate is not None and _has_canonical_tmdb_metadata(
+                    refreshed_candidate.get("tmdb", {})
                 ):
                     display_payload = _fetch_tmdb_movie(
                         tmdb_id=tmdb_id,
@@ -87,7 +97,7 @@ def main() -> None:
                         include_extended_payload=False,
                     )
                     enriched_candidate["tmdb"] = _backfill_display_metadata(
-                        existing_tmdb=existing_candidate.get("tmdb", {}),
+                        existing_tmdb=refreshed_candidate.get("tmdb", {}),
                         display_payload=display_payload,
                     )
                     display_backfilled_count += 1
@@ -131,6 +141,7 @@ def main() -> None:
 
     print(f"Candidates attempted this run: {attempted}")
     print(f"Already complete: {already_complete_count}")
+    print(f"Base fields refreshed: {base_fields_refreshed_count}")
     print(f"Display-backfilled: {display_backfilled_count}")
     print(f"Fully enriched: {fully_enriched_count}")
     print(f"Failed enrichments: {failed_count}")
@@ -314,6 +325,34 @@ def _coalesce_text(primary: str | None, fallback: str | None) -> str | None:
         return normalized_primary
     normalized_fallback = (fallback or "").strip()
     return normalized_fallback or None
+
+
+def _refresh_candidate_base_fields(*, existing_item: dict, candidate: dict) -> dict:
+    refreshed_item = dict(existing_item)
+    for field in (
+        "movieId",
+        "title",
+        "cleanTitle",
+        "year",
+        "genres",
+        "ratingCount",
+        "averageRating",
+        "tmdbId",
+        "imdbId",
+        "userTags",
+        "candidateScore",
+        "dataReliabilityScore",
+        "recencyScore",
+    ):
+        if field in candidate:
+            refreshed_item[field] = candidate[field]
+
+    if candidate.get("tmdbId") is not None and _has_complete_display_metadata(
+        refreshed_item.get("tmdb", {})
+    ):
+        refreshed_item.pop("enrichmentError", None)
+
+    return refreshed_item
 
 
 def _has_complete_display_metadata(tmdb_payload: dict) -> bool:

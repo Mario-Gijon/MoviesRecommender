@@ -1,13 +1,12 @@
-ADULT_GENRES = {"Horror", "Crime", "War", "Thriller"}
-FAMILY_GENRES = {
+SENSITIVE_GENRES = {"Horror", "Crime", "War", "Thriller"}
+BOOST_SIGNAL_GENRES = {
     "Animation",
     "Family",
     "Adventure",
     "Fantasy",
-    "Science Fiction",
     "Comedy",
 }
-FAMILY_KEYWORDS = {
+FAMILY_POSITIVE_TERMS = {
     "pixar",
     "disney",
     "magic",
@@ -29,15 +28,6 @@ TEEN_US = {"PG-13"}
 TEEN_ES = {"12"}
 ADULT_US = {"R", "NC-17"}
 ADULT_ES = {"16", "18"}
-BOOST_GENRES = {
-    "Animation",
-    "Family",
-    "Adventure",
-    "Fantasy",
-    "Science Fiction",
-    "Comedy",
-    "Action",
-}
 PUBLIC_BLOCKED_TERMS = {
     "drug",
     "gore",
@@ -51,7 +41,6 @@ PUBLIC_BLOCKED_TERMS = {
     "prison",
     "psychopath",
     "rape",
-    "revenge",
     "serial killer",
     "slavery",
     "torture",
@@ -62,5 +51,4 @@ PUBLIC_BLOCKED_TERMS = {
     "terrorism",
     "suicide",
     "self harm",
-    "violence",
 }

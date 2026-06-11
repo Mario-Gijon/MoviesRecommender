@@ -1,11 +1,11 @@
 from app.domain.catalog_heuristics.constants import (
     ADULT_ES,
-    ADULT_GENRES,
     ADULT_US,
+    BOOST_SIGNAL_GENRES,
     FAMILY_ES,
-    FAMILY_GENRES,
-    FAMILY_KEYWORDS,
+    FAMILY_POSITIVE_TERMS,
     FAMILY_US,
+    SENSITIVE_GENRES,
     TEEN_ES,
     TEEN_US,
 )
@@ -22,8 +22,10 @@ def classify_item(item: dict) -> dict:
     public_blocked_terms = find_public_blocked_terms(item)
     reasons: list[str] = []
 
-    adult_signal = bool(genres & ADULT_GENRES)
-    family_signal = bool(genres & FAMILY_GENRES) or bool(keywords & FAMILY_KEYWORDS)
+    sensitive_signal = bool(genres & SENSITIVE_GENRES)
+    family_signal = bool(genres & BOOST_SIGNAL_GENRES) or bool(
+        keywords & FAMILY_POSITIVE_TERMS
+    )
     family_cert = us_cert in FAMILY_US or es_cert in FAMILY_ES
 
     if us_cert in ADULT_US or es_cert in ADULT_ES:
@@ -38,17 +40,17 @@ def classify_item(item: dict) -> dict:
     else:
         suitability = "unknown"
 
-    if adult_signal:
+    if sensitive_signal:
         reasons.append("Genre or keyword signal indicates sensitive themes")
         if family_cert:
-            reasons.append("Warning: family certification conflicts with adult signal")
+            reasons.append("Warning: family certification conflicts with sensitive signal")
         elif suitability != "family_friendly":
             suitability = "adult_or_sensitive"
 
-    if suitability == "unknown" and family_signal and not adult_signal:
-        reasons.append("Family-oriented genres or keywords without adult signals")
+    if suitability == "unknown" and family_signal and not sensitive_signal:
+        reasons.append("Family-oriented genres or keywords without sensitive signals")
         suitability = "family_friendly"
-    elif suitability == "teen" and family_signal and not adult_signal:
+    elif suitability == "teen" and family_signal and not sensitive_signal:
         reasons.append("Family-oriented signals keep this near the teen/family boundary")
     elif suitability == "unknown":
         reasons.append("Missing or unclear certification and content signals")
