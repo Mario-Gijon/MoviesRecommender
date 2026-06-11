@@ -13,6 +13,14 @@ import pandas as pd
 import plotly.express as px
 import seaborn as sns
 
+from app.domain.catalog_heuristics.constants import (
+    PUBLIC_STAND_ACCESSIBILITY_PROTECTED_GENRES,
+    PUBLIC_STAND_COMMON_ORIGINAL_LANGUAGES,
+    PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_DISPLAY_SCORE,
+    PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_RATING_COUNT,
+    PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_TMDB_POPULARITY,
+    SENSITIVE_GENRES,
+)
 from app.infrastructure.datasets.movielens_paths import (
     OFFLINE_DATASET_AUDIT_CHARTS_DIR,
     OFFLINE_DATASET_AUDIT_DASHBOARD_PATH,
@@ -29,11 +37,7 @@ from app.infrastructure.datasets.movielens_paths import (
 )
 
 
-LOW_STAND_DISPLAY_SCORE = 0.25
-LOW_RATING_COUNT = 250
-LOW_TMDB_POPULARITY = 1.0
-OLD_PUBLIC_YEAR = 2000
-COMMON_PUBLIC_LANGUAGES = {"en", "es", "ja", "fr", "it", "de"}
+AUDIT_TOP_TABLE_LIMIT = 100
 RATINGS_CHUNK_SIZE = 1_000_000
 
 SUMMARY_MD_PATH = OFFLINE_DATASET_AUDIT_DIR / "summary.md"
@@ -86,6 +90,7 @@ DETAIL_COLUMNS = [
     "publicExclusionReasons",
     "publicBlockedTerms",
     "suitabilityReasons",
+    "standDisplayReasons",
     "exclusionCategory",
     "exclusionReasons",
     "auditFlags",
@@ -101,6 +106,7 @@ TEXT_COLUMNS = [
     "publicExclusionReasons",
     "publicBlockedTerms",
     "suitabilityReasons",
+    "standDisplayReasons",
     "exclusionCategory",
     "exclusionReasons",
     "auditFlags",
@@ -119,28 +125,48 @@ NUMERIC_COLUMNS = [
 ]
 
 EXPLANATIONS = {
-    "section_partitions": "Resume el reparto entre catálogo público, soporte colaborativo y películas excluidas. Que el soporte colaborativo sea más grande es normal: ayuda a construir perfiles aunque no sea visible en la demo.",
-    "partition_chart": "Compara cuántas películas hay en cada partición del dataset offline y permite ver de un vistazo qué parte se dedica a la experiencia visible y qué parte queda como soporte.",
-    "section_suitability": "Permite comprobar si el catálogo público se concentra en películas family_friendly y teen, dejando el contenido sensible sobre todo fuera de la parte visible.",
-    "suitability_chart": "Si adult_or_sensitive aparece con mucho peso en la parte pública, la separación entre catálogo visible y núcleo de soporte merece revisión.",
-    "section_public": "Analiza idioma, década, géneros y señales de atractivo visual del catálogo público para detectar sesgos o títulos débiles en la experiencia del stand.",
-    "public_languages_chart": "Ayuda a ver si el catálogo público está demasiado concentrado en pocos idiomas o si entran títulos poco alineados con el público objetivo.",
-    "public_decades_chart": "Muestra qué tan reciente o histórica es la selección pública. Una mezcla demasiado antigua puede indicar falta de recencia cultural.",
-    "public_genres_chart": "Sirve para comprobar si la oferta visible está equilibrada o si depende demasiado de unos pocos géneros dominantes.",
-    "public_score_distribution_chart": "Muestra cómo se reparte la puntuación usada para ordenar visualmente el catálogo público. Muchas películas en valores bajos sugieren una vitrina menos atractiva.",
-    "public_scatter_chart": "Relaciona cobertura en MovieLens y atractivo visual del stand. Los títulos con muchos ratings y score alto suelen ser candidatos más sólidos.",
-    "section_support": "Explica por qué muchas películas útiles colaborativamente no llegan al catálogo público y ayuda a revisar bloqueos sin alterar el papel del soporte.",
-    "support_blocked_terms_chart": "Si pocos blocked terms concentran muchos casos, describen con bastante claridad el tipo de contenido que se está apartando del catálogo visible.",
-    "section_excluded": "Resume las causas de exclusión total. Si predominan fallos técnicos o de enriquecimiento, el problema está en el pipeline más que en la lógica de recomendación.",
-    "excluded_reasons_chart": "Distingue exclusiones por política de contenido frente a exclusiones por cobertura, metadatos incompletos o errores de enriquecimiento.",
+    "section_executive_summary": "Resume el tamaño del dataset offline, el reparto entre particiones y varias señales de revisión rápida para entender qué partes del catálogo son visibles y cuáles quedan como soporte.",
+    "section_dataset_overview": "Describe el equilibrio general del dataset por partición, suitability, idioma, década y género. Sirve para inspeccionar cobertura y mezcla de contenido sin interpretar todavía la calidad del ranking.",
+    "partition_chart": "Compara cuántas películas hay en cada partición del dataset offline y ayuda a distinguir la parte visible de la base colaborativa de soporte.",
+    "suitability_partition_chart": "Muestra la distribución de suitabilityCategory por partición. Permite revisar dónde se concentra el contenido family_friendly, teen, unknown y adult_or_sensitive.",
+    "language_partition_table": "Resume el idioma original por partición. Ayuda a revisar la cobertura lingüística del dataset completo y del catálogo visible.",
+    "genre_partition_table": "Muestra qué géneros aparecen con más frecuencia en cada partición y permite inspeccionar si el catálogo visible y el soporte colaborativo se están separando como se espera.",
+    "section_public_quality": "Agrupa señales del catálogo público que ayudan a inspeccionar la experiencia visible del stand: suitability, score, reconocimiento, idioma, década y géneros.",
+    "public_suitability_chart": "Muestra la distribución de películas por suitabilityCategory dentro del catálogo público.",
+    "public_languages_chart": "Muestra el idioma original de las películas públicas y ayuda a revisar qué idiomas llegan a la parte visible del dataset.",
+    "public_decades_chart": "Muestra la distribución por década del catálogo público y permite inspeccionar la mezcla temporal de la selección visible.",
+    "public_genres_chart": "Muestra los géneros más frecuentes del catálogo público y ayuda a revisar la mezcla temática que verá el usuario en el stand.",
+    "public_score_distribution_chart": "Muestra la distribución de standDisplayScore dentro del catálogo público y permite inspeccionar cómo se reparte la señal usada para ordenar la vitrina.",
+    "public_scatter_chart": "Relaciona ratingCount y standDisplayScore dentro del catálogo público. Ayuda a revisar si la parte visible combina reconocimiento colaborativo y señal de presentación.",
+    "public_stand_score_by_suitability_chart": "Compara standDisplayScore por suitabilityCategory dentro del catálogo público. Permite revisar cómo se ordenan family_friendly y teen cuando ambos aparecen en la parte visible.",
+    "public_top_table": "Lista películas públicas con mayor standDisplayScore para inspeccionar qué títulos quedan más arriba en la vitrina.",
+    "public_bottom_table": "Lista películas públicas con menor standDisplayScore para inspeccionar qué títulos quedan en la parte baja del catálogo visible.",
+    "section_teen_sensitive_control": "Resume cómo se comportan las películas teen con géneros sensibles dentro del catálogo público, sin cambiar la elegibilidad ni la clasificación.",
+    "teen_sensitive_chart": "Cuenta géneros sensibles dentro de las películas públicas teen. Permite revisar si las señales sensibles siguen presentes en posiciones visibles.",
+    "teen_sensitive_table": "Lista películas públicas teen con géneros sensibles para revisar sus razones de suitability y sus razones de standDisplayScore.",
+    "section_low_stand_accessibility": "Describe películas retiradas del catálogo público por baja accesibilidad de stand. Estas películas pueden seguir siendo útiles en soporte colaborativo.",
+    "low_accessibility_chart": "Cuenta casos de low_stand_accessibility por idioma original y ayuda a revisar qué idiomas aparecen con más frecuencia en esta regla de filtrado público.",
+    "low_accessibility_examples_table": "Lista ejemplos con baja accesibilidad de stand y permite revisar ratingCount, popularidad TMDB y standDisplayScore sin sacarlos del dataset colaborativo.",
+    "section_stand_reasons": "Resume las razones que alimentan standDisplayReasons. Sirve para inspeccionar qué señales empujan el ranking visible sin añadir nuevos campos al dataset exportado.",
+    "stand_reasons_chart": "Cuenta standDisplayReasons dentro del catálogo público y permite revisar qué señales de ranking aparecen con más frecuencia.",
+    "family_certified_teen_table": "Lista ejemplos públicos con `stand_family_certified_teen_suitability` para revisar títulos con certificación familiar resueltos como teen por señales sensibles.",
+    "section_family_only_simulation": "Simula cómo quedaría el catálogo público si solo se mostrasen películas family_friendly, sin regenerar el dataset.",
+    "family_only_chart": "Compara la mezcla family_friendly y teen en el catálogo público actual y en los primeros tramos del ranking visible.",
+    "family_only_table": "Resume la proporción de películas family_friendly y teen en el catálogo público actual y en los top 100 y top 250 por standDisplayScore.",
+    "section_support": "Explica por qué muchas películas útiles colaborativamente no llegan al catálogo público y permite revisar razones de soporte sin tocar la lógica del recomendador.",
+    "support_blocked_terms_chart": "Cuenta blocked terms dentro del soporte colaborativo y ayuda a inspeccionar qué temas alejan películas del catálogo público visible.",
+    "support_examples_table": "Muestra ejemplos de soporte colaborativo con razones de exclusión pública o blocked terms para revisar por qué siguen siendo útiles fuera del catálogo visible.",
+    "section_excluded": "Resume las películas excluidas por completo del dataset visible y colaborativo, con foco en causas mecánicas o de cobertura.",
+    "excluded_reasons_chart": "Cuenta razones de exclusión total y permite revisar si dominan problemas de enriquecimiento, cobertura o señal insuficiente.",
+    "excluded_examples_table": "Muestra ejemplos de películas excluidas con sus razones para revisar casos concretos de exclusión total.",
     "section_collaborative": "Estas métricas describen el núcleo colaborativo completo: películas públicas más películas de soporte colaborativo. Las excluidas no forman parte de `collaborative_ratings.csv`.",
-    "collaborative_rating_distribution_chart": "Muestra si los usuarios tienden a puntuar demasiado alto, demasiado bajo o de forma muy concentrada, algo útil para entender sesgos del núcleo colaborativo.",
-    "collaborative_user_buckets_chart": "Agrupa usuarios por número de ratings emitidos. Más peso en los tramos altos implica perfiles más fuertes para alimentar el recomendador.",
-    "collaborative_year_chart": "Cuenta ratings por año en el núcleo colaborativo y ayuda a ver si la actividad está repartida o concentrada en pocas oleadas temporales.",
-    "collaborative_top_movies_chart": "Muestra qué películas del núcleo colaborativo concentran más ratings filtrados. Si unas pocas dominan demasiado, la señal puede quedar muy sesgada.",
-    "section_tables": "Muestra solo muestras pequeñas y accionables. Las tablas completas siguen disponibles en CSV dentro de `audit/tables/` y `audit/detailed/`.",
+    "collaborative_rating_distribution_chart": "Muestra la distribución de valores de rating y ayuda a inspeccionar el sesgo de puntuaciones del núcleo colaborativo.",
+    "collaborative_user_buckets_chart": "Agrupa usuarios por número de ratings emitidos y ayuda a revisar la fuerza de los perfiles colaborativos.",
+    "collaborative_year_chart": "Cuenta ratings por año y permite revisar la distribución temporal de la actividad colaborativa.",
+    "collaborative_top_movies_chart": "Lista qué películas concentran más ratings filtrados y ayuda a inspeccionar qué títulos aportan más señal colaborativa.",
     "section_static": "Expone las versiones PNG de los gráficos para README e informes, de modo que el análisis pueda reutilizarse sin depender del dashboard interactivo.",
-    "section_conclusions": "Resume hallazgos automáticos derivados de los datos. No son reglas de producto: son señales rápidas para orientar revisión de pipeline y heurísticas futuras.",
+    "section_tables": "Resume las tablas CSV disponibles para revisión manual. Las tablas detalladas siguen disponibles en `audit/tables/` y `audit/detailed/`.",
+    "section_conclusions": "Resume observaciones mecánicas del dataset actual. Sirve como recordatorio rápido de balance, señales públicas y salud colaborativa.",
 }
 
 
@@ -377,6 +403,52 @@ def _build_suspicious_public_df(combined_df: pd.DataFrame) -> pd.DataFrame:
     return suspicious_df
 
 
+def _split_pipe_values(value: object) -> list[str]:
+    normalized = str(value).strip()
+    if not normalized:
+        return []
+    return [part.strip() for part in normalized.split("|") if part.strip()]
+
+
+def _series_contains_pipe_token(series: pd.Series, token: str) -> pd.Series:
+    return series.fillna("").astype(str).apply(lambda value: token in _split_pipe_values(value))
+
+
+def _series_intersects_pipe_values(series: pd.Series, values: set[str]) -> pd.Series:
+    return series.fillna("").astype(str).apply(
+        lambda value: bool(set(_split_pipe_values(value)) & values)
+    )
+
+
+def _compute_public_partition_metrics(public_df: pd.DataFrame) -> dict[str, int | float]:
+    family_count = int((public_df["suitabilityCategory"] == "family_friendly").sum())
+    teen_count = int((public_df["suitabilityCategory"] == "teen").sum())
+
+    ordered_public_df = _select_public_movies(public_df, ascending=False)
+    top_100 = ordered_public_df.head(100)
+    top_250 = ordered_public_df.head(250)
+
+    current_public_movies = int(len(public_df))
+    public_share_family = round((family_count / current_public_movies) * 100, 2) if current_public_movies else 0.0
+    public_share_teen = round((teen_count / current_public_movies) * 100, 2) if current_public_movies else 0.0
+
+    return {
+        "currentPublicMovies": current_public_movies,
+        "familyFriendlyPublicMovies": family_count,
+        "teenPublicMovies": teen_count,
+        "publicShareFamilyFriendlyPercent": public_share_family,
+        "publicShareTeenPercent": public_share_teen,
+        "top100FamilyFriendlyCount": int((top_100["suitabilityCategory"] == "family_friendly").sum()),
+        "top100TeenCount": int((top_100["suitabilityCategory"] == "teen").sum()),
+        "top250FamilyFriendlyCount": int((top_250["suitabilityCategory"] == "family_friendly").sum()),
+        "top250TeenCount": int((top_250["suitabilityCategory"] == "teen").sum()),
+    }
+
+
+def _build_family_only_simulation_table(public_df: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame([_compute_public_partition_metrics(public_df)])
+
+
 def _analyze_collaborative_ratings(combined_df: pd.DataFrame) -> dict[str, Any]:
     total_ratings = 0
     unique_movie_ids: set[int] = set()
@@ -611,6 +683,21 @@ def _build_summary_tables(
     public_df = combined_df[combined_df["auditPartition"] == "public"].copy()
     support_df = combined_df[combined_df["auditPartition"] == "collaborative_support"].copy()
     excluded_df = combined_df[combined_df["auditPartition"] == "excluded"].copy()
+    low_accessibility_mask = (
+        combined_df["auditPartition"].isin(["collaborative_support", "excluded"])
+        & _series_contains_pipe_token(
+            combined_df["publicExclusionReasons"],
+            "low_stand_accessibility",
+        )
+    )
+    public_teen_sensitive_mask = (
+        (public_df["suitabilityCategory"] == "teen")
+        & _series_intersects_pipe_values(public_df["genres"], SENSITIVE_GENRES)
+    )
+    family_certified_teen_mask = _series_contains_pipe_token(
+        public_df["standDisplayReasons"],
+        "stand_family_certified_teen_suitability",
+    )
 
     comparison_by_partition = (
         combined_df.groupby("auditPartition", dropna=False)
@@ -660,6 +747,17 @@ def _build_summary_tables(
         field_name="publicBlockedTerms",
         value_column="blockedTerm",
     )
+    stand_display_reasons_by_partition = _explode_pipe_field(
+        combined_df,
+        field_name="standDisplayReasons",
+        value_column="standDisplayReason",
+    )
+    stand_display_reasons_public = _explode_pipe_field(
+        public_df,
+        field_name="standDisplayReasons",
+        value_column="standDisplayReason",
+        include_partition=False,
+    )
     public_exclusion_reasons_by_partition = _explode_pipe_field(
         combined_df,
         field_name="publicExclusionReasons",
@@ -671,20 +769,152 @@ def _build_summary_tables(
         value_column="exclusionReason",
         include_partition=False,
     )
+    public_suitability_counts = _count_by_field(
+        public_df,
+        field_name="suitabilityCategory",
+        value_column="suitabilityCategory",
+        empty_label="unknown",
+        include_percentage=True,
+    )
 
-    public_top_movies = _select_public_movies(public_df, ascending=False).head(100)
-    public_low_score_movies = _select_public_movies(public_df, ascending=True).head(100)
-    suspicious_public_movies_sample = suspicious_public_df.head(100)
+    low_stand_accessibility_movies = combined_df.loc[low_accessibility_mask].copy()
+    low_stand_accessibility_movies = low_stand_accessibility_movies.sort_values(
+        by=["standDisplayScore", "ratingCount", "tmdbPopularity", "displayLabel"],
+        ascending=[True, True, True, True],
+        na_position="last",
+        kind="mergesort",
+    )
+    low_stand_accessibility_by_language = (
+        low_stand_accessibility_movies.assign(
+            originalLanguageLabel=low_stand_accessibility_movies["originalLanguage"].replace(
+                "",
+                "unknown",
+            )
+        )
+        .groupby("originalLanguageLabel", dropna=False)["movieId"]
+        .nunique()
+        .reset_index(name="movieCount")
+        .rename(columns={"originalLanguageLabel": "originalLanguage"})
+        .sort_values(
+            by=["movieCount", "originalLanguage"],
+            ascending=[False, True],
+            kind="mergesort",
+        )
+    )
+    low_stand_accessibility_by_suitability = (
+        low_stand_accessibility_movies.assign(
+            suitabilityLabel=low_stand_accessibility_movies["suitabilityCategory"].replace(
+                "",
+                "unknown",
+            )
+        )
+        .groupby("suitabilityLabel", dropna=False)["movieId"]
+        .nunique()
+        .reset_index(name="movieCount")
+        .rename(columns={"suitabilityLabel": "suitabilityCategory"})
+        .sort_values(
+            by=["movieCount", "suitabilityCategory"],
+            ascending=[False, True],
+            kind="mergesort",
+        )
+    )
+    low_stand_accessibility_examples = low_stand_accessibility_movies.head(AUDIT_TOP_TABLE_LIMIT)
+
+    public_top_movies = _select_public_movies(public_df, ascending=False).head(AUDIT_TOP_TABLE_LIMIT)
+    public_low_score_movies = _select_public_movies(public_df, ascending=True).head(
+        AUDIT_TOP_TABLE_LIMIT
+    )
+    public_teen_sensitive_movies = public_df.loc[public_teen_sensitive_mask].copy()
+    public_teen_sensitive_movies = public_teen_sensitive_movies.sort_values(
+        by=["standDisplayScore", "ratingCount", "tmdbPopularity", "displayLabel"],
+        ascending=[False, False, False, True],
+        na_position="last",
+        kind="mergesort",
+    ).head(AUDIT_TOP_TABLE_LIMIT)
+    public_family_certified_teen_movies = public_df.loc[family_certified_teen_mask].copy()
+    public_family_certified_teen_movies = public_family_certified_teen_movies.sort_values(
+        by=["standDisplayScore", "ratingCount", "displayLabel"],
+        ascending=[False, False, True],
+        na_position="last",
+        kind="mergesort",
+    ).head(AUDIT_TOP_TABLE_LIMIT)
+    family_only_simulation_summary = _build_family_only_simulation_table(public_df)
+    teen_sensitive_genres = _explode_pipe_field(
+        public_df.loc[public_teen_sensitive_mask],
+        field_name="genres",
+        value_column="genre",
+        include_partition=False,
+    )
+    teen_sensitive_genres = teen_sensitive_genres[
+        teen_sensitive_genres["genre"].isin(SENSITIVE_GENRES)
+    ].sort_values(
+        by=["movieCount", "genre"],
+        ascending=[False, True],
+        kind="mergesort",
+    )
+
+    suspicious_public_movies_sample = suspicious_public_df.head(AUDIT_TOP_TABLE_LIMIT)
+    support_examples = support_df[
+        (support_df["publicBlockedTerms"].fillna("").astype(str) != "")
+        | (support_df["publicExclusionReasons"].fillna("").astype(str) != "")
+    ].copy()
+    support_examples = support_examples.sort_values(
+        by=["filteredRatingCount", "ratingCount", "displayLabel"],
+        ascending=[False, False, True],
+        na_position="last",
+        kind="mergesort",
+    ).head(AUDIT_TOP_TABLE_LIMIT)
+    excluded_examples = excluded_df.sort_values(
+        by=["exclusionReasons", "displayLabel"],
+        ascending=[True, True],
+        na_position="last",
+        kind="mergesort",
+    ).head(AUDIT_TOP_TABLE_LIMIT)
 
     return {
         "comparison_by_partition": comparison_by_partition,
         "suitability_by_partition": suitability_by_partition,
+        "public_suitability_counts": public_suitability_counts,
         "language_by_partition": language_by_partition,
         "decade_by_partition": decade_by_partition,
         "genre_by_partition": genre_by_partition,
         "blocked_terms_by_partition": blocked_terms_by_partition,
+        "stand_display_reasons_by_partition": stand_display_reasons_by_partition,
+        "stand_display_reasons_public": stand_display_reasons_public,
         "public_exclusion_reasons_by_partition": public_exclusion_reasons_by_partition,
         "excluded_reasons": excluded_reasons,
+        "low_stand_accessibility_movies": low_stand_accessibility_movies[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "originalLanguage",
+                "genres",
+                "suitabilityCategory",
+                "ratingCount",
+                "tmdbPopularity",
+                "standDisplayScore",
+                "publicExclusionReasons",
+                "filteredRatingCount",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
+        "low_stand_accessibility_by_language": low_stand_accessibility_by_language,
+        "low_stand_accessibility_by_suitability": low_stand_accessibility_by_suitability,
+        "low_stand_accessibility_examples": low_stand_accessibility_examples[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "originalLanguage",
+                "genres",
+                "suitabilityCategory",
+                "ratingCount",
+                "tmdbPopularity",
+                "standDisplayScore",
+                "publicExclusionReasons",
+                "filteredRatingCount",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
         "public_top_movies": public_top_movies[
             [
                 "movieId",
@@ -709,6 +939,64 @@ def _build_summary_tables(
                 "suitabilityCategory",
             ]
         ].rename(columns={"displayLabel": "displayTitle"}),
+        "public_top_by_stand_score": public_top_movies[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "originalLanguage",
+                "genres",
+                "suitabilityCategory",
+                "standDisplayScore",
+                "ratingCount",
+                "tmdbPopularity",
+                "standDisplayReasons",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
+        "public_bottom_by_stand_score": public_low_score_movies[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "originalLanguage",
+                "genres",
+                "suitabilityCategory",
+                "standDisplayScore",
+                "ratingCount",
+                "tmdbPopularity",
+                "standDisplayReasons",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
+        "public_teen_sensitive_movies": public_teen_sensitive_movies[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "genres",
+                "originalLanguage",
+                "standDisplayScore",
+                "ratingCount",
+                "tmdbPopularity",
+                "suitabilityReasons",
+                "standDisplayReasons",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
+        "public_family_certified_teen_movies": public_family_certified_teen_movies[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "originalLanguage",
+                "genres",
+                "standDisplayScore",
+                "ratingCount",
+                "tmdbPopularity",
+                "suitabilityReasons",
+                "standDisplayReasons",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
+        "family_only_simulation_summary": family_only_simulation_summary,
+        "teen_sensitive_genres": teen_sensitive_genres,
         "suspicious_public_movies_sample": suspicious_public_movies_sample[
             [
                 "movieId",
@@ -721,15 +1009,27 @@ def _build_summary_tables(
                 "auditFlags",
             ]
         ].rename(columns={"displayLabel": "displayTitle"}),
-        "support_examples": support_df[
+        "support_examples": support_examples[
             [
                 "movieId",
                 "displayLabel",
                 "year",
+                "suitabilityCategory",
                 "publicBlockedTerms",
                 "publicExclusionReasons",
             ]
-        ].head(100).rename(columns={"displayLabel": "displayTitle"}),
+        ].rename(columns={"displayLabel": "displayTitle"}),
+        "excluded_examples": excluded_examples[
+            [
+                "movieId",
+                "displayLabel",
+                "year",
+                "originalLanguage",
+                "genres",
+                "exclusionCategory",
+                "exclusionReasons",
+            ]
+        ].rename(columns={"displayLabel": "displayTitle"}),
         "collaborative_summary": collaborative_signals["tables"]["collaborative_summary"],
         "rating_distribution": collaborative_signals["tables"]["rating_distribution"],
         "ratings_by_year": collaborative_signals["tables"]["ratings_by_year"],
@@ -738,13 +1038,11 @@ def _build_summary_tables(
             "top_movies_by_filtered_ratings"
         ],
         "top_users_by_rating_count": collaborative_signals["tables"]["top_users_by_rating_count"],
-    }
+}
 
 
 def _write_summary_tables(tables: dict[str, pd.DataFrame]) -> None:
     for table_name, dataframe in tables.items():
-        if table_name == "support_examples":
-            continue
         _write_csv(dataframe, OFFLINE_DATASET_AUDIT_TABLES_DIR / f"{table_name}.csv")
 
 
@@ -773,11 +1071,19 @@ def _generate_static_charts(
     chart_paths = {
         "partition_counts": "charts/partition_counts.png",
         "suitability_by_partition": "charts/suitability_by_partition.png",
+        "public_suitability_counts": "charts/public_suitability_counts.png",
         "public_languages": "charts/public_languages.png",
         "public_decades": "charts/public_decades.png",
         "public_genres": "charts/public_genres.png",
         "support_blocked_terms": "charts/support_blocked_terms.png",
         "stand_display_score_distribution": "charts/stand_display_score_distribution.png",
+        "public_stand_score_by_suitability": "charts/public_stand_score_by_suitability.png",
+        "public_stand_display_reasons": "charts/public_stand_display_reasons.png",
+        "public_exclusion_reasons": "charts/public_exclusion_reasons.png",
+        "low_stand_accessibility_languages": "charts/low_stand_accessibility_languages.png",
+        "teen_sensitive_genres": "charts/teen_sensitive_genres.png",
+        "family_only_simulation": "charts/family_only_simulation.png",
+        "excluded_reasons": "charts/excluded_reasons.png",
         "rating_count_vs_stand_score": "charts/rating_count_vs_stand_score.png",
         "rating_distribution": "charts/rating_distribution.png",
         "ratings_per_user_buckets": "charts/ratings_per_user_buckets.png",
@@ -836,6 +1142,29 @@ def _generate_static_charts(
         ax.legend(title="Partición")
         plt.xticks(rotation=35, ha="right")
         _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "suitability_by_partition.png")
+
+    public_suitability_df = tables["public_suitability_counts"].copy()
+    if public_suitability_df.empty:
+        _save_empty_chart(
+            "Suitability del catálogo público",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_suitability_counts.png",
+        )
+    else:
+        plt.figure(figsize=(10, 5))
+        ax = sns.barplot(
+            data=public_suitability_df,
+            x="suitabilityCategory",
+            y="movieCount",
+            color=SINBAD_BLUE,
+        )
+        _style_axes(
+            ax,
+            title="Distribución de suitabilityCategory en el catálogo público",
+            xlabel="Suitability",
+            ylabel="Películas",
+        )
+        plt.xticks(rotation=25, ha="right")
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_suitability_counts.png")
 
     public_languages_df = tables["language_by_partition"].copy()
     public_languages_df = public_languages_df[
@@ -959,6 +1288,57 @@ def _generate_static_charts(
             OFFLINE_DATASET_AUDIT_CHARTS_DIR / "stand_display_score_distribution.png"
         )
 
+    score_by_suitability_df = public_df.dropna(
+        subset=["standDisplayScore", "suitabilityCategory"]
+    ).copy()
+    if score_by_suitability_df.empty:
+        _save_empty_chart(
+            "standDisplayScore por suitability",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_stand_score_by_suitability.png",
+        )
+    else:
+        plt.figure(figsize=(12, 5.5))
+        ax = sns.boxplot(
+            data=score_by_suitability_df,
+            x="suitabilityCategory",
+            y="standDisplayScore",
+            color=SINBAD_GOLD,
+        )
+        _style_axes(
+            ax,
+            title="standDisplayScore por suitabilityCategory en catálogo público",
+            xlabel="Suitability",
+            ylabel="standDisplayScore",
+        )
+        plt.xticks(rotation=25, ha="right")
+        _finalize_chart(
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_stand_score_by_suitability.png"
+        )
+
+    public_reason_df = tables["stand_display_reasons_public"].copy().head(15)
+    if public_reason_df.empty:
+        _save_empty_chart(
+            "standDisplayReasons del catálogo público",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_stand_display_reasons.png",
+        )
+    else:
+        plt.figure(figsize=(12, 6))
+        ax = sns.barplot(
+            data=public_reason_df,
+            x="movieCount",
+            y="standDisplayReason",
+            color=SINBAD_CYAN,
+        )
+        _style_axes(
+            ax,
+            title="standDisplayReasons más frecuentes en catálogo público",
+            xlabel="Películas",
+            ylabel="standDisplayReason",
+        )
+        _finalize_chart(
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_stand_display_reasons.png"
+        )
+
     scatter_df = public_df.dropna(subset=["ratingCount", "standDisplayScore"]).copy()
     if scatter_df.empty:
         _save_empty_chart(
@@ -985,6 +1365,142 @@ def _generate_static_charts(
         )
         ax.legend(title="Suitability", loc="best", fontsize=8)
         _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "rating_count_vs_stand_score.png")
+
+    public_exclusion_df = (
+        tables["public_exclusion_reasons_by_partition"]
+        .groupby("publicExclusionReason", dropna=False)["movieCount"]
+        .sum()
+        .reset_index()
+        .sort_values(
+            by=["movieCount", "publicExclusionReason"],
+            ascending=[False, True],
+            kind="mergesort",
+        )
+        .head(15)
+    )
+    if public_exclusion_df.empty:
+        _save_empty_chart(
+            "Razones de exclusión pública",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_exclusion_reasons.png",
+        )
+    else:
+        plt.figure(figsize=(12, 6))
+        ax = sns.barplot(
+            data=public_exclusion_df,
+            x="movieCount",
+            y="publicExclusionReason",
+            color=SINBAD_RED,
+        )
+        _style_axes(
+            ax,
+            title="Razones de exclusión pública más frecuentes",
+            xlabel="Películas",
+            ylabel="publicExclusionReason",
+        )
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "public_exclusion_reasons.png")
+
+    excluded_reasons_df = tables["excluded_reasons"].copy().head(15)
+    if excluded_reasons_df.empty:
+        _save_empty_chart(
+            "Razones de exclusión total",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "excluded_reasons.png",
+        )
+    else:
+        plt.figure(figsize=(12, 6))
+        ax = sns.barplot(
+            data=excluded_reasons_df,
+            x="movieCount",
+            y="exclusionReason",
+            color=SINBAD_GOLD,
+        )
+        _style_axes(
+            ax,
+            title="Razones de exclusión total más frecuentes",
+            xlabel="Películas",
+            ylabel="exclusionReason",
+        )
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "excluded_reasons.png")
+
+    low_access_language_df = tables["low_stand_accessibility_by_language"].copy().head(15)
+    if low_access_language_df.empty:
+        _save_empty_chart(
+            "Idiomas con baja accesibilidad de stand",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "low_stand_accessibility_languages.png",
+        )
+    else:
+        plt.figure(figsize=(12, 6))
+        ax = sns.barplot(
+            data=low_access_language_df,
+            x="originalLanguage",
+            y="movieCount",
+            color=SINBAD_GOLD,
+        )
+        _style_axes(
+            ax,
+            title="Idiomas en casos de low_stand_accessibility",
+            xlabel="Idioma original",
+            ylabel="Películas",
+        )
+        plt.xticks(rotation=35, ha="right")
+        _finalize_chart(
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "low_stand_accessibility_languages.png"
+        )
+
+    teen_sensitive_df = tables["teen_sensitive_genres"].copy().head(15)
+    if teen_sensitive_df.empty:
+        _save_empty_chart(
+            "Géneros sensibles en públicas teen",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "teen_sensitive_genres.png",
+        )
+    else:
+        plt.figure(figsize=(11, 5.5))
+        ax = sns.barplot(
+            data=teen_sensitive_df,
+            x="genre",
+            y="movieCount",
+            color=SINBAD_RED,
+        )
+        _style_axes(
+            ax,
+            title="Géneros sensibles dentro de películas públicas teen",
+            xlabel="Género sensible",
+            ylabel="Películas",
+        )
+        plt.xticks(rotation=30, ha="right")
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "teen_sensitive_genres.png")
+
+    family_simulation_df = pd.DataFrame(
+        [
+            {"scope": "Catálogo público", "group": "family_friendly", "movieCount": int(tables["family_only_simulation_summary"].iloc[0]["familyFriendlyPublicMovies"])},
+            {"scope": "Catálogo público", "group": "teen", "movieCount": int(tables["family_only_simulation_summary"].iloc[0]["teenPublicMovies"])},
+            {"scope": "Top 100", "group": "family_friendly", "movieCount": int(tables["family_only_simulation_summary"].iloc[0]["top100FamilyFriendlyCount"])},
+            {"scope": "Top 100", "group": "teen", "movieCount": int(tables["family_only_simulation_summary"].iloc[0]["top100TeenCount"])},
+            {"scope": "Top 250", "group": "family_friendly", "movieCount": int(tables["family_only_simulation_summary"].iloc[0]["top250FamilyFriendlyCount"])},
+            {"scope": "Top 250", "group": "teen", "movieCount": int(tables["family_only_simulation_summary"].iloc[0]["top250TeenCount"])},
+        ]
+    )
+    if family_simulation_df.empty:
+        _save_empty_chart(
+            "Simulación family-only",
+            OFFLINE_DATASET_AUDIT_CHARTS_DIR / "family_only_simulation.png",
+        )
+    else:
+        plt.figure(figsize=(11, 5.5))
+        ax = sns.barplot(
+            data=family_simulation_df,
+            x="scope",
+            y="movieCount",
+            hue="group",
+            palette=[SINBAD_BLUE, SINBAD_GOLD],
+        )
+        _style_axes(
+            ax,
+            title="Composición family_friendly y teen en catálogo público y tramos altos",
+            xlabel="Tramo",
+            ylabel="Películas",
+        )
+        ax.legend(title="Suitability")
+        _finalize_chart(OFFLINE_DATASET_AUDIT_CHARTS_DIR / "family_only_simulation.png")
 
     rating_distribution_df = tables["rating_distribution"].copy()
     if rating_distribution_df.empty:
@@ -1088,36 +1604,28 @@ def _build_conclusions(
     collaborative_signals: dict[str, Any],
 ) -> list[str]:
     counts = combined_df["auditPartition"].value_counts()
-
-    public_languages = tables["language_by_partition"]
-    public_languages = public_languages[public_languages["auditPartition"] == "public"]
-    top_language = (
-        str(public_languages.iloc[0]["originalLanguage"])
-        if not public_languages.empty
-        else "unknown"
+    family_metrics = tables["family_only_simulation_summary"].iloc[0].to_dict()
+    public_exclusion_reasons = (
+        tables["public_exclusion_reasons_by_partition"]
+        .groupby("publicExclusionReason", dropna=False)["movieCount"]
+        .sum()
+        .reset_index()
+        .sort_values(
+            by=["movieCount", "publicExclusionReason"],
+            ascending=[False, True],
+            kind="mergesort",
+        )
     )
-
-    public_decades = tables["decade_by_partition"]
-    public_decades = public_decades[public_decades["auditPartition"] == "public"]
-    top_decade = str(public_decades.iloc[0]["decade"]) if not public_decades.empty else "unknown"
-
-    blocked_terms = tables["blocked_terms_by_partition"]
-    blocked_terms = blocked_terms[blocked_terms["auditPartition"] == "collaborative_support"]
-    top_blocked_term = (
-        str(blocked_terms.iloc[0]["blockedTerm"])
-        if not blocked_terms.empty
-        else "sin señal dominante"
-    )
-
-    excluded_reasons = tables["excluded_reasons"]
-    top_excluded_reason = (
-        str(excluded_reasons.iloc[0]["exclusionReason"])
-        if not excluded_reasons.empty
+    top_public_exclusion_reason = (
+        str(public_exclusion_reasons.iloc[0]["publicExclusionReason"])
+        if not public_exclusion_reasons.empty
         else "sin razón dominante"
     )
-
     collaborative_ratings_manifest = int(manifest.get("counts", {}).get("collaborativeRatings", 0))
     density_percent = round(collaborative_signals["matrixDensity"] * 100, 4)
+    low_accessibility_count = int(len(tables["low_stand_accessibility_movies"]))
+    public_teen_sensitive_count = int(len(tables["public_teen_sensitive_movies"]))
+    family_certified_teen_public_count = int(len(tables["public_family_certified_teen_movies"]))
 
     return [
         (
@@ -1127,34 +1635,43 @@ def _build_conclusions(
             f"{int(counts.get('excluded', 0))} excluidas."
         ),
         (
-            "El dataset offline conserva una señal colaborativa grande: "
+            "Dentro del catálogo público actual hay "
+            f"{int(family_metrics['familyFriendlyPublicMovies'])} películas family_friendly y "
+            f"{int(family_metrics['teenPublicMovies'])} películas teen."
+        ),
+        (
+            "La revisión de accesibilidad de stand identifica "
+            f"{low_accessibility_count} películas fuera de la partición pública con la razón "
+            "`low_stand_accessibility`."
+        ),
+        (
+            "Las películas públicas teen con géneros sensibles suman "
+            f"{public_teen_sensitive_count} casos y "
+            f"{family_certified_teen_public_count} de ellas incluyen la razón "
+            "`stand_family_certified_teen_suitability`."
+        ),
+        (
+            "En los primeros 100 títulos por standDisplayScore aparecen "
+            f"{int(family_metrics['top100FamilyFriendlyCount'])} películas family_friendly y "
+            f"{int(family_metrics['top100TeenCount'])} películas teen."
+        ),
+        (
+            "La razón pública más frecuente en las particiones no públicas es "
+            f"{top_public_exclusion_reason}."
+        ),
+        (
+            "El dataset offline conserva "
             f"{_format_int(collaborative_signals['totalRatings'])} ratings procesados "
             f"frente a {_format_int(collaborative_ratings_manifest)} declarados en el manifest."
         ),
         (
-            "La matriz usuario-película sigue siendo muy dispersa "
-            f"({density_percent}% de densidad), lo que es esperable en recomendación colaborativa."
+            "La matriz usuario-película del núcleo colaborativo presenta "
+            f"{density_percent}% de densidad, con una media de "
+            f"{round(collaborative_signals['averageRatingsPerUser'], 2)} ratings por usuario."
         ),
         (
-            "En el catálogo público domina el idioma "
-            f"{top_language} y la década más frecuente es {top_decade}."
-        ),
-        (
-            "La señal de revisión pública alcanza "
+            "La muestra de revisión pública incluye "
             f"{len(suspicious_public_df)} películas con auditFlags no vacíos."
-        ),
-        (
-            "En soporte colaborativo, el blocked term más repetido es "
-            f"{top_blocked_term}."
-        ),
-        (
-            "Entre las películas excluidas predomina la razón "
-            f"{top_excluded_reason}, lo que sugiere revisar primero fallos técnicos y de enriquecimiento."
-        ),
-        (
-            "Los perfiles colaborativos tienen una media de "
-            f"{round(collaborative_signals['averageRatingsPerUser'], 2)} ratings por usuario y una mediana de "
-            f"{round(collaborative_signals['medianRatingsPerUser'], 2)}."
         ),
     ]
 
@@ -1169,204 +1686,9 @@ def _build_dashboard_html(
     conclusions: list[str],
     collaborative_signals: dict[str, Any],
 ) -> str:
-    public_df = combined_df[combined_df["auditPartition"] == "public"].copy()
-    comparison_df = _with_partition_labels(tables["comparison_by_partition"])
-    suitability_df = _with_partition_labels(tables["suitability_by_partition"])
-    support_examples = tables["support_examples"].copy()
-    support_examples = support_examples[
-        (support_examples["publicBlockedTerms"].fillna("") != "")
-        | (support_examples["publicExclusionReasons"].fillna("") != "")
-    ].head(12)
-
     counts = combined_df["auditPartition"].value_counts()
     collaborative_ratings_manifest = int(manifest.get("counts", {}).get("collaborativeRatings", 0))
-
-    partition_fig = px.bar(
-        comparison_df,
-        x="partitionLabel",
-        y="movieCount",
-        color="partitionLabel",
-        category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
-        color_discrete_map=PARTITION_COLORS,
-        title="Películas por partición",
-    )
-    _style_plotly_figure(partition_fig)
-
-    suitability_fig = px.bar(
-        suitability_df,
-        x="suitabilityCategory",
-        y="movieCount",
-        color="partitionLabel",
-        barmode="group",
-        category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
-        color_discrete_map=PARTITION_COLORS,
-        title="Categorías de suitability",
-    )
-    _style_plotly_figure(suitability_fig)
-
-    public_languages_fig = px.bar(
-        tables["language_by_partition"].query("auditPartition == 'public'").head(10),
-        x="originalLanguage",
-        y="movieCount",
-        color_discrete_sequence=[SINBAD_BLUE],
-        title="Idiomas del catálogo público",
-    )
-    _style_plotly_figure(public_languages_fig)
-
-    public_decades_fig = px.bar(
-        tables["decade_by_partition"].query("auditPartition == 'public'"),
-        x="decade",
-        y="movieCount",
-        color_discrete_sequence=[SINBAD_GOLD],
-        title="Décadas del catálogo público",
-    )
-    _style_plotly_figure(public_decades_fig)
-
-    public_genres_fig = px.bar(
-        tables["genre_by_partition"].query("auditPartition == 'public'").head(12),
-        x="genre",
-        y="movieCount",
-        color_discrete_sequence=[SINBAD_CYAN],
-        title="Géneros del catálogo público",
-    )
-    _style_plotly_figure(public_genres_fig)
-
-    score_dist_fig = px.histogram(
-        public_df.dropna(subset=["standDisplayScore"]),
-        x="standDisplayScore",
-        nbins=24,
-        title="Distribución de standDisplayScore",
-        color_discrete_sequence=[SINBAD_BLUE],
-    )
-    _style_plotly_figure(score_dist_fig)
-
-    scatter_fig = px.scatter(
-        public_df.dropna(subset=["ratingCount", "standDisplayScore"]),
-        x="ratingCount",
-        y="standDisplayScore",
-        color="suitabilityCategory",
-        hover_data=["displayLabel", "year", "tmdbPopularity"],
-        log_x=True,
-        title="ratingCount vs standDisplayScore",
-        color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_CYAN, SINBAD_RED],
-    )
-    _style_plotly_figure(scatter_fig)
-
-    support_blocked_terms_fig = px.bar(
-        tables["blocked_terms_by_partition"]
-        .query("auditPartition == 'collaborative_support'")
-        .head(12),
-        x="blockedTerm",
-        y="movieCount",
-        color_discrete_sequence=[SINBAD_RED],
-        title="Blocked terms del soporte colaborativo",
-    )
-    _style_plotly_figure(support_blocked_terms_fig)
-
-    excluded_reasons_fig = px.bar(
-        tables["excluded_reasons"].head(12),
-        x="exclusionReason",
-        y="movieCount",
-        color_discrete_sequence=[SINBAD_GOLD],
-        title="Razones de exclusión más frecuentes",
-    )
-    _style_plotly_figure(excluded_reasons_fig)
-
-    rating_distribution_fig = px.bar(
-        tables["rating_distribution"],
-        x="ratingLabel",
-        y="ratingCount",
-        color_discrete_sequence=[SINBAD_GREEN],
-        title="Distribución de valores de rating",
-    )
-    _style_plotly_figure(rating_distribution_fig)
-
-    user_buckets_fig = px.bar(
-        tables["ratings_per_user_buckets"],
-        x="bucket",
-        y="userCount",
-        category_orders={"bucket": USER_BUCKET_ORDER},
-        color_discrete_sequence=[SINBAD_GOLD],
-        title="Usuarios agrupados por número de ratings",
-    )
-    _style_plotly_figure(user_buckets_fig)
-
-    ratings_by_year_fig = px.line(
-        tables["ratings_by_year"],
-        x="year",
-        y="ratingCount",
-        markers=True,
-        title="Ratings por año en el núcleo colaborativo",
-    )
-    ratings_by_year_fig.update_traces(line_color=SINBAD_BLUE)
-    _style_plotly_figure(ratings_by_year_fig)
-
-    top_movies_fig = px.bar(
-        tables["top_movies_by_filtered_ratings"].head(15).sort_values(
-            by="filteredRatingCount",
-            ascending=True,
-        ),
-        x="filteredRatingCount",
-        y="displayLabel",
-        orientation="h",
-        color_discrete_sequence=[SINBAD_CYAN],
-        title="Top películas por número de ratings filtrados",
-    )
-    _style_plotly_figure(top_movies_fig)
-
-    plotly_config = {"responsive": True, "displaylogo": False}
-    plot_blocks = [
-        partition_fig.to_html(
-            full_html=False,
-            include_plotlyjs="inline",
-            config=plotly_config,
-        ),
-        suitability_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
-        public_languages_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        public_decades_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        public_genres_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        score_dist_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
-        scatter_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
-        support_blocked_terms_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        excluded_reasons_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        rating_distribution_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        user_buckets_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        ratings_by_year_fig.to_html(
-            full_html=False,
-            include_plotlyjs=False,
-            config=plotly_config,
-        ),
-        top_movies_fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config),
-    ]
-
+    family_metrics = tables["family_only_simulation_summary"].iloc[0]
     headline_kpis = [
         ("Películas públicas", _format_int(int(counts.get("public", 0)))),
         (
@@ -1374,8 +1696,16 @@ def _build_dashboard_html(
             _format_int(int(counts.get("collaborative_support", 0))),
         ),
         ("Películas excluidas", _format_int(int(counts.get("excluded", 0)))),
-        ("Total analizado", _format_int(int(len(combined_df)))),
         ("Ratings colaborativos", _format_int(collaborative_ratings_manifest)),
+        (
+            "Públicas family_friendly",
+            _format_int(int(family_metrics["familyFriendlyPublicMovies"])),
+        ),
+        ("Públicas teen", _format_int(int(family_metrics["teenPublicMovies"]))),
+        (
+            "low_stand_accessibility",
+            _format_int(int(len(tables["low_stand_accessibility_movies"]))),
+        ),
         ("Públicas revisables", _format_int(int(len(suspicious_public_df)))),
     ]
     collaborative_kpis = [
@@ -1394,27 +1724,56 @@ def _build_dashboard_html(
             "Media ratings/película",
             f"{collaborative_signals['averageRatingsPerMovie']:.2f}",
         ),
-        (
-            "Mediana ratings/película",
-            f"{collaborative_signals['medianRatingsPerMovie']:.2f}",
-        ),
+        ("Mediana ratings/película", f"{collaborative_signals['medianRatingsPerMovie']:.2f}"),
     ]
 
     chart_gallery = "".join(
         [
             _chart_card_html("Conteo por partición", chart_paths["partition_counts"]),
             _chart_card_html("Suitability por partición", chart_paths["suitability_by_partition"]),
+            _chart_card_html(
+                "Suitability del catálogo público",
+                chart_paths["public_suitability_counts"],
+            ),
             _chart_card_html("Idiomas públicos", chart_paths["public_languages"]),
             _chart_card_html("Décadas públicas", chart_paths["public_decades"]),
             _chart_card_html("Géneros públicos", chart_paths["public_genres"]),
-            _chart_card_html("Blocked terms de soporte", chart_paths["support_blocked_terms"]),
             _chart_card_html(
                 "Distribución de standDisplayScore",
                 chart_paths["stand_display_score_distribution"],
             ),
             _chart_card_html(
+                "standDisplayScore por suitability",
+                chart_paths["public_stand_score_by_suitability"],
+            ),
+            _chart_card_html(
+                "standDisplayReasons públicas",
+                chart_paths["public_stand_display_reasons"],
+            ),
+            _chart_card_html(
+                "Razones de exclusión pública",
+                chart_paths["public_exclusion_reasons"],
+            ),
+            _chart_card_html(
+                "Razones de exclusión total",
+                chart_paths["excluded_reasons"],
+            ),
+            _chart_card_html(
+                "Idiomas en low_stand_accessibility",
+                chart_paths["low_stand_accessibility_languages"],
+            ),
+            _chart_card_html(
+                "Géneros sensibles en públicas teen",
+                chart_paths["teen_sensitive_genres"],
+            ),
+            _chart_card_html("Blocked terms de soporte", chart_paths["support_blocked_terms"]),
+            _chart_card_html(
                 "ratingCount vs standDisplayScore",
                 chart_paths["rating_count_vs_stand_score"],
+            ),
+            _chart_card_html(
+                "Simulación family-only",
+                chart_paths["family_only_simulation"],
             ),
             _chart_card_html("Distribución de ratings", chart_paths["rating_distribution"]),
             _chart_card_html(
@@ -1428,6 +1787,15 @@ def _build_dashboard_html(
             ),
         ]
     )
+
+    def image_card(title: str, path: str, explanation_key: str) -> str:
+        return (
+            '<div class="chart-card">'
+            f"<h3>{escape(title)}</h3>"
+            f"{_explanation_html(explanation_key)}"
+            f'<img class="chart-image" src="{escape(path)}" alt="{escape(title)}" />'
+            "</div>"
+        )
 
     headline_kpis_html = "".join(
         [
@@ -1598,6 +1966,13 @@ def _build_dashboard_html(
       width: 100% !important;
       max-width: 100% !important;
     }}
+    .chart-image {{
+      width: 100%;
+      display: block;
+      border-radius: 16px;
+      border: 1px solid #1d2d4e;
+      background: rgba(8, 17, 31, 0.85);
+    }}
     .explanation {{
       margin: 0 0 14px;
       padding: 12px 15px;
@@ -1699,146 +2074,233 @@ def _build_dashboard_html(
     </section>
 
     <section class="section">
-      <h2>A. Particiones principales</h2>
-      {_explanation_html("section_partitions")}
-      <div class="row row-1">
-        <div class="chart-card full-width">
-          {_explanation_html("partition_chart")}
-          <div class="plot">{plot_blocks[0]}</div>
+      <h2>A. Resumen ejecutivo</h2>
+      {_explanation_html("section_executive_summary")}
+      <div class="row row-2">
+        <div class="card">
+          <h3>Observaciones automáticas</h3>
+          {_explanation_html("section_conclusions")}
+          <ul class="conclusions">{conclusions_html}</ul>
+        </div>
+        <div class="card">
+          <h3>Métricas colaborativas</h3>
+          <div class="grid kpis">{collaborative_kpis_html}</div>
         </div>
       </div>
     </section>
 
     <section class="section">
-      <h2>B. Comparación de suitability</h2>
-      {_explanation_html("section_suitability")}
-      <div class="row row-1">
-        <div class="chart-card full-width">
-          {_explanation_html("suitability_chart")}
-          <div class="plot">{plot_blocks[1]}</div>
+      <h2>B. Descripción general del dataset</h2>
+      {_explanation_html("section_dataset_overview")}
+      <div class="row row-2">
+        <div class="chart-card">
+          {_explanation_html("partition_chart")}
+          <img class="chart-image" src="{escape(chart_paths["partition_counts"])}" alt="Conteo por partición" />
+        </div>
+        <div class="chart-card">
+          {_explanation_html("suitability_partition_chart")}
+          <img class="chart-image" src="{escape(chart_paths["suitability_by_partition"])}" alt="Suitability por partición" />
+        </div>
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="card">
+          <h3>Idiomas por partición</h3>
+          {_explanation_html("language_partition_table")}
+          <div class="table-wrap">{_render_html_table(tables["language_by_partition"], limit=18)}</div>
+        </div>
+        <div class="card">
+          <h3>Géneros por partición</h3>
+          {_explanation_html("genre_partition_table")}
+          <div class="table-wrap">{_render_html_table(tables["genre_by_partition"], limit=18)}</div>
+        </div>
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="card">
+          <h3>Resumen de ratings y usuarios</h3>
+          <div class="table-wrap">{_render_html_table(tables["collaborative_summary"], limit=12)}</div>
+        </div>
+        <div class="card">
+          <h3>Décadas por partición</h3>
+          <div class="table-wrap">{_render_html_table(tables["decade_by_partition"], limit=18)}</div>
         </div>
       </div>
     </section>
 
     <section class="section">
       <h2>C. Catálogo público</h2>
-      {_explanation_html("section_public")}
+      {_explanation_html("section_public_quality")}
       <div class="row row-2">
-        <div class="chart-card">
-          {_explanation_html("public_languages_chart")}
-          <div class="plot">{plot_blocks[2]}</div>
-        </div>
-        <div class="chart-card">
-          {_explanation_html("public_decades_chart")}
-          <div class="plot">{plot_blocks[3]}</div>
-        </div>
+        {image_card("Suitability del catálogo público", chart_paths["public_suitability_counts"], "public_suitability_chart")}
+        {image_card("Idiomas del catálogo público", chart_paths["public_languages"], "public_languages_chart")}
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
+        {image_card("Décadas del catálogo público", chart_paths["public_decades"], "public_decades_chart")}
+        {image_card("Géneros del catálogo público", chart_paths["public_genres"], "public_genres_chart")}
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
+        {image_card("Distribución de standDisplayScore", chart_paths["stand_display_score_distribution"], "public_score_distribution_chart")}
+        {image_card("standDisplayScore por suitability", chart_paths["public_stand_score_by_suitability"], "public_stand_score_by_suitability_chart")}
       </div>
       <div class="row row-1" style="margin-top: 18px;">
-        <div class="chart-card full-width">
-          {_explanation_html("public_genres_chart")}
-          <div class="plot">{plot_blocks[4]}</div>
-        </div>
+        {image_card("ratingCount vs standDisplayScore", chart_paths["rating_count_vs_stand_score"], "public_scatter_chart")}
       </div>
-      <div class="row row-1" style="margin-top: 18px;">
-        <div class="chart-card full-width">
-          {_explanation_html("public_score_distribution_chart")}
-          <div class="plot">{plot_blocks[5]}</div>
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="card">
+          <h3>Top 25 públicas por standDisplayScore</h3>
+          {_explanation_html("public_top_table")}
+          <div class="table-wrap">{_render_html_table(tables["public_top_by_stand_score"], limit=25)}</div>
         </div>
-      </div>
-      <div class="row row-1" style="margin-top: 18px;">
-        <div class="chart-card full-width">
-          {_explanation_html("public_scatter_chart")}
-          <div class="plot">{plot_blocks[6]}</div>
+        <div class="card">
+          <h3>Bottom 25 públicas por standDisplayScore</h3>
+          {_explanation_html("public_bottom_table")}
+          <div class="table-wrap">{_render_html_table(tables["public_bottom_by_stand_score"], limit=25)}</div>
         </div>
       </div>
     </section>
 
     <section class="section">
-      <h2>D. Soporte colaborativo</h2>
+      <h2>D. Control de películas teen</h2>
+      {_explanation_html("section_teen_sensitive_control")}
+      <div class="grid kpis">
+        <div class="kpi"><div class="label">Públicas teen</div><div class="value">{_format_int(int(family_metrics["teenPublicMovies"]))}</div></div>
+        <div class="kpi"><div class="label">Teen con géneros sensibles</div><div class="value">{_format_int(int(len(tables["public_teen_sensitive_movies"])))}</div></div>
+        <div class="kpi"><div class="label">Teen con señal familiar certificada</div><div class="value">{_format_int(int(len(tables["public_family_certified_teen_movies"])))}</div></div>
+      </div>
+      <div class="row row-2">
+        <div class="chart-card">
+          {_explanation_html("teen_sensitive_chart")}
+          <img class="chart-image" src="{escape(chart_paths["teen_sensitive_genres"])}" alt="Géneros sensibles en públicas teen" />
+        </div>
+        <div class="card">
+          <h3>Películas públicas teen con géneros sensibles</h3>
+          {_explanation_html("teen_sensitive_table")}
+          <div class="table-wrap">{_render_html_table(tables["public_teen_sensitive_movies"], limit=25)}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>E. Accesibilidad del stand</h2>
+      {_explanation_html("section_low_stand_accessibility")}
+      <div class="grid kpis">
+        <div class="kpi"><div class="label">Casos low_stand_accessibility</div><div class="value">{_format_int(int(len(tables["low_stand_accessibility_movies"])))}</div></div>
+        <div class="kpi"><div class="label">Idiomas comunes protegidos</div><div class="value">{escape(", ".join(sorted(PUBLIC_STAND_COMMON_ORIGINAL_LANGUAGES)))}</div></div>
+        <div class="kpi"><div class="label">Géneros protegidos</div><div class="value">{escape(", ".join(sorted(PUBLIC_STAND_ACCESSIBILITY_PROTECTED_GENRES)))}</div></div>
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="chart-card">
+          {_explanation_html("low_accessibility_chart")}
+          <img class="chart-image" src="{escape(chart_paths["low_stand_accessibility_languages"])}" alt="Idiomas con low stand accessibility" />
+        </div>
+        <div class="card">
+          <h3>Ejemplos con baja accesibilidad de stand</h3>
+          {_explanation_html("low_accessibility_examples_table")}
+          <div class="table-wrap">{_render_html_table(tables["low_stand_accessibility_examples"], limit=25)}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>F. Señales de standDisplayScore</h2>
+      {_explanation_html("section_stand_reasons")}
+      <div class="row row-2" style="margin-top: 18px;">
+        <div class="chart-card">
+          {_explanation_html("stand_reasons_chart")}
+          <img class="chart-image" src="{escape(chart_paths["public_stand_display_reasons"])}" alt="standDisplayReasons públicas" />
+        </div>
+        <div class="card">
+          <h3>Películas públicas con señal family-certified teen</h3>
+          {_explanation_html("family_certified_teen_table")}
+          <div class="table-wrap">{_render_html_table(tables["public_family_certified_teen_movies"], limit=25)}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>G. Soporte colaborativo</h2>
       {_explanation_html("section_support")}
       <div class="row row-2">
         <div class="chart-card">
           {_explanation_html("support_blocked_terms_chart")}
-          <div class="plot">{plot_blocks[7]}</div>
+          <img class="chart-image" src="{escape(chart_paths["support_blocked_terms"])}" alt="Blocked terms del soporte colaborativo" />
         </div>
-        <div class="chart-card">
-          <div class="table-wrap">{_render_html_table(support_examples, limit=12)}</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <h2>E. Películas excluidas</h2>
-      {_explanation_html("section_excluded")}
-      <div class="row row-1">
-        <div class="chart-card full-width">
-          {_explanation_html("excluded_reasons_chart")}
-          <div class="plot">{plot_blocks[8]}</div>
+        <div class="card">
+          <h3>Ejemplos de soporte colaborativo</h3>
+          {_explanation_html("support_examples_table")}
+          <div class="table-wrap">{_render_html_table(tables["support_examples"], limit=20)}</div>
         </div>
       </div>
-    </section>
-
-    <section class="section">
-      <h2>I. Señales colaborativas</h2>
-      {_explanation_html("section_collaborative")}
-      <div class="grid kpis">{collaborative_kpis_html}</div>
       <div class="row row-2" style="margin-top: 18px;">
         <div class="chart-card">
           {_explanation_html("collaborative_rating_distribution_chart")}
-          <div class="plot">{plot_blocks[9]}</div>
+          <img class="chart-image" src="{escape(chart_paths["rating_distribution"])}" alt="Distribución de ratings" />
         </div>
         <div class="chart-card">
           {_explanation_html("collaborative_user_buckets_chart")}
-          <div class="plot">{plot_blocks[10]}</div>
+          <img class="chart-image" src="{escape(chart_paths["ratings_per_user_buckets"])}" alt="Ratings por usuario" />
         </div>
       </div>
       <div class="row row-2" style="margin-top: 18px;">
         <div class="chart-card">
           {_explanation_html("collaborative_year_chart")}
-          <div class="plot">{plot_blocks[11]}</div>
+          <img class="chart-image" src="{escape(chart_paths["ratings_by_year"])}" alt="Ratings por año" />
         </div>
         <div class="chart-card">
           {_explanation_html("collaborative_top_movies_chart")}
-          <div class="plot">{plot_blocks[12]}</div>
+          <img class="chart-image" src="{escape(chart_paths["top_movies_by_filtered_ratings"])}" alt="Top películas por filtered ratings" />
+        </div>
+      </div>
+      <div class="grid kpis" style="margin-top: 18px;">{collaborative_kpis_html}</div>
+    </section>
+
+    <section class="section">
+      <h2>H. Excluidas</h2>
+      {_explanation_html("section_excluded")}
+      <div class="row row-2">
+        <div class="card">
+          {_explanation_html("excluded_reasons_chart")}
+          <img class="chart-image" src="{escape(chart_paths["excluded_reasons"])}" alt="Razones de exclusión total" />
+        </div>
+        <div class="card">
+          <h3>Muestra de películas excluidas</h3>
+          {_explanation_html("excluded_examples_table")}
+          <div class="table-wrap">{_render_html_table(tables["excluded_examples"], limit=20)}</div>
         </div>
       </div>
     </section>
 
     <section class="section">
-      <h2>F. Tablas de revisión</h2>
-      {_explanation_html("section_tables")}
-      <div class="row row-3">
-        <div class="card">
-          <h3>Top 25 públicas</h3>
-          <div class="table-wrap">{_render_html_table(tables["public_top_movies"], limit=25)}</div>
+      <h2>I. Simulación family-only</h2>
+      {_explanation_html("section_family_only_simulation")}
+      <div class="row row-2">
+        <div class="chart-card">
+          {_explanation_html("family_only_chart")}
+          <img class="chart-image" src="{escape(chart_paths["family_only_simulation"])}" alt="Simulación family-only" />
         </div>
         <div class="card">
-          <h3>Bottom 25 por standDisplayScore</h3>
-          <div class="table-wrap">{_render_html_table(tables["public_low_score_movies"], limit=25)}</div>
+          <h3>Resumen de simulación family-only</h3>
+          {_explanation_html("family_only_table")}
+          <div class="table-wrap">{_render_html_table(tables["family_only_simulation_summary"], limit=10)}</div>
         </div>
+      </div>
+      <div class="row row-2" style="margin-top: 18px;">
         <div class="card">
-          <h3>Muestra de públicas revisables</h3>
+          <h3>Tablas de revisión disponibles</h3>
+          {_explanation_html("section_tables")}
           <div class="table-wrap">{_render_html_table(tables["suspicious_public_movies_sample"], limit=25)}</div>
         </div>
+        <div class="card">
+          <h3>Gráficos estáticos generados</h3>
+          {_explanation_html("section_static")}
+          <div class="gallery-grid">{chart_gallery}</div>
+        </div>
       </div>
     </section>
-
-    <section class="section">
-      <h2>G. Gráficos estáticos para documentación</h2>
-      {_explanation_html("section_static")}
-      <div class="gallery-grid">{chart_gallery}</div>
-    </section>
-
-    <section class="section">
-      <h2>H. Conclusiones automáticas</h2>
-      {_explanation_html("section_conclusions")}
-      <ul class="conclusions">{conclusions_html}</ul>
-      <p class="muted" style="margin-top:16px;">
-        Archivos adicionales: <a href="summary.md">summary.md</a>,
-        <a href="summary.json">summary.json</a>,
-        <a href="tables/">tables/</a> y <a href="detailed/">detailed/</a>.
-      </p>
-    </section>
+    <p class="muted" style="margin-top:16px;">
+      Archivos adicionales: <a href="summary.md">summary.md</a>,
+      <a href="summary.json">summary.json</a>,
+      <a href="tables/">tables/</a> y <a href="detailed/">detailed/</a>.
+    </p>
   </div>
 </body>
 </html>
@@ -1857,25 +2319,36 @@ def _build_markdown_summary(
     collaborative_signals: dict[str, Any],
 ) -> str:
     counts = combined_df["auditPartition"].value_counts()
-    blocked_terms = tables["blocked_terms_by_partition"]
-    blocked_terms = blocked_terms[blocked_terms["auditPartition"] == "collaborative_support"].head(10)
-    excluded_reasons = tables["excluded_reasons"].head(10)
-    top_movies = tables["top_movies_by_filtered_ratings"].head(10)
+    family_metrics = tables["family_only_simulation_summary"].iloc[0]
 
     chart_list = "\n".join([f"- `{path}`" for path in chart_paths.values()])
     table_list = "\n".join(
         [
             "- `tables/comparison_by_partition.csv`",
             "- `tables/suitability_by_partition.csv`",
+            "- `tables/public_suitability_counts.csv`",
             "- `tables/language_by_partition.csv`",
             "- `tables/decade_by_partition.csv`",
             "- `tables/genre_by_partition.csv`",
             "- `tables/blocked_terms_by_partition.csv`",
+            "- `tables/stand_display_reasons_by_partition.csv`",
+            "- `tables/stand_display_reasons_public.csv`",
             "- `tables/public_exclusion_reasons_by_partition.csv`",
             "- `tables/excluded_reasons.csv`",
+            "- `tables/low_stand_accessibility_movies.csv`",
+            "- `tables/low_stand_accessibility_by_language.csv`",
+            "- `tables/low_stand_accessibility_by_suitability.csv`",
+            "- `tables/low_stand_accessibility_examples.csv`",
             "- `tables/public_top_movies.csv`",
             "- `tables/public_low_score_movies.csv`",
+            "- `tables/public_top_by_stand_score.csv`",
+            "- `tables/public_bottom_by_stand_score.csv`",
+            "- `tables/public_teen_sensitive_movies.csv`",
+            "- `tables/public_family_certified_teen_movies.csv`",
+            "- `tables/family_only_simulation_summary.csv`",
             "- `tables/suspicious_public_movies_sample.csv`",
+            "- `tables/support_examples.csv`",
+            "- `tables/excluded_examples.csv`",
             "- `tables/collaborative_summary.csv`",
             "- `tables/rating_distribution.csv`",
             "- `tables/ratings_by_year.csv`",
@@ -1887,7 +2360,7 @@ def _build_markdown_summary(
 
     return f"""# Auditoría del dataset offline
 
-## Resumen general
+## Balance del dataset
 
 - Películas públicas: {_format_int(int(counts.get("public", 0)))}
 - Películas de soporte colaborativo: {_format_int(int(counts.get("collaborative_support", 0)))}
@@ -1898,33 +2371,40 @@ def _build_markdown_summary(
 
 ## Catálogo público
 
-- Qué muestra: idioma, década, géneros y señales de score del catálogo visible.
-- Cómo interpretarlo: ayuda a detectar sesgos de idioma, exceso de títulos antiguos o demasiados títulos con señal visual baja.
+- Películas family_friendly públicas: {_format_int(int(family_metrics["familyFriendlyPublicMovies"]))}
+- Películas teen públicas: {_format_int(int(family_metrics["teenPublicMovies"]))}
+- Top 100 públicas: {_format_int(int(family_metrics["top100FamilyFriendlyCount"]))} family_friendly y {_format_int(int(family_metrics["top100TeenCount"]))} teen
+- Top 250 públicas: {_format_int(int(family_metrics["top250FamilyFriendlyCount"]))} family_friendly y {_format_int(int(family_metrics["top250TeenCount"]))} teen
+- Qué muestra: suitability, idiomas, décadas, géneros y señales de standDisplayScore del catálogo visible.
+- Qué ayuda a inspeccionar: si el catálogo público mezcla reconocimiento, accesibilidad y señales de stand de forma consistente.
 
-![Conteo por partición]({chart_paths["partition_counts"]})
+![Suitability público]({chart_paths["public_suitability_counts"]})
 ![Idiomas públicos]({chart_paths["public_languages"]})
 ![Décadas públicas]({chart_paths["public_decades"]})
 ![Géneros públicos]({chart_paths["public_genres"]})
 ![Distribución de standDisplayScore]({chart_paths["stand_display_score_distribution"]})
 ![ratingCount vs standDisplayScore]({chart_paths["rating_count_vs_stand_score"]})
+![standDisplayScore por suitability]({chart_paths["public_stand_score_by_suitability"]})
 
-## Soporte colaborativo
+## Control teen/sensitive
 
-- Qué muestra: por qué muchas películas útiles para perfilar usuarios no llegan al catálogo público.
-- Cómo interpretarlo: los blocked terms y razones de exclusión pública orientan mejoras futuras de heurística sin tocar la lógica actual.
+- Películas públicas teen con géneros sensibles: {_format_int(int(len(tables["public_teen_sensitive_movies"])))}
+- Películas públicas con `stand_family_certified_teen_suitability`: {_format_int(int(len(tables["public_family_certified_teen_movies"])))}
+- Qué muestra: géneros sensibles presentes en películas públicas teen y razones de stand asociadas.
+- Qué ayuda a inspeccionar: si las películas teen con señales sensibles siguen estando controladas en la parte visible.
 
-Top blocked terms:
-{_markdown_records(blocked_terms, ["blockedTerm", "movieCount", "exampleTitles"])}
+![Géneros sensibles en públicas teen]({chart_paths["teen_sensitive_genres"]})
+![standDisplayReasons públicas]({chart_paths["public_stand_display_reasons"]})
 
-## Películas excluidas
+## Accesibilidad del stand
 
-- Qué muestra: razones de exclusión total del dataset visible y de soporte.
-- Cómo interpretarlo: si dominan fallos técnicos o de enriquecimiento, el problema es de pipeline y no de recomendación.
+- Casos con `low_stand_accessibility`: {_format_int(int(len(tables["low_stand_accessibility_movies"])))}
+- Qué muestra: películas que salen del catálogo público por baja accesibilidad de stand pero pueden seguir en soporte colaborativo.
+- Qué ayuda a inspeccionar: cómo afectan idioma original, ratingCount, popularidad TMDB y standDisplayScore a ese filtro.
 
-Top exclusion reasons:
-{_markdown_records(excluded_reasons, ["exclusionReason", "movieCount", "exampleTitles"])}
+![Idiomas en low_stand_accessibility]({chart_paths["low_stand_accessibility_languages"]})
 
-## Señales colaborativas
+## Salud colaborativa
 
 - Total ratings: {_format_int(collaborative_signals["totalRatings"])}
 - Usuarios únicos: {_format_int(collaborative_signals["uniqueUsers"])}
@@ -1932,22 +2412,24 @@ Top exclusion reasons:
 - Densidad de matriz: {collaborative_signals["matrixDensity"] * 100:.4f}%
 - Media ratings/usuario: {collaborative_signals["averageRatingsPerUser"]:.2f}
 - Mediana ratings/usuario: {collaborative_signals["medianRatingsPerUser"]:.2f}
-- Máximo ratings/usuario: {_format_int(collaborative_signals["maxRatingsPerUser"])}
 - Media ratings/película: {collaborative_signals["averageRatingsPerMovie"]:.2f}
 - Mediana ratings/película: {collaborative_signals["medianRatingsPerMovie"]:.2f}
-
-- El núcleo colaborativo está formado por las películas públicas y las películas de soporte colaborativo.
-- Las películas excluidas no forman parte de `collaborative_ratings.csv`.
-- Qué muestra: fuerza de perfiles, sesgo de valores de rating y dispersión de la matriz usuario-película.
-- Cómo interpretarlo: una matriz muy dispersa es normal, pero perfiles demasiado débiles o una distribución sesgada pueden limitar el valor colaborativo.
+- Qué muestra: distribución de ratings, fuerza de perfiles y concentración de señal en el núcleo colaborativo.
+- Qué ayuda a inspeccionar: si el soporte colaborativo sigue siendo útil para perfilar usuarios aunque parte del catálogo no sea público.
 
 ![Distribución de ratings]({chart_paths["rating_distribution"]})
 ![Ratings por usuario]({chart_paths["ratings_per_user_buckets"]})
 ![Ratings por año]({chart_paths["ratings_by_year"]})
 ![Top películas por filtered ratings]({chart_paths["top_movies_by_filtered_ratings"]})
 
-Top películas por filtered ratings:
-{_markdown_records(top_movies, ["displayLabel", "filteredRatingCount", "datasetRoleLabel"])}
+## Tablas de revisión disponibles
+
+- `public_top_by_stand_score.csv` y `public_bottom_by_stand_score.csv`: extremos del ranking público visible.
+- `public_teen_sensitive_movies.csv`: películas públicas teen con géneros sensibles y sus razones.
+- `public_family_certified_teen_movies.csv`: casos con señal `stand_family_certified_teen_suitability`.
+- `low_stand_accessibility_examples.csv`: ejemplos que salen del público por baja accesibilidad de stand.
+- `support_examples.csv` y `excluded_examples.csv`: muestras manuales de soporte colaborativo y exclusión total.
+- `family_only_simulation_summary.csv`: simulación del catálogo público si solo se mostrasen películas family_friendly.
 
 ## Gráficos generados
 
@@ -1957,7 +2439,7 @@ Top películas por filtered ratings:
 
 {table_list}
 
-## Conclusiones para mejorar heurística
+## Observaciones automáticas
 
 {chr(10).join([f"- {line}" for line in conclusions])}
 """
@@ -1975,6 +2457,7 @@ def _build_summary_json(
         partition: int(count)
         for partition, count in combined_df["auditPartition"].value_counts().items()
     }
+    family_only_simulation = tables["family_only_simulation_summary"].iloc[0].to_dict()
 
     return {
         "countsByPartition": counts_by_partition,
@@ -1995,6 +2478,10 @@ def _build_summary_json(
             "failedPublicPosterDownloads": int(manifest.get("failedPublicPosterDownloads", 0)),
         },
         "suitabilityCounts": _records_from_dataframe(tables["suitability_by_partition"], limit=100),
+        "publicSuitabilityCounts": _records_from_dataframe(
+            tables["public_suitability_counts"],
+            limit=20,
+        ),
         "languageCounts": _records_from_dataframe(tables["language_by_partition"], limit=100),
         "decadeCounts": _records_from_dataframe(tables["decade_by_partition"], limit=100),
         "genreCounts": _records_from_dataframe(tables["genre_by_partition"], limit=120),
@@ -2008,9 +2495,23 @@ def _build_summary_json(
         ),
         "excludedReasonCounts": _records_from_dataframe(tables["excluded_reasons"], limit=20),
         "suspiciousPublicMovieCount": int(len(suspicious_public_df)),
+        "lowStandAccessibilityCount": int(len(tables["low_stand_accessibility_movies"])),
+        "publicTeenSensitiveCount": int(len(tables["public_teen_sensitive_movies"])),
+        "familyCertifiedTeenPublicCount": int(
+            len(tables["public_family_certified_teen_movies"])
+        ),
+        "familyOnlySimulation": {
+            key: _json_safe_value(value)
+            for key, value in family_only_simulation.items()
+        },
         "topPublicMovieSamples": _records_from_dataframe(tables["public_top_movies"], limit=10),
+        "topPublicMovies": _records_from_dataframe(tables["public_top_by_stand_score"], limit=10),
         "bottomPublicMovieSamples": _records_from_dataframe(
             tables["public_low_score_movies"],
+            limit=10,
+        ),
+        "lowStandAccessibilityExamples": _records_from_dataframe(
+            tables["low_stand_accessibility_examples"],
             limit=10,
         ),
         "collaborativeSignals": {
@@ -2034,15 +2535,39 @@ def _build_summary_json(
 
 
 def _compute_public_audit_flags(public_df: pd.DataFrame) -> pd.Series:
+    low_rating_count = (
+        public_df["ratingCount"].fillna(0) < PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_RATING_COUNT
+    )
+    low_tmdb_popularity = (
+        public_df["tmdbPopularity"].fillna(0) < PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_TMDB_POPULARITY
+    )
+    low_stand_display_score = (
+        public_df["standDisplayScore"].fillna(0)
+        < PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_DISPLAY_SCORE
+    )
+    uncommon_original_language = (
+        ~public_df["originalLanguage"].isin(PUBLIC_STAND_COMMON_ORIGINAL_LANGUAGES)
+    ) & (low_rating_count | low_tmdb_popularity | low_stand_display_score)
+    teen_with_sensitive_genres = (
+        (public_df["suitabilityCategory"] == "teen")
+        & _series_intersects_pipe_values(public_df["genres"], SENSITIVE_GENRES)
+    )
+    family_certified_teen = _series_contains_pipe_token(
+        public_df["standDisplayReasons"],
+        "stand_family_certified_teen_suitability",
+    )
+    low_public_recognition = low_rating_count & low_tmdb_popularity & low_stand_display_score
+
     flag_columns = {
-        "low_stand_display_score": public_df["standDisplayScore"].fillna(0) < LOW_STAND_DISPLAY_SCORE,
-        "low_rating_count": public_df["ratingCount"].fillna(0) < LOW_RATING_COUNT,
-        "low_tmdb_popularity": public_df["tmdbPopularity"].fillna(0) < LOW_TMDB_POPULARITY,
-        "old_public_movie": public_df["year"].fillna(0) < OLD_PUBLIC_YEAR,
-        "uncommon_original_language": ~public_df["originalLanguage"].isin(COMMON_PUBLIC_LANGUAGES),
-        "missing_display_title": public_df["displayTitle"] == "",
+        "low_rating_count": low_rating_count,
+        "low_tmdb_popularity": low_tmdb_popularity,
+        "low_stand_display_score": low_stand_display_score,
+        "uncommon_original_language": uncommon_original_language,
+        "teen_with_sensitive_genres": teen_with_sensitive_genres,
+        "family_certified_teen": family_certified_teen,
+        "low_public_recognition": low_public_recognition,
         "missing_display_overview": public_df["displayOverview"] == "",
-        "empty_genres": public_df["genres"] == "",
+        "missing_display_title": public_df["displayTitle"] == "",
     }
     flags_df = pd.DataFrame(flag_columns, index=public_df.index)
     return flags_df.apply(
