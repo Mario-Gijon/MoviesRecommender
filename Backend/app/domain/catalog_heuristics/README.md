@@ -6,10 +6,10 @@ Seleccion inicial de candidatas desde MovieLens antes del enriquecimiento con TM
 `suitability.py`
 Clasifica peliculas en `family_friendly`, `teen`, `adult_or_sensitive` o `unknown`.
 
-`family_friendly`: certificacion oficial familiar, o ausencia de certificacion con senales familiares y sin senales sensibles.
-`teen`: certificacion oficial teen. Los generos sensibles pueden anadir una advertencia, pero no la convierten automaticamente en `adult_or_sensitive` salvo si aparecen `publicBlockedTerms`.
-`adult_or_sensitive`: certificacion oficial adulta, `publicBlockedTerms`, o generos sensibles sin certificacion clara.
-`unknown`: certificacion ausente o ambigua y sin suficiente senal familiar positiva.
+`family_friendly`: certificacion oficial familiar, salvo si se detectan generos sensibles. Sin certificacion, tambien puede salir de senales familiares si no hay senales sensibles.
+`teen`: certificacion oficial teen. Una certificacion familiar con senal de genero sensible se promociona a `teen`. Los generos sensibles no pasan automaticamente a `adult_or_sensitive` salvo si aparecen `publicBlockedTerms`.
+`adult_or_sensitive`: certificacion oficial adulta, `publicBlockedTerms`, o certificacion desconocida con generos sensibles.
+`unknown`: certificacion ausente o ambigua, sin suficiente senal familiar y sin una senal sensible clara.
 
 `suitability.py` no decide directamente el CSV final. `filtering.py` usa `suitabilityCategory` y `publicBlockedTerms` para decidir si una pelicula puede entrar en el catalogo publico.
 

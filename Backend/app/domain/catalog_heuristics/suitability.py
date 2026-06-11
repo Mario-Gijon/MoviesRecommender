@@ -48,7 +48,10 @@ def classify_item(item: dict) -> dict:
                 "Sensitive genre signal detected, but official teen certification keeps teen suitability"
             )
         elif suitability == "family_friendly":
-            reasons.append("Warning: family certification conflicts with sensitive genre signal")
+            reasons.append(
+                "Family certification conflicts with sensitive genre signal; promoted to teen suitability"
+            )
+            suitability = "teen"
         else:
             reasons.append("Sensitive genre signal without clear certification")
             suitability = "adult_or_sensitive"
