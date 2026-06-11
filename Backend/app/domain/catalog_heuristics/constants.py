@@ -29,16 +29,16 @@ FAMILY_POSITIVE_TERMS = {
     "fantasy world",
 }
 STAND_DISPLAY_WEIGHTS = {
-    "suitability": 0.24,
-    "genreAppeal": 0.23,
-    "recognition": 0.20,
-    "recency": 0.14,
+    "suitability": 0.22,
+    "genreAppeal": 0.20,
+    "recognition": 0.23,
+    "recency": 0.16,
     "positiveTerms": 0.11,
     "dataReliability": 0.08,
 }
 STAND_SUITABILITY_WEIGHTS = {
     "family_friendly": 1.0,
-    "teen": 0.72,
+    "teen": 0.80,
     "unknown": 0.0,
     "adult_or_sensitive": 0.0,
 }
@@ -81,8 +81,8 @@ STAND_POSITIVE_TERM_WEIGHTS = {
 }
 STAND_POSITIVE_TERM_SATURATION = 2.5
 STAND_SENSITIVE_GENRE_PENALTIES = {
-    "Horror": 0.07,
-    "Thriller": 0.05,
+    "Horror": 0.082,
+    "Thriller": 0.06,
     "War": 0.05,
     "Crime": 0.03,
 }
@@ -92,7 +92,7 @@ STAND_CATEGORY_PENALTIES = {
     "adult_or_sensitive": 0.25,
     "unknown": 0.15,
 }
-STAND_TMDB_POPULARITY_SATURATION = 100.0
+STAND_TMDB_POPULARITY_SATURATION = 110.0
 PUBLIC_BLOCKED_TERMS = {
     "drug",
     "gore",
