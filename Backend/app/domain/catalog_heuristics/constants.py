@@ -1,3 +1,9 @@
+FAMILY_US = {"G", "PG"}
+FAMILY_ES = {"A", "Ai", "APTA", "7", "TP"}
+TEEN_US = {"PG-13"}
+TEEN_ES = {"12"}
+ADULT_US = {"R", "NC-17"}
+ADULT_ES = {"16", "18"}
 SENSITIVE_GENRES = {"Horror", "Crime", "War", "Thriller"}
 BOOST_SIGNAL_GENRES = {
     "Animation",
@@ -22,12 +28,6 @@ FAMILY_POSITIVE_TERMS = {
     "family",
     "fantasy world",
 }
-FAMILY_US = {"G", "PG"}
-FAMILY_ES = {"A", "Ai", "APTA", "7", "TP"}
-TEEN_US = {"PG-13"}
-TEEN_ES = {"12"}
-ADULT_US = {"R", "NC-17"}
-ADULT_ES = {"16", "18"}
 PUBLIC_BLOCKED_TERMS = {
     "drug",
     "gore",

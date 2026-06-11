@@ -1,14 +1,44 @@
 import re
+import unicodedata
 
 from app.domain.catalog_heuristics.constants import PUBLIC_BLOCKED_TERMS
+
+PUBLIC_BLOCKED_TERM_VARIANTS = {
+    "dictator": {"dictators"},
+    "drug": {"drugs"},
+    "murder": {"murderer", "murderers", "murders"},
+    "nazi": {"nazis"},
+    "psychopath": {"psychopaths"},
+    "rape": {"rapist", "rapists"},
+    "suicide": {"suicidal"},
+    "terrorism": {"terrorist", "terrorists"},
+}
 
 
 def normalize_text(value: object) -> str:
     if value is None:
         return ""
+
     normalized = str(value).lower()
+    normalized = unicodedata.normalize("NFKD", normalized)
+    normalized = "".join(
+        character for character in normalized if not unicodedata.combining(character)
+    )
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
     return " ".join(normalized.split())
+
+
+def _term_variants(term: str) -> set[str]:
+    variants = {normalize_text(term)}
+    variants.update(
+        normalize_text(variant) for variant in PUBLIC_BLOCKED_TERM_VARIANTS.get(term, set())
+    )
+    return {variant for variant in variants if variant}
+
+
+def _matches_normalized_term(term: str, searchable_values: list[str]) -> bool:
+    pattern = rf"(^| ){re.escape(term)}( |$)"
+    return any(re.search(pattern, value) for value in searchable_values)
 
 
 def collect_public_blocked_searchable_text(item: dict) -> list[str]:
@@ -50,17 +80,14 @@ def find_public_blocked_terms(item: dict) -> list[str]:
     matched_terms: list[str] = []
 
     for term in sorted(PUBLIC_BLOCKED_TERMS):
-        normalized_term = normalize_text(term)
-        if not normalized_term:
+        normalized_variants = _term_variants(term)
+        if not normalized_variants:
             continue
 
-        if " " in normalized_term:
-            if any(normalized_term in value for value in searchable_values):
-                matched_terms.append(term)
-            continue
-
-        pattern = rf"(^| ){re.escape(normalized_term)}( |$)"
-        if any(re.search(pattern, value) for value in searchable_values):
+        if any(
+            _matches_normalized_term(normalized_term, searchable_values)
+            for normalized_term in normalized_variants
+        ):
             matched_terms.append(term)
 
     return matched_terms
