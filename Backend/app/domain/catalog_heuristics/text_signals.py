@@ -3,17 +3,6 @@ import unicodedata
 
 from app.domain.catalog_heuristics.constants import PUBLIC_BLOCKED_TERMS
 
-PUBLIC_BLOCKED_TERM_VARIANTS = {
-    "dictator": {"dictators"},
-    "drug": {"drugs"},
-    "murder": {"murderer", "murderers", "murders"},
-    "nazi": {"nazis"},
-    "psychopath": {"psychopaths"},
-    "rape": {"rapist", "rapists"},
-    "suicide": {"suicidal"},
-    "terrorism": {"terrorist", "terrorists"},
-}
-
 
 def normalize_text(value: object) -> str:
     if value is None:
@@ -26,14 +15,6 @@ def normalize_text(value: object) -> str:
     )
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
     return " ".join(normalized.split())
-
-
-def _term_variants(term: str) -> set[str]:
-    variants = {normalize_text(term)}
-    variants.update(
-        normalize_text(variant) for variant in PUBLIC_BLOCKED_TERM_VARIANTS.get(term, set())
-    )
-    return {variant for variant in variants if variant}
 
 
 def _matches_normalized_term(term: str, searchable_values: list[str]) -> bool:
@@ -80,14 +61,11 @@ def find_public_blocked_terms(item: dict) -> list[str]:
     matched_terms: list[str] = []
 
     for term in sorted(PUBLIC_BLOCKED_TERMS):
-        normalized_variants = _term_variants(term)
-        if not normalized_variants:
+        normalized_term = normalize_text(term)
+        if not normalized_term:
             continue
 
-        if any(
-            _matches_normalized_term(normalized_term, searchable_values)
-            for normalized_term in normalized_variants
-        ):
+        if _matches_normalized_term(normalized_term, searchable_values):
             matched_terms.append(term)
 
     return matched_terms
