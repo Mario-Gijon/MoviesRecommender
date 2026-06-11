@@ -1,6 +1,7 @@
+from app.domain.catalog_heuristics.certifications import (
+    has_resolved_family_certification,
+)
 from app.domain.catalog_heuristics.constants import (
-    FAMILY_ES,
-    FAMILY_US,
     STAND_CATEGORY_PENALTIES,
     STAND_DISPLAY_WEIGHTS,
     STAND_FAMILY_CONTEXT_ANCHOR_GENRES,
@@ -21,9 +22,7 @@ from app.domain.catalog_heuristics.constants import (
 
 def _has_official_family_certification(item: dict) -> bool:
     certifications = item.get("tmdb", {}).get("certifications", {})
-    us_cert = certifications.get("US")
-    es_cert = certifications.get("ES")
-    return us_cert in FAMILY_US or es_cert in FAMILY_ES
+    return has_resolved_family_certification(certifications)
 
 
 def _compute_suitability_signal(item: dict) -> float:
