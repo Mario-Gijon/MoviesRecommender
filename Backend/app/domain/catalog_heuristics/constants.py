@@ -42,6 +42,7 @@ STAND_SUITABILITY_WEIGHTS = {
     "unknown": 0.0,
     "adult_or_sensitive": 0.0,
 }
+STAND_TEEN_WITH_FAMILY_CERT_SUITABILITY_WEIGHT = 0.86
 STAND_GENRE_APPEAL_WEIGHTS = {
     "Animation": 1.00,
     "Family": 1.00,
@@ -52,6 +53,16 @@ STAND_GENRE_APPEAL_WEIGHTS = {
     "Action": 0.30,
 }
 STAND_GENRE_APPEAL_SATURATION = 3.0
+STAND_FAMILY_CONTEXT_ANCHOR_GENRES = {
+    "Family",
+}
+STAND_FAMILY_CONTEXT_SUPPORT_GENRES = {
+    "Animation",
+    "Comedy",
+    "Adventure",
+    "Fantasy",
+}
+STAND_FAMILY_CONTEXT_MIN_SUPPORT_MATCHES = 1
 STAND_POSITIVE_TERM_WEIGHTS = {
     "pixar": 1.00,
     "disney": 1.00,
@@ -76,6 +87,7 @@ STAND_SENSITIVE_GENRE_PENALTIES = {
     "Crime": 0.03,
 }
 STAND_MAX_SENSITIVE_GENRE_PENALTY = 0.10
+STAND_FAMILY_CONTEXT_SENSITIVE_PENALTY_MULTIPLIER = 0.35
 STAND_CATEGORY_PENALTIES = {
     "adult_or_sensitive": 0.25,
     "unknown": 0.15,

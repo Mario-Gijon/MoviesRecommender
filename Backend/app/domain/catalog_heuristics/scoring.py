@@ -1,6 +1,12 @@
 from app.domain.catalog_heuristics.constants import (
+    FAMILY_ES,
+    FAMILY_US,
     STAND_CATEGORY_PENALTIES,
     STAND_DISPLAY_WEIGHTS,
+    STAND_FAMILY_CONTEXT_ANCHOR_GENRES,
+    STAND_FAMILY_CONTEXT_MIN_SUPPORT_MATCHES,
+    STAND_FAMILY_CONTEXT_SENSITIVE_PENALTY_MULTIPLIER,
+    STAND_FAMILY_CONTEXT_SUPPORT_GENRES,
     STAND_GENRE_APPEAL_SATURATION,
     STAND_GENRE_APPEAL_WEIGHTS,
     STAND_MAX_SENSITIVE_GENRE_PENALTY,
@@ -8,12 +14,22 @@ from app.domain.catalog_heuristics.constants import (
     STAND_POSITIVE_TERM_WEIGHTS,
     STAND_SENSITIVE_GENRE_PENALTIES,
     STAND_SUITABILITY_WEIGHTS,
+    STAND_TEEN_WITH_FAMILY_CERT_SUITABILITY_WEIGHT,
     STAND_TMDB_POPULARITY_SATURATION,
 )
 
 
+def _has_official_family_certification(item: dict) -> bool:
+    certifications = item.get("tmdb", {}).get("certifications", {})
+    us_cert = certifications.get("US")
+    es_cert = certifications.get("ES")
+    return us_cert in FAMILY_US or es_cert in FAMILY_ES
+
+
 def _compute_suitability_signal(item: dict) -> float:
     category = item.get("suitabilityCategory")
+    if category == "teen" and _has_official_family_certification(item):
+        return float(STAND_TEEN_WITH_FAMILY_CERT_SUITABILITY_WEIGHT)
     return float(STAND_SUITABILITY_WEIGHTS.get(category, 0.0))
 
 
@@ -51,6 +67,12 @@ def _compute_recognition_signal(
     return max(0.0, min(signal, 1.0))
 
 
+def _has_family_display_context(genres: set[str]) -> bool:
+    anchor_match = bool(genres & STAND_FAMILY_CONTEXT_ANCHOR_GENRES)
+    support_match_count = len(genres & STAND_FAMILY_CONTEXT_SUPPORT_GENRES)
+    return anchor_match and support_match_count >= STAND_FAMILY_CONTEXT_MIN_SUPPORT_MATCHES
+
+
 def _compute_sensitive_genre_penalty(genres: set[str], item: dict) -> float:
     if item.get("suitabilityCategory") not in {"teen", "family_friendly"}:
         return 0.0
@@ -60,7 +82,10 @@ def _compute_sensitive_genre_penalty(genres: set[str], item: dict) -> float:
         for genre, weight in STAND_SENSITIVE_GENRE_PENALTIES.items()
         if genre in genres
     )
-    return min(penalty, STAND_MAX_SENSITIVE_GENRE_PENALTY)
+    penalty = min(penalty, STAND_MAX_SENSITIVE_GENRE_PENALTY)
+    if penalty > 0 and _has_family_display_context(genres):
+        penalty *= STAND_FAMILY_CONTEXT_SENSITIVE_PENALTY_MULTIPLIER
+    return penalty
 
 
 def _compute_category_penalty(item: dict) -> float:
@@ -94,7 +119,9 @@ def compute_stand_display_score(item: dict) -> tuple[float, list[str]]:
     category_penalty = _compute_category_penalty(item)
     penalty = _compute_stand_penalty(genres, item)
 
-    if suitability_signal >= 1.0:
+    if item.get("suitabilityCategory") == "teen" and _has_official_family_certification(item):
+        reasons.append("stand_family_certified_teen_suitability")
+    elif suitability_signal >= 1.0:
         reasons.append("stand_family_suitability")
     elif suitability_signal >= 0.70:
         reasons.append("stand_teen_suitability")
@@ -117,6 +144,8 @@ def compute_stand_display_score(item: dict) -> tuple[float, list[str]]:
         reasons.append("strong_movielens_data")
     if sensitive_genre_penalty > 0:
         reasons.append("sensitive_genre_display_penalty")
+        if _has_family_display_context(genres):
+            reasons.append("family_context_softens_sensitive_penalty")
     if category_penalty > 0:
         reasons.append("category_display_penalty")
 
