@@ -1,5 +1,9 @@
 from argparse import Namespace
 
+from app.domain.catalog_heuristics.public_accessibility import (
+    has_low_stand_accessibility,
+)
+
 
 def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
     reasons: list[str] = []
@@ -27,6 +31,8 @@ def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
         reasons.append("unknown_suitability")
     if args.family_only and item.get("suitabilityCategory") == "teen":
         reasons.append("family_only_excludes_teen")
+    if has_low_stand_accessibility(item):
+        reasons.append("low_stand_accessibility")
     return reasons
 
 
@@ -46,6 +52,8 @@ def is_public_candidate(item: dict, *, args: Namespace) -> bool:
     if item.get("suitabilityCategory") in {"adult_or_sensitive", "unknown"}:
         return False
     if args.family_only and item.get("suitabilityCategory") != "family_friendly":
+        return False
+    if has_low_stand_accessibility(item):
         return False
     return True
 
