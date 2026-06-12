@@ -91,3 +91,27 @@ class DiversifiedContentCandidate:
     maxSimilarityToSelected: float
     genres: list[str]
     matchedSignals: list[str]
+
+
+@dataclass(frozen=True)
+class RecommendationExplanation:
+    headline: str
+    reasons: list[str]
+    matchedSignals: list[str]
+    avoidedSignals: list[str]
+    similarRatedMovies: list[str]
+    style: str
+
+
+@dataclass(frozen=True)
+class ExplainedContentRecommendation:
+    movieId: int
+    displayTitle: str
+    year: int | None
+    suitabilityCategory: str
+    standDisplayScore: float
+    recommendationScore: float
+    contentSimilarity: float
+    mmrScore: float
+    genres: list[str]
+    explanation: RecommendationExplanation

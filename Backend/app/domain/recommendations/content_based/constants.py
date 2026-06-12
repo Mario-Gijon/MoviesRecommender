@@ -81,6 +81,29 @@ MMR_LAMBDA = 0.70
 DEFAULT_DIVERSIFIED_LIMIT = 10
 MAX_DIVERSIFIED_LIMIT = 50
 MMR_CANDIDATE_POOL_SIZE = 100
+DEFAULT_EXPLANATION_LIMIT = 10
+EXPLANATION_SIGNAL_LIMIT = 4
+EXPLANATION_REASON_LIMIT = 3
+SIMILAR_RATED_MOVIE_LIMIT = 2
+
+EXPLANATION_SOURCE_WEIGHTS = {
+    "tag": 1.00,
+    "keyword": 0.95,
+    "text": 0.70,
+    "genre": 0.55,
+}
+
+GENERIC_EXPLANATION_TOKENS = {
+    "action",
+    "adventure",
+    "animation",
+    "comedy",
+    "family",
+    "fantasy",
+    "science fiction",
+    "drama",
+    "romance",
+}
 
 NON_EXPLAINABLE_SIGNAL_TOKENS = {
     "duringcreditsstinger",
@@ -89,6 +112,50 @@ NON_EXPLAINABLE_SIGNAL_TOKENS = {
     "based on novel or book",
     "based on true story",
     "sequel",
+    "from",
+    "his",
+    "her",
+    "to stop",
+    "cliche",
+    "anti villain",
+    "villain arrested",
+    "dyslexia",
+    "pin-up",
+    "u.s. air force",
+    "pearl harbor",
+    "young",
+    "man",
+    "woman",
+    "finds",
+}
+
+READABLE_EXPLANATION_LABELS = {
+    "animation": "animación",
+    "adventure": "aventura",
+    "comedy": "humor",
+    "family": "ambiente familiar",
+    "action": "acción",
+    "science fiction": "ciencia ficción",
+    "fantasy": "fantasía",
+    "superhero": "superhéroes",
+    "superheroes": "superhéroes",
+    "supervillain": "supervillanos",
+    "super villain": "supervillanos",
+    "based on comic": "cómics",
+    "robot": "robots",
+    "robots": "robots",
+    "technology": "tecnología",
+    "friendship": "amistad",
+    "magic": "magia",
+    "school": "instituto/colegio",
+    "time travel": "viajes en el tiempo",
+    "alternate universe": "universos alternativos",
+    "lego": "LEGO",
+    "pixar": "estilo Pixar",
+    "disney": "estilo Disney",
+    "marvel": "Marvel",
+    "3d animation": "animación 3D",
+    "cartoon": "animación visual",
 }
 
 PROFILE_STYLE_SIGNAL_GROUPS = {

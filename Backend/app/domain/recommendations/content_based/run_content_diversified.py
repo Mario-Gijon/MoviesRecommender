@@ -4,6 +4,7 @@ import argparse
 import json
 from dataclasses import asdict
 
+from .constants import DEFAULT_DIVERSIFIED_LIMIT, MMR_CANDIDATE_POOL_SIZE, MMR_LAMBDA
 from .diversification import rank_diversified_recommendations
 from .index_loader import load_content_index
 from .schemas import UserMovieRating
@@ -90,9 +91,9 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help="Repeated rating in movieId:rating format, for example --rating 115617:5",
     )
-    parser.add_argument("--limit", type=int, default=10)
-    parser.add_argument("--candidate-pool-size", type=int, default=100)
-    parser.add_argument("--mmr-lambda", type=float, default=0.78)
+    parser.add_argument("--limit", type=int, default=DEFAULT_DIVERSIFIED_LIMIT)
+    parser.add_argument("--candidate-pool-size", type=int, default=MMR_CANDIDATE_POOL_SIZE)
+    parser.add_argument("--mmr-lambda", type=float, default=MMR_LAMBDA)
     parser.add_argument("--compare", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
