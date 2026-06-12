@@ -51,3 +51,15 @@ class UserProfileSummary:
     positiveRatedMovies: list[str]
     negativeRatedMovies: list[str]
     neutralRatedMovies: list[str]
+
+
+@dataclass(frozen=True)
+class ContentSimilarityCandidate:
+    movieId: int
+    displayTitle: str
+    year: int | None
+    suitabilityCategory: str
+    standDisplayScore: float
+    contentSimilarity: float
+    genres: list[str]
+    matchedSignals: list[str]
