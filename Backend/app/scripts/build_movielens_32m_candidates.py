@@ -111,7 +111,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--min-ratings", type=int, default=100)
     parser.add_argument("--min-year", type=int, default=2000)
     parser.add_argument("--max-year", type=int)
-    parser.add_argument("--max-tags-per-movie", type=int, default=20)
+    parser.add_argument("--max-tags-per-movie", type=int, default=35)
     return parser.parse_args()
 
 

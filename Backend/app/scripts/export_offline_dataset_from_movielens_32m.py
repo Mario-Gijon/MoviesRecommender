@@ -53,6 +53,7 @@ BASE_MOVIE_COLUMNS = [
     "tmdbVoteCount",
     "suitabilityCategory",
     "standDisplayScore",
+    "standDisplayReasons",
 ]
 PUBLIC_MOVIE_COLUMNS = list(BASE_MOVIE_COLUMNS)
 SUPPORT_MOVIE_COLUMNS = BASE_MOVIE_COLUMNS + [
@@ -354,6 +355,7 @@ def _build_base_movie_csv_row(
         "tmdbVoteCount": _string_or_empty(item.get("tmdbVoteCount")),
         "suitabilityCategory": _string_or_empty(item.get("suitabilityCategory")),
         "standDisplayScore": _string_or_empty(item.get("standDisplayScore")),
+        "standDisplayReasons": _join_list_values(item.get("standDisplayReasons", [])),
     }
 
 

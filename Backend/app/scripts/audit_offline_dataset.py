@@ -12,8 +12,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px
 import seaborn as sns
+from plotly.offline import get_plotlyjs
 
 from app.domain.catalog_heuristics.constants import (
+    PUBLIC_MIN_STAND_DISPLAY_SCORE,
     PUBLIC_STAND_ACCESSIBILITY_PROTECTED_GENRES,
     PUBLIC_STAND_COMMON_ORIGINAL_LANGUAGES,
     PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_DISPLAY_SCORE,
@@ -1686,9 +1688,295 @@ def _build_dashboard_html(
     conclusions: list[str],
     collaborative_signals: dict[str, Any],
 ) -> str:
+    public_df = combined_df[combined_df["auditPartition"] == "public"].copy()
     counts = combined_df["auditPartition"].value_counts()
     collaborative_ratings_manifest = int(manifest.get("counts", {}).get("collaborativeRatings", 0))
     family_metrics = tables["family_only_simulation_summary"].iloc[0]
+
+    comparison_df = _with_partition_labels(tables["comparison_by_partition"])
+    suitability_df = _with_partition_labels(tables["suitability_by_partition"])
+    public_languages_df = tables["language_by_partition"].query("auditPartition == 'public'").head(10)
+    public_decades_df = tables["decade_by_partition"].query("auditPartition == 'public'")
+    public_genres_df = tables["genre_by_partition"].query("auditPartition == 'public'").head(12)
+    public_suitability_df = tables["public_suitability_counts"].copy()
+    public_reason_df = tables["stand_display_reasons_public"].copy().head(15)
+    low_access_language_df = tables["low_stand_accessibility_by_language"].copy().head(15)
+    teen_sensitive_df = tables["teen_sensitive_genres"].copy().head(15)
+    excluded_reasons_df = tables["excluded_reasons"].copy().head(15)
+    public_exclusion_df = (
+        tables["public_exclusion_reasons_by_partition"]
+        .groupby("publicExclusionReason", dropna=False)["movieCount"]
+        .sum()
+        .reset_index()
+        .sort_values(
+            by=["movieCount", "publicExclusionReason"],
+            ascending=[False, True],
+            kind="mergesort",
+        )
+        .head(15)
+    )
+    top_movies_chart_df = (
+        tables["top_movies_by_filtered_ratings"]
+        .head(15)
+        .sort_values(by="filteredRatingCount", ascending=True, kind="mergesort")
+    )
+    family_only_chart_df = pd.DataFrame(
+        [
+            {
+                "scope": "Catálogo público",
+                "group": "family_friendly",
+                "movieCount": int(family_metrics["familyFriendlyPublicMovies"]),
+            },
+            {
+                "scope": "Catálogo público",
+                "group": "teen",
+                "movieCount": int(family_metrics["teenPublicMovies"]),
+            },
+            {
+                "scope": "Top 100",
+                "group": "family_friendly",
+                "movieCount": int(family_metrics["top100FamilyFriendlyCount"]),
+            },
+            {
+                "scope": "Top 100",
+                "group": "teen",
+                "movieCount": int(family_metrics["top100TeenCount"]),
+            },
+            {
+                "scope": "Top 250",
+                "group": "family_friendly",
+                "movieCount": int(family_metrics["top250FamilyFriendlyCount"]),
+            },
+            {
+                "scope": "Top 250",
+                "group": "teen",
+                "movieCount": int(family_metrics["top250TeenCount"]),
+            },
+        ]
+    )
+    public_family_teen_chart_df = pd.DataFrame(
+        [
+            {
+                "group": "family_friendly",
+                "movieCount": int(family_metrics["familyFriendlyPublicMovies"]),
+            },
+            {"group": "teen", "movieCount": int(family_metrics["teenPublicMovies"])},
+        ]
+    )
+
+    partition_fig = px.bar(
+        comparison_df,
+        x="partitionLabel",
+        y="movieCount",
+        color="partitionLabel",
+        category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
+        color_discrete_map=PARTITION_COLORS,
+        title="Películas por partición",
+    )
+    _style_plotly_figure(partition_fig)
+
+    suitability_fig = px.bar(
+        suitability_df,
+        x="suitabilityCategory",
+        y="movieCount",
+        color="partitionLabel",
+        barmode="group",
+        category_orders={"partitionLabel": list(PARTITION_COLORS.keys())},
+        color_discrete_map=PARTITION_COLORS,
+        title="Suitability por partición",
+    )
+    _style_plotly_figure(suitability_fig)
+
+    public_suitability_fig = px.bar(
+        public_suitability_df,
+        x="suitabilityCategory",
+        y="movieCount",
+        color="suitabilityCategory",
+        title="Suitability del catálogo público",
+        color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_CYAN, SINBAD_RED],
+    )
+    _style_plotly_figure(public_suitability_fig)
+
+    public_languages_fig = px.bar(
+        public_languages_df,
+        x="originalLanguage",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_BLUE],
+        title="Idiomas del catálogo público",
+    )
+    _style_plotly_figure(public_languages_fig)
+
+    public_decades_fig = px.bar(
+        public_decades_df,
+        x="decade",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_GOLD],
+        title="Décadas del catálogo público",
+    )
+    _style_plotly_figure(public_decades_fig)
+
+    public_genres_fig = px.bar(
+        public_genres_df,
+        x="genre",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_CYAN],
+        title="Géneros del catálogo público",
+    )
+    _style_plotly_figure(public_genres_fig)
+
+    public_family_teen_fig = px.bar(
+        public_family_teen_chart_df,
+        x="group",
+        y="movieCount",
+        color="group",
+        color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD],
+        title="Películas públicas family_friendly y teen",
+    )
+    _style_plotly_figure(public_family_teen_fig)
+
+    score_dist_fig = px.histogram(
+        public_df.dropna(subset=["standDisplayScore"]),
+        x="standDisplayScore",
+        nbins=24,
+        title="Distribución de standDisplayScore",
+        color_discrete_sequence=[SINBAD_BLUE],
+    )
+    _style_plotly_figure(score_dist_fig)
+
+    stand_score_by_suitability_fig = px.box(
+        public_df.dropna(subset=["standDisplayScore", "suitabilityCategory"]),
+        x="suitabilityCategory",
+        y="standDisplayScore",
+        color="suitabilityCategory",
+        title="standDisplayScore por suitability",
+        color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_CYAN, SINBAD_RED],
+    )
+    _style_plotly_figure(stand_score_by_suitability_fig)
+
+    scatter_fig = px.scatter(
+        public_df.dropna(subset=["ratingCount", "standDisplayScore"]),
+        x="ratingCount",
+        y="standDisplayScore",
+        color="suitabilityCategory",
+        hover_data=["displayLabel", "year", "tmdbPopularity"],
+        log_x=True,
+        title="ratingCount vs standDisplayScore",
+        color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD, SINBAD_CYAN, SINBAD_RED],
+    )
+    _style_plotly_figure(scatter_fig)
+
+    teen_sensitive_fig = px.bar(
+        teen_sensitive_df,
+        x="genre",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_RED],
+        title="Géneros sensibles en películas públicas teen",
+    )
+    _style_plotly_figure(teen_sensitive_fig)
+
+    low_accessibility_fig = px.bar(
+        low_access_language_df,
+        x="originalLanguage",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_GOLD],
+        title="Idiomas en low_stand_accessibility",
+    )
+    _style_plotly_figure(low_accessibility_fig)
+
+    stand_reasons_fig = px.bar(
+        public_reason_df.sort_values(by="movieCount", ascending=True, kind="mergesort"),
+        x="movieCount",
+        y="standDisplayReason",
+        orientation="h",
+        color_discrete_sequence=[SINBAD_CYAN],
+        title="standDisplayReasons del catálogo público",
+    )
+    _style_plotly_figure(stand_reasons_fig)
+
+    support_blocked_terms_fig = px.bar(
+        tables["blocked_terms_by_partition"]
+        .query("auditPartition == 'collaborative_support'")
+        .head(12),
+        x="blockedTerm",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_RED],
+        title="Blocked terms del soporte colaborativo",
+    )
+    _style_plotly_figure(support_blocked_terms_fig)
+
+    rating_distribution_fig = px.bar(
+        tables["rating_distribution"],
+        x="ratingLabel",
+        y="ratingCount",
+        color_discrete_sequence=[SINBAD_GREEN],
+        title="Distribución de valores de rating",
+    )
+    _style_plotly_figure(rating_distribution_fig)
+
+    user_buckets_fig = px.bar(
+        tables["ratings_per_user_buckets"],
+        x="bucket",
+        y="userCount",
+        category_orders={"bucket": USER_BUCKET_ORDER},
+        color_discrete_sequence=[SINBAD_GOLD],
+        title="Usuarios agrupados por número de ratings",
+    )
+    _style_plotly_figure(user_buckets_fig)
+
+    ratings_by_year_fig = px.line(
+        tables["ratings_by_year"],
+        x="year",
+        y="ratingCount",
+        markers=True,
+        title="Ratings por año en el núcleo colaborativo",
+    )
+    ratings_by_year_fig.update_traces(line_color=SINBAD_BLUE)
+    _style_plotly_figure(ratings_by_year_fig)
+
+    top_movies_fig = px.bar(
+        top_movies_chart_df,
+        x="filteredRatingCount",
+        y="displayLabel",
+        orientation="h",
+        color_discrete_sequence=[SINBAD_CYAN],
+        title="Top películas por filteredRatingCount",
+    )
+    _style_plotly_figure(top_movies_fig)
+
+    excluded_reasons_fig = px.bar(
+        excluded_reasons_df,
+        x="exclusionReason",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_GOLD],
+        title="Razones de exclusión total",
+    )
+    _style_plotly_figure(excluded_reasons_fig)
+
+    public_exclusion_fig = px.bar(
+        public_exclusion_df,
+        x="publicExclusionReason",
+        y="movieCount",
+        color_discrete_sequence=[SINBAD_RED],
+        title="Razones de exclusión pública",
+    )
+    _style_plotly_figure(public_exclusion_fig)
+
+    family_only_fig = px.bar(
+        family_only_chart_df,
+        x="scope",
+        y="movieCount",
+        color="group",
+        barmode="group",
+        color_discrete_sequence=[SINBAD_BLUE, SINBAD_GOLD],
+        title="Simulación family-only y mezcla actual",
+    )
+    _style_plotly_figure(family_only_fig)
+
+    plotly_config = {"responsive": True, "displaylogo": False}
+
+    def plot_html(fig: Any) -> str:
+        return fig.to_html(full_html=False, include_plotlyjs=False, config=plotly_config)
+
     headline_kpis = [
         ("Películas públicas", _format_int(int(counts.get("public", 0)))),
         (
@@ -1788,12 +2076,22 @@ def _build_dashboard_html(
         ]
     )
 
-    def image_card(title: str, path: str, explanation_key: str) -> str:
+    def interactive_card(title: str, html: str, explanation_key: str, wide: bool = False) -> str:
         return (
-            '<div class="chart-card">'
+            f'<div class="subtle-card{" wide-card" if wide else ""}">'
             f"<h3>{escape(title)}</h3>"
             f"{_explanation_html(explanation_key)}"
-            f'<img class="chart-image" src="{escape(path)}" alt="{escape(title)}" />'
+            f'<div class="plot">{html}</div>'
+            "</div>"
+        )
+
+    def table_card(title: str, dataframe: pd.DataFrame, explanation_key: str, *, limit: int, wide: bool = False) -> str:
+        return (
+            f'<div class="subtle-card{" wide-card" if wide else ""}">'
+            f"<h3>{escape(title)}</h3>"
+            f"{_explanation_html(explanation_key)}"
+            f'<p class="table-note">Muestra {min(limit, len(dataframe))} filas. El CSV completo está disponible en <code>audit/tables/</code>.</p>'
+            f'<div class="table-wrap">{_render_html_table(dataframe, limit=limit)}</div>'
             "</div>"
         )
 
@@ -1803,6 +2101,19 @@ def _build_dashboard_html(
             for label, value in headline_kpis
         ]
     )
+    executive_nav_html = "".join(
+        [
+            '<a href="#resumen">Resumen</a>',
+            '<a href="#dataset">Dataset</a>',
+            '<a href="#catalogo-publico">Catálogo público</a>',
+            '<a href="#teen">Teen</a>',
+            '<a href="#accesibilidad">Accesibilidad</a>',
+            '<a href="#stand-score">Stand score</a>',
+            '<a href="#colaborativo">Colaborativo</a>',
+            '<a href="#excluidas">Excluidas</a>',
+            '<a href="#family-only">Family-only</a>',
+        ]
+    )
     collaborative_kpis_html = "".join(
         [
             f'<div class="kpi"><div class="label">{escape(label)}</div><div class="value">{escape(value)}</div></div>'
@@ -1810,6 +2121,7 @@ def _build_dashboard_html(
         ]
     )
     conclusions_html = "".join([f"<li>{escape(line)}</li>" for line in conclusions])
+    plotly_js_bundle = get_plotlyjs()
 
     html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -1875,20 +2187,23 @@ def _build_dashboard_html(
       font-size: 17px;
       line-height: 1.6;
     }}
-    .section {{
+    .section-panel {{
       width: 100%;
-      margin-top: 28px;
+      margin-top: 34px;
+      padding: 26px 0 0;
+      border-top: 1px solid rgba(77, 163, 255, 0.12);
+    }}
+    .section-shell {{
       padding: 24px;
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      background: rgba(16, 26, 47, 0.9);
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(16, 26, 47, 0.9), rgba(12, 20, 36, 0.86));
       box-shadow: var(--shadow);
     }}
-    .section h2 {{
+    .section-panel h2 {{
       margin: 0 0 14px;
-      font-size: 24px;
+      font-size: 28px;
     }}
-    .section p {{
+    .section-panel p {{
       color: var(--muted);
       line-height: 1.65;
     }}
@@ -1934,21 +2249,41 @@ def _build_dashboard_html(
     .row-4 {{
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }}
-    .chart-card {{
-      background: var(--panel-soft);
-      border: 1px solid var(--border);
+    .section-nav {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }}
+    .section-nav a {{
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: rgba(11, 19, 35, 0.92);
+      border: 1px solid rgba(77, 163, 255, 0.2);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+    }}
+    .chart-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }}
+    .metric-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }}
+    .subtle-card {{
+      background: rgba(10, 18, 33, 0.6);
+      border: 1px solid rgba(77, 163, 255, 0.08);
       border-radius: 18px;
       padding: 16px;
       width: 100%;
       min-width: 0;
     }}
-    .card {{
-      background: var(--panel-soft);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 16px;
-      width: 100%;
-      min-width: 0;
+    .wide-card {{
+      grid-column: 1 / -1;
     }}
     .full-width {{
       grid-column: 1 / -1;
@@ -1966,19 +2301,12 @@ def _build_dashboard_html(
       width: 100% !important;
       max-width: 100% !important;
     }}
-    .chart-image {{
-      width: 100%;
-      display: block;
-      border-radius: 16px;
-      border: 1px solid #1d2d4e;
-      background: rgba(8, 17, 31, 0.85);
-    }}
     .explanation {{
       margin: 0 0 14px;
       padding: 12px 15px;
       border-radius: 16px;
-      border: 1px solid #223252;
-      background: rgba(8, 17, 31, 0.74);
+      border: 1px solid rgba(77, 163, 255, 0.08);
+      background: rgba(8, 17, 31, 0.44);
     }}
     .explanation p {{
       margin: 0;
@@ -2021,8 +2349,19 @@ def _build_dashboard_html(
     .table-wrap {{
       overflow-x: auto;
       border-radius: 16px;
-      border: 1px solid #20304f;
+      border: 1px solid rgba(77, 163, 255, 0.08);
       background: rgba(8, 17, 31, 0.72);
+    }}
+    .table-wrap table thead th {{
+      position: sticky;
+      top: 0;
+      background: #0f1a2d;
+      z-index: 1;
+    }}
+    .table-note {{
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--muted);
     }}
     ul.conclusions {{
       margin: 0;
@@ -2044,10 +2383,13 @@ def _build_dashboard_html(
       .row-4 {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }}
+      .chart-grid {{
+        grid-template-columns: minmax(0, 1fr);
+      }}
     }}
     @media (max-width: 900px) {{
       .row-2,
-      .row-3,
+        .row-3,
       .row-4 {{
         grid-template-columns: minmax(0, 1fr);
       }}
@@ -2060,10 +2402,13 @@ def _build_dashboard_html(
       }}
     }}
   </style>
+  <script>
+{plotly_js_bundle}
+  </script>
 </head>
 <body>
   <div class="wrap">
-    <section class="hero">
+    <section class="hero" id="resumen">
       <div class="eyebrow">SINBAD Offline Audit</div>
       <h1>Auditoría del dataset offline</h1>
       <p class="subtitle">
@@ -2071,229 +2416,187 @@ def _build_dashboard_html(
         las películas públicas, el soporte colaborativo y las exclusiones, sin tocar heurísticas ni lógica de recomendación.
       </p>
       <div class="grid kpis">{headline_kpis_html}</div>
+      <nav class="section-nav">{executive_nav_html}</nav>
     </section>
 
-    <section class="section">
+    <section class="section-panel">
+      <div class="section-shell">
       <h2>A. Resumen ejecutivo</h2>
       {_explanation_html("section_executive_summary")}
       <div class="row row-2">
-        <div class="card">
+        <div class="subtle-card">
           <h3>Observaciones automáticas</h3>
           {_explanation_html("section_conclusions")}
           <ul class="conclusions">{conclusions_html}</ul>
         </div>
-        <div class="card">
+        <div class="subtle-card">
           <h3>Métricas colaborativas</h3>
-          <div class="grid kpis">{collaborative_kpis_html}</div>
+          <div class="metric-grid">{collaborative_kpis_html}</div>
         </div>
+      </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="dataset">
+      <div class="section-shell">
       <h2>B. Descripción general del dataset</h2>
       {_explanation_html("section_dataset_overview")}
-      <div class="row row-2">
-        <div class="chart-card">
-          {_explanation_html("partition_chart")}
-          <img class="chart-image" src="{escape(chart_paths["partition_counts"])}" alt="Conteo por partición" />
-        </div>
-        <div class="chart-card">
-          {_explanation_html("suitability_partition_chart")}
-          <img class="chart-image" src="{escape(chart_paths["suitability_by_partition"])}" alt="Suitability por partición" />
-        </div>
+      <div class="chart-grid">
+        {interactive_card("Películas por partición", plot_html(partition_fig), "partition_chart")}
+        {interactive_card("Suitability por partición", plot_html(suitability_fig), "suitability_partition_chart")}
       </div>
       <div class="row row-2" style="margin-top: 18px;">
-        <div class="card">
+        <div class="subtle-card">
           <h3>Idiomas por partición</h3>
           {_explanation_html("language_partition_table")}
           <div class="table-wrap">{_render_html_table(tables["language_by_partition"], limit=18)}</div>
         </div>
-        <div class="card">
+        <div class="subtle-card">
           <h3>Géneros por partición</h3>
           {_explanation_html("genre_partition_table")}
           <div class="table-wrap">{_render_html_table(tables["genre_by_partition"], limit=18)}</div>
         </div>
       </div>
       <div class="row row-2" style="margin-top: 18px;">
-        <div class="card">
+        <div class="subtle-card">
           <h3>Resumen de ratings y usuarios</h3>
           <div class="table-wrap">{_render_html_table(tables["collaborative_summary"], limit=12)}</div>
         </div>
-        <div class="card">
+        <div class="subtle-card">
           <h3>Décadas por partición</h3>
           <div class="table-wrap">{_render_html_table(tables["decade_by_partition"], limit=18)}</div>
         </div>
       </div>
+      </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="catalogo-publico">
+      <div class="section-shell">
       <h2>C. Catálogo público</h2>
       {_explanation_html("section_public_quality")}
-      <div class="row row-2">
-        {image_card("Suitability del catálogo público", chart_paths["public_suitability_counts"], "public_suitability_chart")}
-        {image_card("Idiomas del catálogo público", chart_paths["public_languages"], "public_languages_chart")}
-      </div>
-      <div class="row row-2" style="margin-top: 18px;">
-        {image_card("Décadas del catálogo público", chart_paths["public_decades"], "public_decades_chart")}
-        {image_card("Géneros del catálogo público", chart_paths["public_genres"], "public_genres_chart")}
-      </div>
-      <div class="row row-2" style="margin-top: 18px;">
-        {image_card("Distribución de standDisplayScore", chart_paths["stand_display_score_distribution"], "public_score_distribution_chart")}
-        {image_card("standDisplayScore por suitability", chart_paths["public_stand_score_by_suitability"], "public_stand_score_by_suitability_chart")}
+      <div class="chart-grid">
+        {interactive_card("Suitability del catálogo público", plot_html(public_suitability_fig), "public_suitability_chart")}
+        {interactive_card("Películas públicas family_friendly y teen", plot_html(public_family_teen_fig), "public_suitability_chart")}
+        {interactive_card("Idiomas del catálogo público", plot_html(public_languages_fig), "public_languages_chart")}
+        {interactive_card("Décadas del catálogo público", plot_html(public_decades_fig), "public_decades_chart")}
+        {interactive_card("Géneros del catálogo público", plot_html(public_genres_fig), "public_genres_chart")}
+        {interactive_card("Distribución de standDisplayScore", plot_html(score_dist_fig), "public_score_distribution_chart")}
+        {interactive_card("standDisplayScore por suitability", plot_html(stand_score_by_suitability_fig), "public_stand_score_by_suitability_chart")}
+        {interactive_card("ratingCount vs standDisplayScore", plot_html(scatter_fig), "public_scatter_chart", wide=True)}
       </div>
       <div class="row row-1" style="margin-top: 18px;">
-        {image_card("ratingCount vs standDisplayScore", chart_paths["rating_count_vs_stand_score"], "public_scatter_chart")}
+        {table_card("Top 15 públicas por standDisplayScore", tables["public_top_by_stand_score"], "public_top_table", limit=15, wide=True)}
       </div>
-      <div class="row row-2" style="margin-top: 18px;">
-        <div class="card">
-          <h3>Top 25 públicas por standDisplayScore</h3>
-          {_explanation_html("public_top_table")}
-          <div class="table-wrap">{_render_html_table(tables["public_top_by_stand_score"], limit=25)}</div>
-        </div>
-        <div class="card">
-          <h3>Bottom 25 públicas por standDisplayScore</h3>
-          {_explanation_html("public_bottom_table")}
-          <div class="table-wrap">{_render_html_table(tables["public_bottom_by_stand_score"], limit=25)}</div>
-        </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        {table_card("Bottom 15 públicas por standDisplayScore", tables["public_bottom_by_stand_score"], "public_bottom_table", limit=15, wide=True)}
+      </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="teen">
+      <div class="section-shell">
       <h2>D. Control de películas teen</h2>
       {_explanation_html("section_teen_sensitive_control")}
-      <div class="grid kpis">
+      <div class="metric-grid">
         <div class="kpi"><div class="label">Públicas teen</div><div class="value">{_format_int(int(family_metrics["teenPublicMovies"]))}</div></div>
         <div class="kpi"><div class="label">Teen con géneros sensibles</div><div class="value">{_format_int(int(len(tables["public_teen_sensitive_movies"])))}</div></div>
         <div class="kpi"><div class="label">Teen con señal familiar certificada</div><div class="value">{_format_int(int(len(tables["public_family_certified_teen_movies"])))}</div></div>
       </div>
-      <div class="row row-2">
-        <div class="chart-card">
-          {_explanation_html("teen_sensitive_chart")}
-          <img class="chart-image" src="{escape(chart_paths["teen_sensitive_genres"])}" alt="Géneros sensibles en públicas teen" />
-        </div>
-        <div class="card">
-          <h3>Películas públicas teen con géneros sensibles</h3>
-          {_explanation_html("teen_sensitive_table")}
-          <div class="table-wrap">{_render_html_table(tables["public_teen_sensitive_movies"], limit=25)}</div>
-        </div>
+      <div class="chart-grid" style="margin-top: 18px;">
+        {interactive_card("Géneros sensibles en películas públicas teen", plot_html(teen_sensitive_fig), "teen_sensitive_chart")}
+        {table_card("Películas públicas teen con géneros sensibles", tables["public_teen_sensitive_movies"], "teen_sensitive_table", limit=15)}
+      </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="accesibilidad">
+      <div class="section-shell">
       <h2>E. Accesibilidad del stand</h2>
       {_explanation_html("section_low_stand_accessibility")}
-      <div class="grid kpis">
+      <div class="metric-grid">
         <div class="kpi"><div class="label">Casos low_stand_accessibility</div><div class="value">{_format_int(int(len(tables["low_stand_accessibility_movies"])))}</div></div>
         <div class="kpi"><div class="label">Idiomas comunes protegidos</div><div class="value">{escape(", ".join(sorted(PUBLIC_STAND_COMMON_ORIGINAL_LANGUAGES)))}</div></div>
         <div class="kpi"><div class="label">Géneros protegidos</div><div class="value">{escape(", ".join(sorted(PUBLIC_STAND_ACCESSIBILITY_PROTECTED_GENRES)))}</div></div>
       </div>
-      <div class="row row-2" style="margin-top: 18px;">
-        <div class="chart-card">
-          {_explanation_html("low_accessibility_chart")}
-          <img class="chart-image" src="{escape(chart_paths["low_stand_accessibility_languages"])}" alt="Idiomas con low stand accessibility" />
-        </div>
-        <div class="card">
-          <h3>Ejemplos con baja accesibilidad de stand</h3>
-          {_explanation_html("low_accessibility_examples_table")}
-          <div class="table-wrap">{_render_html_table(tables["low_stand_accessibility_examples"], limit=25)}</div>
-        </div>
+      <div class="chart-grid" style="margin-top: 18px;">
+        {interactive_card("Idiomas en low_stand_accessibility", plot_html(low_accessibility_fig), "low_accessibility_chart")}
+        {interactive_card("Razones de exclusión pública", plot_html(public_exclusion_fig), "low_accessibility_chart")}
+      </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        {table_card("Ejemplos con baja accesibilidad de stand", tables["low_stand_accessibility_examples"], "low_accessibility_examples_table", limit=15, wide=True)}
+      </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="stand-score">
+      <div class="section-shell">
       <h2>F. Señales de standDisplayScore</h2>
       {_explanation_html("section_stand_reasons")}
-      <div class="row row-2" style="margin-top: 18px;">
-        <div class="chart-card">
-          {_explanation_html("stand_reasons_chart")}
-          <img class="chart-image" src="{escape(chart_paths["public_stand_display_reasons"])}" alt="standDisplayReasons públicas" />
-        </div>
-        <div class="card">
-          <h3>Películas públicas con señal family-certified teen</h3>
-          {_explanation_html("family_certified_teen_table")}
-          <div class="table-wrap">{_render_html_table(tables["public_family_certified_teen_movies"], limit=25)}</div>
-        </div>
+      <div class="chart-grid" style="margin-top: 18px;">
+        {interactive_card("standDisplayReasons del catálogo público", plot_html(stand_reasons_fig), "stand_reasons_chart")}
+        {table_card("Películas públicas con señal family-certified teen", tables["public_family_certified_teen_movies"], "family_certified_teen_table", limit=15)}
+      </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="colaborativo">
+      <div class="section-shell">
       <h2>G. Soporte colaborativo</h2>
       {_explanation_html("section_support")}
-      <div class="row row-2">
-        <div class="chart-card">
-          {_explanation_html("support_blocked_terms_chart")}
-          <img class="chart-image" src="{escape(chart_paths["support_blocked_terms"])}" alt="Blocked terms del soporte colaborativo" />
-        </div>
-        <div class="card">
-          <h3>Ejemplos de soporte colaborativo</h3>
-          {_explanation_html("support_examples_table")}
-          <div class="table-wrap">{_render_html_table(tables["support_examples"], limit=20)}</div>
-        </div>
+      <div class="chart-grid">
+        {interactive_card("Blocked terms del soporte colaborativo", plot_html(support_blocked_terms_fig), "support_blocked_terms_chart")}
+        {interactive_card("Distribución de valores de rating", plot_html(rating_distribution_fig), "collaborative_rating_distribution_chart")}
+        {interactive_card("Usuarios agrupados por número de ratings", plot_html(user_buckets_fig), "collaborative_user_buckets_chart")}
+        {interactive_card("Ratings por año en el núcleo colaborativo", plot_html(ratings_by_year_fig), "collaborative_year_chart")}
+      </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        {interactive_card("Top películas por filteredRatingCount", plot_html(top_movies_fig), "collaborative_top_movies_chart", wide=True)}
       </div>
       <div class="row row-2" style="margin-top: 18px;">
-        <div class="chart-card">
-          {_explanation_html("collaborative_rating_distribution_chart")}
-          <img class="chart-image" src="{escape(chart_paths["rating_distribution"])}" alt="Distribución de ratings" />
-        </div>
-        <div class="chart-card">
-          {_explanation_html("collaborative_user_buckets_chart")}
-          <img class="chart-image" src="{escape(chart_paths["ratings_per_user_buckets"])}" alt="Ratings por usuario" />
-        </div>
+        {table_card("Top películas por filtered ratings", tables["top_movies_by_filtered_ratings"], "collaborative_top_movies_chart", limit=15)}
+        {table_card("Ejemplos de soporte colaborativo", tables["support_examples"], "support_examples_table", limit=15)}
       </div>
-      <div class="row row-2" style="margin-top: 18px;">
-        <div class="chart-card">
-          {_explanation_html("collaborative_year_chart")}
-          <img class="chart-image" src="{escape(chart_paths["ratings_by_year"])}" alt="Ratings por año" />
-        </div>
-        <div class="chart-card">
-          {_explanation_html("collaborative_top_movies_chart")}
-          <img class="chart-image" src="{escape(chart_paths["top_movies_by_filtered_ratings"])}" alt="Top películas por filtered ratings" />
-        </div>
       </div>
-      <div class="grid kpis" style="margin-top: 18px;">{collaborative_kpis_html}</div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="excluidas">
+      <div class="section-shell">
       <h2>H. Excluidas</h2>
       {_explanation_html("section_excluded")}
-      <div class="row row-2">
-        <div class="card">
-          {_explanation_html("excluded_reasons_chart")}
-          <img class="chart-image" src="{escape(chart_paths["excluded_reasons"])}" alt="Razones de exclusión total" />
-        </div>
-        <div class="card">
-          <h3>Muestra de películas excluidas</h3>
-          {_explanation_html("excluded_examples_table")}
-          <div class="table-wrap">{_render_html_table(tables["excluded_examples"], limit=20)}</div>
-        </div>
+      <div class="chart-grid">
+        {interactive_card("Razones de exclusión total", plot_html(excluded_reasons_fig), "excluded_reasons_chart")}
+        {table_card("Muestra de películas excluidas", tables["excluded_examples"], "excluded_examples_table", limit=15)}
+      </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section-panel" id="family-only">
+      <div class="section-shell">
       <h2>I. Simulación family-only</h2>
       {_explanation_html("section_family_only_simulation")}
-      <div class="row row-2">
-        <div class="chart-card">
-          {_explanation_html("family_only_chart")}
-          <img class="chart-image" src="{escape(chart_paths["family_only_simulation"])}" alt="Simulación family-only" />
-        </div>
-        <div class="card">
-          <h3>Resumen de simulación family-only</h3>
-          {_explanation_html("family_only_table")}
-          <div class="table-wrap">{_render_html_table(tables["family_only_simulation_summary"], limit=10)}</div>
-        </div>
+      <div class="metric-grid">
+        <div class="kpi"><div class="label">Catálogo público actual</div><div class="value">{_format_int(int(family_metrics["currentPublicMovies"]))}</div></div>
+        <div class="kpi"><div class="label">Family-friendly públicas</div><div class="value">{_format_int(int(family_metrics["familyFriendlyPublicMovies"]))}</div></div>
+        <div class="kpi"><div class="label">Teen públicas</div><div class="value">{_format_int(int(family_metrics["teenPublicMovies"]))}</div></div>
+        <div class="kpi"><div class="label">% family-friendly</div><div class="value">{float(family_metrics["publicShareFamilyFriendlyPercent"]):.2f}%</div></div>
+        <div class="kpi"><div class="label">% teen</div><div class="value">{float(family_metrics["publicShareTeenPercent"]):.2f}%</div></div>
       </div>
       <div class="row row-2" style="margin-top: 18px;">
-        <div class="card">
-          <h3>Tablas de revisión disponibles</h3>
+        {interactive_card("Comparación actual y simulación family-only", plot_html(family_only_fig), "family_only_chart")}
+        <div class="subtle-card">
+          <h3>Archivos de revisión disponibles</h3>
           {_explanation_html("section_tables")}
-          <div class="table-wrap">{_render_html_table(tables["suspicious_public_movies_sample"], limit=25)}</div>
+          <div class="table-wrap">{_render_html_table(tables["suspicious_public_movies_sample"], limit=15)}</div>
+          <p class="table-note">Los CSV completos siguen disponibles en <code>audit/tables/</code> y <code>audit/detailed/</code>.</p>
         </div>
-        <div class="card">
+      </div>
+      <div class="row row-1" style="margin-top: 18px;">
+        <div class="subtle-card wide-card">
           <h3>Gráficos estáticos generados</h3>
           {_explanation_html("section_static")}
           <div class="gallery-grid">{chart_gallery}</div>
         </div>
+      </div>
       </div>
     </section>
     <p class="muted" style="margin-top:16px;">
@@ -2543,7 +2846,7 @@ def _compute_public_audit_flags(public_df: pd.DataFrame) -> pd.Series:
     )
     low_stand_display_score = (
         public_df["standDisplayScore"].fillna(0)
-        < PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_DISPLAY_SCORE
+        < PUBLIC_MIN_STAND_DISPLAY_SCORE
     )
     uncommon_original_language = (
         ~public_df["originalLanguage"].isin(PUBLIC_STAND_COMMON_ORIGINAL_LANGUAGES)

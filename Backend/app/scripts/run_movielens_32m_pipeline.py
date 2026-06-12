@@ -92,7 +92,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate-min-ratings", type=int, default=100)
     parser.add_argument("--candidate-min-year", type=int, default=1995)
     parser.add_argument("--candidate-max-year", type=int)
-    parser.add_argument("--max-tags-per-movie", type=int, default=20)
+    parser.add_argument("--max-tags-per-movie", type=int, default=35)
 
     parser.set_defaults(resume_tmdb=True)
     parser.add_argument("--resume-tmdb", dest="resume_tmdb", action="store_true")
