@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 
 from scipy.sparse import load_npz
 
@@ -8,6 +9,7 @@ from .constants import CONTENT_INDEX_REQUIRED_PATHS
 from .schemas import ContentIndex
 
 
+@lru_cache(maxsize=1)
 def load_content_index() -> ContentIndex:
     missing_paths = [
         f"{name}={path}"

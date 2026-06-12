@@ -252,7 +252,7 @@ def _build_reasons(
             usage=usage,
             group_name="negative_avoidance_reason",
             style=user_profile.style,
-            available_values=available_values,
+            available_values=primary_values,
             movie_id=candidate.movieId,
             rank=rank,
             slot="reason_3",

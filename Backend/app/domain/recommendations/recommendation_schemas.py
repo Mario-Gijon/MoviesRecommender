@@ -70,3 +70,67 @@ class RecommendationResponse(BaseModel):
     userProfile: UserProfile
     recommendations: list[RecommendationItem]
     explanation: RecommendationExplanation
+
+
+class ContentBasedRatingInput(BaseModel):
+    movieId: int
+    rating: int | float = Field(ge=1, le=5)
+
+
+class ContentBasedRecommendationRequest(BaseModel):
+    ratings: list[ContentBasedRatingInput]
+    limit: int = Field(default=10, ge=1, le=50)
+    templateSessionId: str | None = None
+
+
+class ContentRecommendationExplanation(BaseModel):
+    headline: str
+    reasons: list[str]
+    matchedSignals: list[str]
+    avoidedSignals: list[str]
+    similarRatedMovies: list[str]
+    style: str
+
+
+class ContentRecommendationItemResponse(BaseModel):
+    movieId: int
+    displayTitle: str
+    year: int | None = None
+    genres: list[str]
+    suitabilityCategory: str
+    standDisplayScore: float
+    recommendationScore: float
+    contentSimilarity: float
+    mmrScore: float
+    explanation: ContentRecommendationExplanation
+    posterPath: str | None = None
+    tmdbId: int | None = None
+    originalTitle: str | None = None
+    originalLanguage: str | None = None
+    overview: str | None = None
+
+
+class ContentRecommendationProfileResponse(BaseModel):
+    style: str
+    headline: str
+    ratedMovieCount: int
+    nonNeutralRatingCount: int
+    positiveRatingCount: int
+    negativeRatingCount: int
+    minimumRequiredRatings: int
+    recommendedMinimumRatings: int
+    confidence: Literal["low", "medium", "high"]
+    positiveSignals: list[str]
+    negativeSignals: list[str]
+
+
+class ContentBasedRecommendationResponse(BaseModel):
+    profile: ContentRecommendationProfileResponse
+    recommendations: list[ContentRecommendationItemResponse]
+    templateSessionId: str
+    limit: int
+
+
+class ErrorResponse(BaseModel):
+    code: str
+    message: str

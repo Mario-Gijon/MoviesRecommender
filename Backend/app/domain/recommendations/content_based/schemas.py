@@ -115,3 +115,58 @@ class ExplainedContentRecommendation:
     mmrScore: float
     genres: list[str]
     explanation: RecommendationExplanation
+
+
+@dataclass(frozen=True)
+class TemporaryMovieRating:
+    movieId: int
+    rating: int | float
+
+
+@dataclass(frozen=True)
+class ContentRecommendationRequest:
+    ratings: list[TemporaryMovieRating]
+    limit: int
+    templateSessionId: str | None = None
+
+
+@dataclass(frozen=True)
+class ContentRecommendationProfileSummary:
+    style: str
+    headline: str
+    ratedMovieCount: int
+    nonNeutralRatingCount: int
+    positiveRatingCount: int
+    negativeRatingCount: int
+    minimumRequiredRatings: int
+    recommendedMinimumRatings: int
+    confidence: str
+    positiveSignals: list[str]
+    negativeSignals: list[str]
+
+
+@dataclass(frozen=True)
+class ContentRecommendationItem:
+    movieId: int
+    displayTitle: str
+    year: int | None
+    genres: list[str]
+    suitabilityCategory: str
+    standDisplayScore: float
+    recommendationScore: float
+    contentSimilarity: float
+    mmrScore: float
+    explanation: RecommendationExplanation
+    posterPath: str | None = None
+    tmdbId: int | None = None
+    originalTitle: str | None = None
+    originalLanguage: str | None = None
+    overview: str | None = None
+
+
+@dataclass(frozen=True)
+class ContentRecommendationResponse:
+    profile: ContentRecommendationProfileSummary
+    recommendations: list[ContentRecommendationItem]
+    templateSessionId: str
+    limit: int
