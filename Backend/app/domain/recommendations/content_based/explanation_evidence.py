@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+from functools import lru_cache
+import re
 from dataclasses import dataclass
+
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+from stopwordsiso import stopwords
 
 from .constants import (
     EXPLANATION_SIGNAL_LIMIT,
     EXPLANATION_SOURCE_WEIGHTS,
     GENERIC_EXPLANATION_TOKENS,
     NON_EXPLAINABLE_SIGNAL_TOKENS,
-    READABLE_EXPLANATION_LABELS,
 )
 from .feature_parsing import normalize_feature_token
+
+WORD_RE = re.compile(r"[a-záéíóúüñ0-9]+", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -32,7 +38,7 @@ def clean_signal_for_explanation(signal: str) -> str:
     normalized = normalize_feature_token(cleaned)
     if not normalized:
         return ""
-    return READABLE_EXPLANATION_LABELS.get(normalized, cleaned.lower())
+    return normalized
 
 
 def detect_signal_source(signal: str) -> str:
@@ -45,9 +51,6 @@ def detect_signal_source(signal: str) -> str:
     if signal.startswith("text:"):
         return "text"
 
-    normalized = normalize_feature_token(signal.replace("_", " "))
-    if normalized in GENERIC_EXPLANATION_TOKENS:
-        return "genre"
     return "unknown"
 
 
@@ -61,6 +64,17 @@ def is_explainable_signal(signal: str) -> bool:
     if normalized.isdigit():
         return False
     if len(normalized) < 3:
+        return False
+    tokens = _meaningful_tokens(normalized)
+    if not tokens:
+        return False
+    if _starts_with_stopword(normalized) or _ends_with_stopword(normalized):
+        return False
+    total_words = len(_split_words(normalized))
+    stopword_count = total_words - len(tokens)
+    if stopword_count >= len(tokens) and total_words > 1:
+        return False
+    if total_words >= 5 and len(tokens) <= 2:
         return False
     return True
 
@@ -77,24 +91,31 @@ def score_explanation_signal(
     detected_source = source or detect_signal_source(signal)
     display_text = clean_signal_for_explanation(signal)
     normalized = normalize_feature_token(display_text)
+    tokens = _meaningful_tokens(normalized)
+    total_words = len(_split_words(normalized))
 
     score = contribution if contribution is not None else 1.0
     score *= EXPLANATION_SOURCE_WEIGHTS.get(detected_source, 0.82)
 
     if normalized in GENERIC_EXPLANATION_TOKENS:
         score *= 0.72
-    if " " in normalized:
+    if total_words >= 2 and len(tokens) >= 2:
         score *= 1.18
     if detected_source in {"tag", "keyword"}:
         score *= 1.08
     if detected_source == "genre":
         score *= 0.92
 
-    word_count = len(normalized.split())
+    stopword_ratio = 0.0 if total_words == 0 else (total_words - len(tokens)) / total_words
+    score *= max(0.45, 1.0 - (stopword_ratio * 0.4))
+
+    word_count = total_words
     if word_count >= 5:
         score *= 0.74
     elif word_count == 4:
         score *= 0.88
+    elif word_count == 3 and len(tokens) >= 2:
+        score *= 1.05
 
     return float(score)
 
@@ -182,6 +203,11 @@ def select_explanation_evidence(
     return selected, avoided_signals
 
 
+@lru_cache(maxsize=1)
+def get_explanation_stop_words() -> set[str]:
+    return set(ENGLISH_STOP_WORDS) | set(stopwords("en")) | set(stopwords("es"))
+
+
 def _register_better_evidence(
     evidence_by_text: dict[str, ExplanationEvidence],
     evidence: ExplanationEvidence,
@@ -191,3 +217,26 @@ def _register_better_evidence(
     current = evidence_by_text.get(evidence.displayText)
     if current is None or evidence.score > current.score:
         evidence_by_text[evidence.displayText] = evidence
+
+
+def _split_words(text: str) -> list[str]:
+    return WORD_RE.findall(text.lower())
+
+
+def _meaningful_tokens(text: str) -> list[str]:
+    stop_words = get_explanation_stop_words()
+    return [
+        token
+        for token in _split_words(text)
+        if token not in stop_words and not token.isdigit() and len(token) >= 2
+    ]
+
+
+def _starts_with_stopword(text: str) -> bool:
+    words = _split_words(text)
+    return bool(words) and words[0] in get_explanation_stop_words()
+
+
+def _ends_with_stopword(text: str) -> bool:
+    words = _split_words(text)
+    return bool(words) and words[-1] in get_explanation_stop_words()

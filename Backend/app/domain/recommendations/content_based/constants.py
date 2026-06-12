@@ -129,35 +129,6 @@ NON_EXPLAINABLE_SIGNAL_TOKENS = {
     "finds",
 }
 
-READABLE_EXPLANATION_LABELS = {
-    "animation": "animación",
-    "adventure": "aventura",
-    "comedy": "humor",
-    "family": "ambiente familiar",
-    "action": "acción",
-    "science fiction": "ciencia ficción",
-    "fantasy": "fantasía",
-    "superhero": "superhéroes",
-    "superheroes": "superhéroes",
-    "supervillain": "supervillanos",
-    "super villain": "supervillanos",
-    "based on comic": "cómics",
-    "robot": "robots",
-    "robots": "robots",
-    "technology": "tecnología",
-    "friendship": "amistad",
-    "magic": "magia",
-    "school": "instituto/colegio",
-    "time travel": "viajes en el tiempo",
-    "alternate universe": "universos alternativos",
-    "lego": "LEGO",
-    "pixar": "estilo Pixar",
-    "disney": "estilo Disney",
-    "marvel": "Marvel",
-    "3d animation": "animación 3D",
-    "cartoon": "animación visual",
-}
-
 PROFILE_STYLE_SIGNAL_GROUPS = {
     "family": {
         "family friendly",

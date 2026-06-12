@@ -5,6 +5,7 @@ pandas
 numpy
 scipy
 scikit-learn
+stopwordsiso
 matplotlib
 seaborn
 plotly

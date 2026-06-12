@@ -108,9 +108,9 @@ def _build_headline(
 
     if signal_phrase:
         templates = [
-            f"{signal_phrase.capitalize()} con un tono muy visual.",
-            f"Una opción con bastante {signal_phrase}.",
-            f"{signal_phrase.capitalize()} y buen ritmo para entrar fácil.",
+            f"Pelis con {signal_phrase}.",
+            f"Una opción con mezcla de {signal_phrase}.",
+            f"Una mezcla de {signal_phrase} que entra fácil.",
         ]
         return templates[(candidate.movieId + rank) % len(templates)]
 
@@ -152,33 +152,53 @@ def _build_reasons(
     if avoided_signals:
         avoided_phrase = _build_signal_phrase(avoided_signals[:2])
         if avoided_phrase:
-            reasons.append(
-                f"Además, no tira tanto hacia {avoided_phrase}, que por tus valoraciones parece interesarte menos."
-            )
+            negative_templates = [
+                f"Además, no se va tanto hacia cosas como {avoided_phrase}, que por tus valoraciones parece llamarte menos.",
+                f"También se aleja un poco de {avoided_phrase}, que parece interesarte menos.",
+                f"Y no carga tanto con {avoided_phrase}, que por tus notas parece que no era lo que más te apetecía.",
+            ]
+            reasons.append(negative_templates[(candidate.movieId + rank) % len(negative_templates)])
 
     if len(reasons) < EXPLANATION_REASON_LIMIT and signal_phrase:
-        reasons.append(f"Aquí hay bastante {signal_phrase}, sin sentirse demasiado repetida.")
+        extra_templates = [
+            f"Aquí hay una mezcla de {signal_phrase}, con un tono fácil de entrar.",
+            f"Tiene elementos de {signal_phrase}, que aparecen bastante en tus valoraciones.",
+            f"Va bastante en la línea de lo que has puntuado alto: {signal_phrase}.",
+        ]
+        extra_reason = extra_templates[(candidate.movieId + rank) % len(extra_templates)]
+        if extra_reason not in reasons:
+            reasons.append(extra_reason)
 
-    return reasons[:EXPLANATION_REASON_LIMIT]
+    deduped_reasons: list[str] = []
+    seen_reasons: set[str] = set()
+    for reason in reasons:
+        if reason in seen_reasons:
+            continue
+        seen_reasons.add(reason)
+        deduped_reasons.append(reason)
+        if len(deduped_reasons) >= EXPLANATION_REASON_LIMIT:
+            break
+
+    return deduped_reasons
 
 
 def _reason_templates_for_style(style: str, signal_phrase: str) -> list[str]:
     if style == "family":
         return [
-            f"Veo que te van {signal_phrase}. Esta tiene bastante de ese estilo.",
-            f"Tiene pinta de encajarte porque mezcla {signal_phrase} con un tono fácil de entrar.",
-            f"Aquí hay bastante {signal_phrase}, con un rollo muy disfrutable para una sesión ligera.",
+            f"Veo que te van las pelis con {signal_phrase}. Esta tiene bastante de ese estilo.",
+            f"Esta puede encajarte por su mezcla de {signal_phrase} y un tono fácil de entrar.",
+            f"Aquí hay una mezcla de {signal_phrase}, con un rollo muy disfrutable para una sesión ligera.",
         ]
     if style == "teen":
         return [
             f"Tiene pinta de encajarte porque mezcla {signal_phrase}, como varias pelis que has puntuado alto.",
-            f"Esta va bastante en tu línea: {signal_phrase} y buen ritmo.",
+            f"Va bastante en la línea de lo que te suele funcionar: {signal_phrase}.",
             f"Creo que puede ir contigo si te apetece algo con {signal_phrase}.",
         ]
     return [
         f"Esta puede encajarte porque comparte {signal_phrase} con varias películas que has valorado alto.",
         f"Tiene una mezcla de {signal_phrase} que aparece bastante en tus gustos.",
-        f"Puede ser una buena opción si buscas algo parecido, pero no exactamente igual: {signal_phrase}.",
+        f"Puede ser una buena opción si buscas algo parecido, pero no exactamente igual, con {signal_phrase}.",
     ]
 
 
