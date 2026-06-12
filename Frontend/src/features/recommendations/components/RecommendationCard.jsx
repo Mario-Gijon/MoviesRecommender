@@ -1,8 +1,12 @@
 import { getMovieDisplayTitle } from '../../movies/movieDisplay'
 
 function RecommendationCard({ item, rank }) {
-  const matchLabel = `${item.matchPercentage}%`
+  const matchLabel = `${Math.round(item.scores.recommendationScore * 100)}%`
   const movieTitle = getMovieDisplayTitle(item.movie)
+  const genresLabel = item.movie.displayGenres?.join(' · ') || item.movie.genres?.join(' · ')
+  const reasons = item.explanation?.reasons || []
+  const matchedSignals = item.explanation?.matchedSignals || []
+  const similarRatedMovies = item.explanation?.similarRatedMovies || []
 
   return (
     <article className="recommendation-poster-card">
@@ -25,21 +29,35 @@ function RecommendationCard({ item, rank }) {
 
           <div className="recommendation-score-row">
             <strong>{matchLabel}</strong>
-            <span>{item.method}</span>
+            {genresLabel ? <span>{genresLabel}</span> : null}
           </div>
 
-          {item.explanationSummary ? (
-            <p>{item.explanationSummary}</p>
+          {item.explanation?.headline ? (
+            <p>{item.explanation.headline}</p>
           ) : null}
 
-          {item.explanationSignals?.length ? (
+          {reasons.length ? (
+            <ul className="signals-list recommendation-reasons-list">
+              {reasons.slice(0, 3).map((reason) => (
+                <li key={`${item.movie.movieId}-${reason}`}>{reason}</li>
+              ))}
+            </ul>
+          ) : null}
+
+          {matchedSignals.length ? (
             <div className="recommendation-signals">
-              {item.explanationSignals.slice(0, 3).map((signal) => (
-                <span key={`${item.movie.id}-${signal.label}`}>
-                  {signal.label}: {signal.value}
+              {matchedSignals.slice(0, 4).map((signal) => (
+                <span key={`${item.movie.movieId}-${signal}`}>
+                  {signal}
                 </span>
               ))}
             </div>
+          ) : null}
+
+          {similarRatedMovies.length ? (
+            <p className="recommendation-footnote">
+              Similar to your picks: {similarRatedMovies.join(', ')}
+            </p>
           ) : null}
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useRef } from 'react'
 
 import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import RecommendationCard from './RecommendationCard'
+import RecommendationProfileSummary from './RecommendationProfileSummary'
 import StrategySelector from './StrategySelector'
 
 function RecommendationsStep({
@@ -34,10 +35,14 @@ function RecommendationsStep({
 
       <section ref={scrollPanelRef} className="game-catalog-panel recommendations-stage">
         {recommendations ? (
-          <div className="recommendation-grid">
-            {recommendations.recommendations.map((item, index) => (
-              <RecommendationCard key={item.movie.id} item={item} rank={index + 1} />
-            ))}
+          <div className="recommendations-panel">
+            <RecommendationProfileSummary profile={recommendations.profile} />
+
+            <div className="recommendation-grid">
+              {recommendations.recommendations.map((item, index) => (
+                <RecommendationCard key={item.movieId} item={item} rank={index + 1} />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="game-state">

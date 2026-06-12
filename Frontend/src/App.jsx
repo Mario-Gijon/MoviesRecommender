@@ -47,6 +47,7 @@ function App() {
   const [catalogError, setCatalogError] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const catalogRequestIdRef = useRef(0)
+  const templateSessionIdRef = useRef(`frontend-session-${Date.now()}`)
 
   async function loadCatalogPage({ page, append, search }) {
     const requestId = catalogRequestIdRef.current + 1
@@ -195,11 +196,12 @@ function App() {
       setErrorMessage('')
 
       const response = await requestRecommendations({
-        strategy: selectedStrategy,
         ratings: Object.entries(ratings).map(([movieId, rating]) => ({
           movieId: Number(movieId),
           rating,
         })),
+        limit: 10,
+        templateSessionId: templateSessionIdRef.current,
       })
 
       setRecommendations(response)
