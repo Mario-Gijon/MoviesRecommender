@@ -63,3 +63,16 @@ class ContentSimilarityCandidate:
     contentSimilarity: float
     genres: list[str]
     matchedSignals: list[str]
+
+
+@dataclass(frozen=True)
+class ScoredContentCandidate:
+    movieId: int
+    displayTitle: str
+    year: int | None
+    suitabilityCategory: str
+    standDisplayScore: float
+    contentSimilarity: float
+    recommendationScore: float
+    genres: list[str]
+    matchedSignals: list[str]
