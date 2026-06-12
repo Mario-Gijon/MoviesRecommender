@@ -17,6 +17,9 @@ class OfflineCatalogRepository:
     def __init__(self) -> None:
         self._manifest = self._load_manifest()
         self._public_movies = self._load_public_movies()
+        self._public_movies_by_id = {
+            int(movie["movieId"]): movie for movie in self._public_movies
+        }
 
     def get_status(self) -> dict:
         total_movies = len(self._public_movies)
@@ -57,6 +60,14 @@ class OfflineCatalogRepository:
 
     def get_recommendation_candidates(self) -> list[dict]:
         return list(self._public_movies)
+
+    def get_public_movie_by_id(self, movie_id: int) -> dict:
+        movie = self._public_movies_by_id.get(movie_id)
+        if movie is None:
+            raise RuntimeError(
+                f"Public movie with movieId {movie_id} was not found in the offline public catalog."
+            )
+        return movie
 
     def get_public_catalog_page(
         self,
@@ -175,20 +186,43 @@ def _build_movie_from_csv_row(row: dict[str, str]) -> dict | None:
         coverage_notes.append("Collaborative ratings available")
 
     return {
+        "movieId": movie_id,
         "id": movie_id,
         "tmdbId": _parse_int(row.get("tmdbId")),
         "movieLensId": movie_id,
         "imdbId": _string_or_none(row.get("imdbId")),
         "title": title,
+        "cleanTitle": _string_or_none(row.get("cleanTitle")),
         "originalTitle": _string_or_none(row.get("originalTitle")) or _string_or_none(row.get("title")),
         "year": year,
         "overview": overview,
         "displayTitle": _string_or_none(row.get("displayTitle")) or title,
         "displayOverview": _string_or_none(row.get("displayOverview")) or overview,
+        "posterPath": _string_or_none(row.get("posterPath")),
+        "posterFile": _string_or_none(row.get("posterFile")),
         "posterUrl": poster_url,
+        "runtime": _parse_int(row.get("runtime")),
+        "originalLanguage": _string_or_none(row.get("originalLanguage")),
         "genres": genres,
         "displayGenres": display_genres,
+        "keywords": keywords,
+        "userTags": user_tags,
+        "topCast": _split_list_field(row.get("topCast")),
+        "directors": _split_list_field(row.get("directors")),
         "tags": tags,
+        "ratingCount": rating_count,
+        "averageRating": _parse_float(row.get("averageRating")),
+        "filteredRatingCount": filtered_rating_count,
+        "filteredAverageRating": _parse_float(row.get("filteredAverageRating")),
+        "candidateScore": _parse_float(row.get("candidateScore")),
+        "dataReliabilityScore": _parse_float(row.get("dataReliabilityScore")),
+        "recencyScore": _parse_float(row.get("recencyScore")),
+        "tmdbPopularity": _parse_float(row.get("tmdbPopularity")),
+        "tmdbVoteAverage": _parse_float(row.get("tmdbVoteAverage")),
+        "tmdbVoteCount": _parse_int(row.get("tmdbVoteCount")),
+        "suitabilityCategory": _string_or_none(row.get("suitabilityCategory")),
+        "standDisplayScore": _parse_float(row.get("standDisplayScore")),
+        "standDisplayReasons": _split_list_field(row.get("standDisplayReasons")),
         "coverage": {
             "availableForContent": available_for_content,
             "availableForCollaborative": available_for_collaborative,
@@ -271,6 +305,15 @@ def _parse_int(value: str | None) -> int | None:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_float(value: str | None) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 

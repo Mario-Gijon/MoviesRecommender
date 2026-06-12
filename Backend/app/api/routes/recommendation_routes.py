@@ -5,13 +5,20 @@ from app.domain.recommendations.content_based.recommender import (
     recommend_content_based_movies,
 )
 from app.domain.recommendations.content_based.schemas import (
+    ContentRecommendationResponse as DomainContentRecommendationResponse,
     ContentRecommendationRequest as DomainContentRecommendationRequest,
     TemporaryMovieRating,
 )
+from app.infrastructure.catalog.offline_catalog_repository import catalog_repository
 from app.domain.recommendations.recommendation_schemas import (
     ContentBasedRecommendationRequest,
     ContentBasedRecommendationResponse,
+    ContentRecommendationExplanation,
+    ContentRecommendationItemResponse,
+    ContentRecommendationProfileResponse,
+    ContentRecommendationScores,
     ErrorResponse,
+    PublicMovieRecordResponse,
     RecommendationRequest,
     RecommendationResponse,
 )
@@ -53,9 +60,36 @@ def create_content_based_recommendations(
             detail={"code": "internal_error", "message": "Unexpected recommendation error."},
         ) from exc
 
+    return _to_content_recommendation_response(response)
+
+
+def _to_content_recommendation_response(
+    response: DomainContentRecommendationResponse,
+) -> ContentBasedRecommendationResponse:
     return ContentBasedRecommendationResponse(
-        profile=response.profile,
-        recommendations=response.recommendations,
+        profile=ContentRecommendationProfileResponse.model_validate(
+            response.profile,
+            from_attributes=True,
+        ),
+        recommendations=[
+            ContentRecommendationItemResponse(
+                movieId=item.movieId,
+                movie=PublicMovieRecordResponse.model_validate(
+                    catalog_repository.get_public_movie_by_id(item.movieId)
+                ),
+                scores=ContentRecommendationScores(
+                    recommendationScore=item.recommendationScore,
+                    contentSimilarity=item.contentSimilarity,
+                    mmrScore=item.mmrScore,
+                    standDisplayScore=item.standDisplayScore,
+                ),
+                explanation=ContentRecommendationExplanation.model_validate(
+                    item.explanation,
+                    from_attributes=True,
+                ),
+            )
+            for item in response.recommendations
+        ],
         templateSessionId=response.templateSessionId,
         limit=response.limit,
     )
