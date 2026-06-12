@@ -2,7 +2,7 @@
 
 ## Comando recomendado
 
-Comando base para generar el dataset offline sin auditoría:
+Comando base para generar el dataset offline sin auditoría (suponiendo que tenemos un entorno virtual de python .venv):
 
 ```bash
 cd Backend
