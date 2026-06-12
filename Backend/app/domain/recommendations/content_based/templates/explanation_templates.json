@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "description": "Template bank for diversified content recommendation explanations.",
+  "selection": {
+    "styles": ["family", "teen", "mixed"],
+    "groups": [
+      "headline",
+      "signal_reason",
+      "similar_movie_reason",
+      "negative_avoidance_reason",
+      "natural_closing",
+      "profile_reaction"
+    ]
+  },
+  "groups": {
+    "headline": {
+      "family": [
+        { "id": "headline_family_signals_1", "text": "Pelis con {signals}.", "requires": ["signals"] },
+        { "id": "headline_family_signals_2", "text": "Una opción con mezcla de {signals}.", "requires": ["signals"] },
+        { "id": "headline_family_fallback_1", "text": "Una opción muy de aventura y diversión.", "requires": [] }
+      ],
+      "teen": [
+        { "id": "headline_teen_signals_1", "text": "Una mezcla de {signals} que entra fácil.", "requires": ["signals"] },
+        { "id": "headline_teen_signals_2", "text": "Pelis con {signals} y bastante energía.", "requires": ["signals"] },
+        { "id": "headline_teen_fallback_1", "text": "Una opción que va bastante en tu línea.", "requires": [] }
+      ],
+      "mixed": [
+        { "id": "headline_mixed_signals_1", "text": "Una mezcla de {signals} que puede encajarte.", "requires": ["signals"] },
+        { "id": "headline_mixed_signals_2", "text": "Pelis con {signals}.", "requires": ["signals"] },
+        { "id": "headline_mixed_fallback_1", "text": "Una mezcla que puede ir contigo.", "requires": [] }
+      ]
+    },
+    "signal_reason": {
+      "family": [
+        { "id": "signal_family_1", "text": "Veo que te van las pelis con {signals}. Esta tiene bastante de ese estilo.", "requires": ["signals"] },
+        { "id": "signal_family_2", "text": "Esta puede encajarte por su mezcla de {signals} y un tono fácil de entrar.", "requires": ["signals"] },
+        { "id": "signal_family_fallback_1", "text": "Tiene un tono bastante accesible y puede entrarte bien.", "requires": [] }
+      ],
+      "teen": [
+        { "id": "signal_teen_1", "text": "Tiene pinta de encajarte porque mezcla {signals}, como varias pelis que has puntuado alto.", "requires": ["signals"] },
+        { "id": "signal_teen_2", "text": "Va bastante en la línea de lo que te suele funcionar: {signals}.", "requires": ["signals"] },
+        { "id": "signal_teen_fallback_1", "text": "Tiene un estilo bastante en tu línea.", "requires": [] }
+      ],
+      "mixed": [
+        { "id": "signal_mixed_1", "text": "Esta puede encajarte porque comparte {signals} con varias películas que has valorado alto.", "requires": ["signals"] },
+        { "id": "signal_mixed_2", "text": "Tiene una mezcla de {signals} que aparece bastante en tus gustos.", "requires": ["signals"] },
+        { "id": "signal_mixed_fallback_1", "text": "Puede encajarte por la mezcla general que trae.", "requires": [] }
+      ]
+    },
+    "similar_movie_reason": {
+      "family": [
+        { "id": "similar_family_1", "text": "Como has puntuado alto {movies}, esta puede encajarte por su mezcla de {signals}.", "requires": ["movies", "signals"] },
+        { "id": "similar_family_2", "text": "Si te entraron bien {movies}, esta también puede llamarte por ese mismo rollo.", "requires": ["movies"] }
+      ],
+      "teen": [
+        { "id": "similar_teen_1", "text": "Si te gustaron {movies}, esta puede molarte porque mezcla {signals}.", "requires": ["movies", "signals"] },
+        { "id": "similar_teen_2", "text": "Va bastante en la línea de {movies}, que has puntuado alto.", "requires": ["movies"] }
+      ],
+      "mixed": [
+        { "id": "similar_mixed_1", "text": "Como has puntuado alto {movies}, esta puede encajarte por su mezcla de {signals}.", "requires": ["movies", "signals"] },
+        { "id": "similar_mixed_2", "text": "Tiene cosas que conectan bastante con {movies}.", "requires": ["movies"] }
+      ]
+    },
+    "negative_avoidance_reason": {
+      "family": [
+        { "id": "avoid_family_1", "text": "Además, no se va tanto hacia cosas como {avoided}, que por tus valoraciones parece llamarte menos.", "requires": ["avoided"] },
+        { "id": "avoid_family_2", "text": "También se aleja un poco de {avoided}, que parece interesarte menos.", "requires": ["avoided"] }
+      ],
+      "teen": [
+        { "id": "avoid_teen_1", "text": "Y no carga tanto con {avoided}, que por tus notas parece que no era lo que más te apetecía.", "requires": ["avoided"] },
+        { "id": "avoid_teen_2", "text": "Además, no se va tanto hacia cosas como {avoided}, que parece llamarte menos.", "requires": ["avoided"] }
+      ],
+      "mixed": [
+        { "id": "avoid_mixed_1", "text": "También se aleja un poco de {avoided}, que parece interesarte menos.", "requires": ["avoided"] },
+        { "id": "avoid_mixed_2", "text": "Y no carga tanto con {avoided}, que por tus notas parece que no era lo que más te apetecía.", "requires": ["avoided"] }
+      ]
+    },
+    "natural_closing": {
+      "family": [
+        { "id": "closing_family_1", "text": "Aquí hay una mezcla de {signals}, con un tono fácil de entrar.", "requires": ["signals"] },
+        { "id": "closing_family_2", "text": "Puede ser una buena opción si te apetece algo de ese estilo sin complicarse demasiado.", "requires": [] }
+      ],
+      "teen": [
+        { "id": "closing_teen_1", "text": "Tiene elementos de {signals}, que aparecen bastante en tus valoraciones.", "requires": ["signals"] },
+        { "id": "closing_teen_2", "text": "Puede ser una buena opción si buscas algo que vaya directo al tipo de peli que te suele funcionar.", "requires": [] }
+      ],
+      "mixed": [
+        { "id": "closing_mixed_1", "text": "Va bastante en la línea de lo que has puntuado alto: {signals}.", "requires": ["signals"] },
+        { "id": "closing_mixed_2", "text": "Puede encajarte si buscas algo parecido, pero no exactamente igual.", "requires": [] }
+      ]
+    },
+    "profile_reaction": {
+      "family": [
+        { "id": "profile_family_1", "text": "Parece que te van las pelis visuales, familiares y con aventura.", "requires": [] }
+      ],
+      "teen": [
+        { "id": "profile_teen_1", "text": "Parece que te van las pelis con acción, fantasía o ciencia ficción.", "requires": [] }
+      ],
+      "mixed": [
+        { "id": "profile_mixed_1", "text": "Parece que tienes gustos variados, así que buscaremos una mezcla equilibrada.", "requires": [] }
+      ]
+    }
+  }
+}

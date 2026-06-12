@@ -3,12 +3,19 @@ from __future__ import annotations
 from .constants import (
     DEFAULT_EXPLANATION_LIMIT,
     EXPLANATION_REASON_LIMIT,
+    DEFAULT_TEMPLATE_SESSION_ID,
     SIMILAR_RATED_MOVIE_LIMIT,
 )
 from .explanation_evidence import (
     ExplanationEvidence,
     clean_signal_for_explanation,
     select_explanation_evidence,
+)
+from .explanation_template_loader import (
+    ExplanationTemplateUsage,
+    load_explanation_templates,
+    render_template,
+    select_template,
 )
 from .schemas import (
     ContentIndex,
@@ -25,8 +32,11 @@ def explain_diversified_recommendations(
     diversified_candidates: list[DiversifiedContentCandidate],
     *,
     limit: int = DEFAULT_EXPLANATION_LIMIT,
+    template_session_id: str = DEFAULT_TEMPLATE_SESSION_ID,
 ) -> list[ExplainedContentRecommendation]:
     explained: list[ExplainedContentRecommendation] = []
+    template_bank = load_explanation_templates()
+    usage = ExplanationTemplateUsage()
 
     for rank, candidate in enumerate(diversified_candidates[:limit], start=1):
         evidence, avoided_signals = select_explanation_evidence(
@@ -40,7 +50,15 @@ def explain_diversified_recommendations(
             user_profile=user_profile,
             candidate=candidate,
         )
-        headline = _build_headline(candidate=candidate, evidence=evidence, rank=rank)
+        headline = _build_headline(
+            candidate=candidate,
+            user_profile=user_profile,
+            evidence=evidence,
+            rank=rank,
+            template_bank=template_bank,
+            usage=usage,
+            template_session_id=template_session_id,
+        )
         reasons = _build_reasons(
             candidate=candidate,
             user_profile=user_profile,
@@ -48,6 +66,9 @@ def explain_diversified_recommendations(
             avoided_signals=avoided_signals,
             similar_rated_movies=similar_rated_movies,
             rank=rank,
+            template_bank=template_bank,
+            usage=usage,
+            template_session_id=template_session_id,
         )
         explanation = RecommendationExplanation(
             headline=headline,
@@ -100,26 +121,30 @@ def _find_similar_positive_rated_movies(
 def _build_headline(
     *,
     candidate: DiversifiedContentCandidate,
+    user_profile: UserProfile,
     evidence: list[ExplanationEvidence],
     rank: int,
+    template_bank,
+    usage: ExplanationTemplateUsage,
+    template_session_id: str,
 ) -> str:
     primary_signals = [item.displayText for item in evidence[:2]]
     signal_phrase = _build_signal_phrase(primary_signals)
-
-    if signal_phrase:
-        templates = [
-            f"Pelis con {signal_phrase}.",
-            f"Una opción con mezcla de {signal_phrase}.",
-            f"Una mezcla de {signal_phrase} que entra fácil.",
-        ]
-        return templates[(candidate.movieId + rank) % len(templates)]
-
-    fallback_templates = [
-        "Una mezcla que puede ir contigo.",
-        "Una opción bastante en tu línea.",
-        "Puede encajarte por el tipo de aventura que buscas.",
-    ]
-    return fallback_templates[(candidate.movieId + rank) % len(fallback_templates)]
+    available_values = {"signals": signal_phrase}
+    template = select_template(
+        template_bank=template_bank,
+        usage=usage,
+        group_name="headline",
+        style=user_profile.style,
+        available_values=available_values,
+        movie_id=candidate.movieId,
+        rank=rank,
+        slot="headline",
+        template_session_id=template_session_id,
+    )
+    if template is None:
+        return "Una mezcla que puede ir contigo."
+    return render_template(template, available_values)
 
 
 def _build_reasons(
@@ -130,44 +155,79 @@ def _build_reasons(
     avoided_signals: list[str],
     similar_rated_movies: list[str],
     rank: int,
+    template_bank,
+    usage: ExplanationTemplateUsage,
+    template_session_id: str,
 ) -> list[str]:
     reasons: list[str] = []
     signal_phrase = _build_signal_phrase([item.displayText for item in evidence[:3]])
+    movie_phrase = _build_movie_phrase(similar_rated_movies)
+    avoided_phrase = _build_signal_phrase(avoided_signals[:2]) if avoided_signals else ""
+    available_values = {
+        "signals": signal_phrase,
+        "movies": movie_phrase,
+        "avoided": avoided_phrase,
+    }
 
-    if signal_phrase:
-        reason_templates = _reason_templates_for_style(user_profile.style, signal_phrase)
-        reasons.append(reason_templates[(candidate.movieId + rank) % len(reason_templates)])
+    signal_template = select_template(
+        template_bank=template_bank,
+        usage=usage,
+        group_name="signal_reason",
+        style=user_profile.style,
+        available_values=available_values,
+        movie_id=candidate.movieId,
+        rank=rank,
+        slot="reason_1",
+        template_session_id=template_session_id,
+    )
+    if signal_template is not None:
+        reasons.append(render_template(signal_template, available_values))
 
-    if similar_rated_movies:
-        movie_phrase = _build_movie_phrase(similar_rated_movies)
-        if signal_phrase:
-            reasons.append(
-                f"Como has puntuado alto {movie_phrase}, esta puede encajarte por su mezcla de {signal_phrase}."
-            )
-        else:
-            reasons.append(
-                f"Como has puntuado alto {movie_phrase}, esta puede ir bastante en esa línea."
-            )
+    if movie_phrase:
+        similar_template = select_template(
+            template_bank=template_bank,
+            usage=usage,
+            group_name="similar_movie_reason",
+            style=user_profile.style,
+            available_values=available_values,
+            movie_id=candidate.movieId,
+            rank=rank,
+            slot="reason_2",
+            template_session_id=template_session_id,
+        )
+        if similar_template is not None:
+            reasons.append(render_template(similar_template, available_values))
 
-    if avoided_signals:
-        avoided_phrase = _build_signal_phrase(avoided_signals[:2])
-        if avoided_phrase:
-            negative_templates = [
-                f"Además, no se va tanto hacia cosas como {avoided_phrase}, que por tus valoraciones parece llamarte menos.",
-                f"También se aleja un poco de {avoided_phrase}, que parece interesarte menos.",
-                f"Y no carga tanto con {avoided_phrase}, que por tus notas parece que no era lo que más te apetecía.",
-            ]
-            reasons.append(negative_templates[(candidate.movieId + rank) % len(negative_templates)])
-
-    if len(reasons) < EXPLANATION_REASON_LIMIT and signal_phrase:
-        extra_templates = [
-            f"Aquí hay una mezcla de {signal_phrase}, con un tono fácil de entrar.",
-            f"Tiene elementos de {signal_phrase}, que aparecen bastante en tus valoraciones.",
-            f"Va bastante en la línea de lo que has puntuado alto: {signal_phrase}.",
-        ]
-        extra_reason = extra_templates[(candidate.movieId + rank) % len(extra_templates)]
-        if extra_reason not in reasons:
-            reasons.append(extra_reason)
+    if avoided_phrase:
+        negative_template = select_template(
+            template_bank=template_bank,
+            usage=usage,
+            group_name="negative_avoidance_reason",
+            style=user_profile.style,
+            available_values=available_values,
+            movie_id=candidate.movieId,
+            rank=rank,
+            slot="reason_3",
+            template_session_id=template_session_id,
+        )
+        if negative_template is not None:
+            reasons.append(render_template(negative_template, available_values))
+    else:
+        closing_template = select_template(
+            template_bank=template_bank,
+            usage=usage,
+            group_name="natural_closing",
+            style=user_profile.style,
+            available_values=available_values,
+            movie_id=candidate.movieId,
+            rank=rank,
+            slot="reason_3",
+            template_session_id=template_session_id,
+        )
+        if closing_template is not None:
+            closing_reason = render_template(closing_template, available_values)
+            if not reasons or closing_reason != reasons[-1]:
+                reasons.append(closing_reason)
 
     deduped_reasons: list[str] = []
     seen_reasons: set[str] = set()
@@ -180,26 +240,6 @@ def _build_reasons(
             break
 
     return deduped_reasons
-
-
-def _reason_templates_for_style(style: str, signal_phrase: str) -> list[str]:
-    if style == "family":
-        return [
-            f"Veo que te van las pelis con {signal_phrase}. Esta tiene bastante de ese estilo.",
-            f"Esta puede encajarte por su mezcla de {signal_phrase} y un tono fácil de entrar.",
-            f"Aquí hay una mezcla de {signal_phrase}, con un rollo muy disfrutable para una sesión ligera.",
-        ]
-    if style == "teen":
-        return [
-            f"Tiene pinta de encajarte porque mezcla {signal_phrase}, como varias pelis que has puntuado alto.",
-            f"Va bastante en la línea de lo que te suele funcionar: {signal_phrase}.",
-            f"Creo que puede ir contigo si te apetece algo con {signal_phrase}.",
-        ]
-    return [
-        f"Esta puede encajarte porque comparte {signal_phrase} con varias películas que has valorado alto.",
-        f"Tiene una mezcla de {signal_phrase} que aparece bastante en tus gustos.",
-        f"Puede ser una buena opción si buscas algo parecido, pero no exactamente igual, con {signal_phrase}.",
-    ]
 
 
 def _build_signal_phrase(signals: list[str]) -> str:

@@ -6,6 +6,7 @@ from dataclasses import asdict
 
 from .constants import (
     DEFAULT_DIVERSIFIED_LIMIT,
+    DEFAULT_TEMPLATE_SESSION_ID,
     MMR_CANDIDATE_POOL_SIZE,
     MMR_LAMBDA,
 )
@@ -39,6 +40,7 @@ def main() -> None:
         user_profile=profile,
         diversified_candidates=diversified_candidates,
         limit=args.limit,
+        template_session_id=args.template_session,
     )
 
     if args.json:
@@ -47,6 +49,7 @@ def main() -> None:
                 {
                     "profileStyle": profile.style,
                     "profileHeadline": profile_summary.headline,
+                    "templateSessionId": args.template_session,
                     "positiveSignals": profile.positiveSignals,
                     "negativeSignals": profile.negativeSignals,
                     "recommendations": [asdict(item) for item in explained_recommendations],
@@ -59,6 +62,7 @@ def main() -> None:
 
     print(f"Profile style: {profile.style}")
     print(f"Profile headline: {profile_summary.headline}")
+    print(f"Template session: {args.template_session}")
     print(f"Positive signals: {', '.join(profile.positiveSignals) or '-'}")
     print(f"Negative signals: {', '.join(profile.negativeSignals) or '-'}")
     print("Explained recommendations:")
@@ -90,6 +94,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=DEFAULT_DIVERSIFIED_LIMIT)
     parser.add_argument("--candidate-pool-size", type=int, default=MMR_CANDIDATE_POOL_SIZE)
     parser.add_argument("--mmr-lambda", type=float, default=MMR_LAMBDA)
+    parser.add_argument("--template-session", default=DEFAULT_TEMPLATE_SESSION_ID)
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
