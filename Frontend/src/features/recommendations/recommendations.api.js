@@ -1,8 +1,12 @@
 import { apiRequest } from '../../api/client'
 
-export function requestRecommendations(payload) {
+export function requestRecommendations({ ratings }) {
   return apiRequest('/recommendations/content-based', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ratings,
+      limit: 10,
+      templateSessionId: 'stand-demo',
+    }),
   })
 }

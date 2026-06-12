@@ -317,6 +317,8 @@ def _split_primary_secondary_signals(
     evidence: list[ExplanationEvidence],
 ) -> tuple[list[str], list[str]]:
     signals = [item.displayText for item in evidence if item.displayText]
+    if len(signals) >= 5:
+        return signals[:3], signals[3:6]
     if len(signals) >= 4:
         return signals[:2], signals[2:4]
     return signals[:3], signals[3:4]

@@ -3,11 +3,8 @@ import { useRef } from 'react'
 import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import RecommendationCard from './RecommendationCard'
 import RecommendationProfileSummary from './RecommendationProfileSummary'
-import StrategySelector from './StrategySelector'
 
 function RecommendationsStep({
-  selectedStrategy,
-  onSelectStrategy,
   onGenerateRecommendations,
   recommendations,
   isLoadingRecommendations,
@@ -21,15 +18,13 @@ function RecommendationsStep({
   return (
     <div className="recommend-game-step compact-recommend-step">
       <div className="recommend-toolbar compact-recommend-toolbar">
-        <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
-
         <button
           type="button"
           className="game-nav-button primary generate-button"
           onClick={onGenerateRecommendations}
           disabled={!canGenerate}
         >
-          {isLoadingRecommendations ? 'Generating...' : 'Generate'}
+          {isLoadingRecommendations ? 'Generando...' : 'Recomendar'}
         </button>
       </div>
 
@@ -46,7 +41,9 @@ function RecommendationsStep({
           </div>
         ) : (
           <div className="game-state">
-            <strong>{ratedMoviesCount ? 'Ready to generate' : 'Rate movies first'}</strong>
+            <strong>
+              {ratedMoviesCount ? 'Listo para recomendar' : 'Valora algunas películas primero'}
+            </strong>
           </div>
         )}
       </section>

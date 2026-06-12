@@ -1,65 +1,54 @@
 import { getMovieDisplayTitle } from '../../movies/movieDisplay'
 
 function RecommendationCard({ item, rank }) {
-  const matchLabel = `${Math.round(item.scores.recommendationScore * 100)}%`
   const movieTitle = getMovieDisplayTitle(item.movie)
-  const genresLabel = item.movie.displayGenres?.join(' · ') || item.movie.genres?.join(' · ')
-  const reasons = item.explanation?.reasons || []
-  const matchedSignals = item.explanation?.matchedSignals || []
-  const similarRatedMovies = item.explanation?.similarRatedMovies || []
+  const scoreLabel = item.scores.recommendationScore.toFixed(3)
+  const reasons = item.explanation.reasons.slice(0, 2)
 
   return (
-    <article className="recommendation-poster-card">
-      <div className="recommendation-poster-frame">
+    <article
+      className="poster-card recommendation-card visible"
+      style={{ '--card-order': rank % 16 }}
+    >
+      <div className="poster-frame recommendation-frame">
         {item.movie.posterUrl ? (
           <img src={item.movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
         ) : (
           <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
         )}
 
-        <div className="recommendation-shade" aria-hidden="true" />
+        <div className="poster-shade recommendation-poster-shade" aria-hidden="true" />
+        <div className="poster-light" aria-hidden="true" />
 
-        <div className="recommendation-rank">#{rank}</div>
-
-        <div className="recommendation-content">
-          <div>
+        <div className="poster-overlay recommendation-overlay">
+          <div className="poster-title-block">
             <h3>{movieTitle}</h3>
             {item.movie.year ? <span>{item.movie.year}</span> : null}
           </div>
 
-          <div className="recommendation-score-row">
-            <strong>{matchLabel}</strong>
-            {genresLabel ? <span>{genresLabel}</span> : null}
+          <div className="recommendation-score-line">
+            <span>Puntuación</span>
+            <strong>{scoreLabel}</strong>
           </div>
 
-          {item.explanation?.headline ? (
-            <p>{item.explanation.headline}</p>
+          {item.explanation.headline ? (
+            <p className="recommendation-headline">
+              {item.explanation.headline}
+            </p>
           ) : null}
 
           {reasons.length ? (
-            <ul className="signals-list recommendation-reasons-list">
-              {reasons.slice(0, 3).map((reason) => (
-                <li key={`${item.movie.movieId}-${reason}`}>{reason}</li>
-              ))}
-            </ul>
-          ) : null}
-
-          {matchedSignals.length ? (
-            <div className="recommendation-signals">
-              {matchedSignals.slice(0, 4).map((signal) => (
-                <span key={`${item.movie.movieId}-${signal}`}>
-                  {signal}
-                </span>
-              ))}
+            <div className="recommendation-hover-details">
+              <ul>
+                {reasons.map((reason) => (
+                  <li key={`${item.movieId}-${reason}`}>{reason}</li>
+                ))}
+              </ul>
             </div>
           ) : null}
-
-          {similarRatedMovies.length ? (
-            <p className="recommendation-footnote">
-              Similar to your picks: {similarRatedMovies.join(', ')}
-            </p>
-          ) : null}
         </div>
+
+        <div className="recommendation-rank-badge">#{rank}</div>
       </div>
     </article>
   )
