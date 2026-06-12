@@ -3,6 +3,28 @@ import shlex
 import subprocess
 import sys
 import time
+import urllib.request
+import zipfile
+
+from app.infrastructure.datasets.movielens_paths import (
+    ML_32M_DATASET_DIR,
+    ML_32M_EXTRACT_DIR,
+    ML_32M_LINKS_CSV_PATH,
+    ML_32M_MOVIES_CSV_PATH,
+    ML_32M_RATINGS_CSV_PATH,
+    ML_32M_TAGS_CSV_PATH,
+    ML_32M_ZIP_PATH,
+)
+
+
+MOVIELENS_32M_URL = "https://files.grouplens.org/datasets/movielens/ml-32m.zip"
+RAW_REQUIRED_STAGES = {"candidates", "ratings"}
+REQUIRED_RAW_PATHS = [
+    ML_32M_MOVIES_CSV_PATH,
+    ML_32M_RATINGS_CSV_PATH,
+    ML_32M_TAGS_CSV_PATH,
+    ML_32M_LINKS_CSV_PATH,
+]
 
 
 STAGE_ORDER = [
@@ -34,6 +56,8 @@ def main() -> None:
         print(f"Dry run complete. Stages that would run: {', '.join(selected_stages)}")
         return
 
+    _ensure_raw_movielens_dataset(args=args, selected_stages=selected_stages)
+
     started_at = time.time()
     executed_stages: list[str] = []
 
@@ -56,14 +80,13 @@ def _parse_args() -> argparse.Namespace:
             "Examples:\n\n"
             "1. Current broad dataset rebuild with collaborative support from 1990:\n\n"
             "python -m app.scripts.run_movielens_32m_pipeline \\\n"
+            "  --download-raw-movielens \\\n"
             "  --candidate-limit 15000 \\\n"
             "  --candidate-min-ratings 100 \\\n"
             "  --candidate-min-year 1990 \\\n"
             "  --collaborative-core-limit 15000 \\\n"
             "  --public-min-year 2000 \\\n"
-            "  --collaborative-min-year 1990 \\\n"
-            "  --resume-tmdb \\\n"
-            "  --audit\n\n"
+            "  --collaborative-min-year 1990\n\n"
             "2. Dry run:\n\n"
             "python -m app.scripts.run_movielens_32m_pipeline \\\n"
             "  --candidate-limit 15000 \\\n"
@@ -78,8 +101,7 @@ def _parse_args() -> argparse.Namespace:
             "  --start-at catalog \\\n"
             "  --collaborative-core-limit 15000 \\\n"
             "  --public-min-year 2000 \\\n"
-            "  --collaborative-min-year 1990 \\\n"
-            "  --audit\n\n"
+            "  --collaborative-min-year 1990\n\n"
             "4. Run only audit:\n\n"
             "python -m app.scripts.run_movielens_32m_pipeline \\\n"
             "  --start-at audit \\\n"
@@ -93,6 +115,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate-min-year", type=int, default=1995)
     parser.add_argument("--candidate-max-year", type=int)
     parser.add_argument("--max-tags-per-movie", type=int, default=35)
+    parser.add_argument("--download-raw-movielens", action="store_true")
 
     parser.set_defaults(resume_tmdb=True)
     parser.add_argument("--resume-tmdb", dest="resume_tmdb", action="store_true")
@@ -130,6 +153,63 @@ def _select_stages(args: argparse.Namespace) -> list[str]:
             continue
         selected_stages.append(stage)
     return selected_stages
+
+
+def _ensure_raw_movielens_dataset(*, args: argparse.Namespace, selected_stages: list[str]) -> None:
+    if not any(stage in RAW_REQUIRED_STAGES for stage in selected_stages):
+        return
+
+    if _has_required_raw_files():
+        return
+
+    if not args.download_raw_movielens:
+        missing_files_text = ", ".join(path.name for path in REQUIRED_RAW_PATHS if not path.exists())
+        raise RuntimeError(
+            "MovieLens 32M raw files are missing. "
+            f"Expected files under {ML_32M_DATASET_DIR}: {missing_files_text}. "
+            "Place the raw files manually or rerun with --download-raw-movielens."
+        )
+
+    _download_and_extract_raw_movielens()
+
+
+def _has_required_raw_files() -> bool:
+    return all(path.exists() for path in REQUIRED_RAW_PATHS)
+
+
+def _download_and_extract_raw_movielens() -> None:
+    print("MovieLens 32M raw files are missing.")
+    print(f"Dataset URL: {MOVIELENS_32M_URL}")
+    print(f"Zip path: {ML_32M_ZIP_PATH}")
+    print(f"Dataset dir: {ML_32M_DATASET_DIR}")
+
+    ML_32M_ZIP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ML_32M_EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if ML_32M_ZIP_PATH.exists():
+        print("Zip already present. Reusing existing download.")
+    else:
+        print("Downloading MovieLens 32M zip...")
+        urllib.request.urlretrieve(MOVIELENS_32M_URL, ML_32M_ZIP_PATH)
+        print("Download completed.")
+
+    if _has_required_raw_files():
+        print("Required raw files already exist after zip check. Skipping extraction.")
+        return
+
+    print("Extracting MovieLens 32M zip...")
+    with zipfile.ZipFile(ML_32M_ZIP_PATH, "r") as zip_file:
+        zip_file.extractall(ML_32M_EXTRACT_DIR)
+    print("Extraction completed.")
+
+    if not _has_required_raw_files():
+        missing_files_text = ", ".join(path.name for path in REQUIRED_RAW_PATHS if not path.exists())
+        raise RuntimeError(
+            "MovieLens 32M download finished but required raw files are still missing. "
+            f"Expected under {ML_32M_DATASET_DIR}: {missing_files_text}."
+        )
+
+    print("Verified required MovieLens 32M raw files.")
 
 
 def _build_stage_command(stage: str, args: argparse.Namespace) -> list[str]:
