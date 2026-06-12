@@ -1,1 +1,1 @@
-
+"""Recommendation domain package."""
