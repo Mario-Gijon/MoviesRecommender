@@ -128,7 +128,7 @@ def _build_headline(
     usage: ExplanationTemplateUsage,
     template_session_id: str,
 ) -> str:
-    primary_signals = [item.displayText for item in evidence[:2]]
+    primary_signals, _ = _split_primary_secondary_signals(evidence)
     signal_phrase = _build_signal_phrase(primary_signals)
     available_values = {"signals": signal_phrase}
     template = select_template(
@@ -141,6 +141,7 @@ def _build_headline(
         rank=rank,
         slot="headline",
         template_session_id=template_session_id,
+        requirement_priority=[{"signals"}, set()] if signal_phrase else [set()],
     )
     if template is None:
         return "Una mezcla que puede ir contigo."
@@ -160,11 +161,20 @@ def _build_reasons(
     template_session_id: str,
 ) -> list[str]:
     reasons: list[str] = []
-    signal_phrase = _build_signal_phrase([item.displayText for item in evidence[:3]])
+    used_signal_phrases: set[str] = set()
+    primary_signals, secondary_signals = _split_primary_secondary_signals(evidence)
+    primary_signal_phrase = _build_signal_phrase(primary_signals)
+    secondary_signal_phrase = _build_signal_phrase(secondary_signals)
     movie_phrase = _build_movie_phrase(similar_rated_movies)
     avoided_phrase = _build_signal_phrase(avoided_signals[:2]) if avoided_signals else ""
-    available_values = {
-        "signals": signal_phrase,
+
+    primary_values = {
+        "signals": primary_signal_phrase,
+        "movies": movie_phrase,
+        "avoided": avoided_phrase,
+    }
+    secondary_values = {
+        "signals": secondary_signal_phrase,
         "movies": movie_phrase,
         "avoided": avoided_phrase,
     }
@@ -174,29 +184,67 @@ def _build_reasons(
         usage=usage,
         group_name="signal_reason",
         style=user_profile.style,
-        available_values=available_values,
+        available_values=primary_values,
         movie_id=candidate.movieId,
         rank=rank,
         slot="reason_1",
         template_session_id=template_session_id,
+        requirement_priority=[{"signals"}] if primary_signal_phrase else [set()],
     )
     if signal_template is not None:
-        reasons.append(render_template(signal_template, available_values))
+        rendered = render_template(signal_template, primary_values)
+        reasons.append(rendered)
+        if primary_signal_phrase:
+            used_signal_phrases.add(primary_signal_phrase)
 
     if movie_phrase:
-        similar_template = select_template(
-            template_bank=template_bank,
-            usage=usage,
-            group_name="similar_movie_reason",
-            style=user_profile.style,
-            available_values=available_values,
-            movie_id=candidate.movieId,
-            rank=rank,
-            slot="reason_2",
-            template_session_id=template_session_id,
-        )
+        similar_template = None
+        similar_values = primary_values
+        if primary_signal_phrase:
+            similar_template = select_template(
+                template_bank=template_bank,
+                usage=usage,
+                group_name="similar_movie_reason",
+                style=user_profile.style,
+                available_values=primary_values,
+                movie_id=candidate.movieId,
+                rank=rank,
+                slot="reason_2_movies_only",
+                template_session_id=template_session_id,
+                requirement_priority=[{"movies"}],
+            )
+        if similar_template is None and secondary_signal_phrase and secondary_signal_phrase not in used_signal_phrases:
+            similar_values = secondary_values
+            similar_template = select_template(
+                template_bank=template_bank,
+                usage=usage,
+                group_name="similar_movie_reason",
+                style=user_profile.style,
+                available_values=secondary_values,
+                movie_id=candidate.movieId,
+                rank=rank,
+                slot="reason_2_movies_signals",
+                template_session_id=template_session_id,
+                requirement_priority=[{"movies", "signals"}, {"movies"}],
+            )
+        elif similar_template is None:
+            similar_template = select_template(
+                template_bank=template_bank,
+                usage=usage,
+                group_name="similar_movie_reason",
+                style=user_profile.style,
+                available_values=primary_values,
+                movie_id=candidate.movieId,
+                rank=rank,
+                slot="reason_2_movies_fallback",
+                template_session_id=template_session_id,
+                requirement_priority=[{"movies"}],
+            )
         if similar_template is not None:
-            reasons.append(render_template(similar_template, available_values))
+            rendered = render_template(similar_template, similar_values)
+            reasons.append(rendered)
+            if set(similar_template.requires) == {"movies", "signals"} and similar_values["signals"]:
+                used_signal_phrases.add(similar_values["signals"])
 
     if avoided_phrase:
         negative_template = select_template(
@@ -209,25 +257,36 @@ def _build_reasons(
             rank=rank,
             slot="reason_3",
             template_session_id=template_session_id,
+            requirement_priority=[{"avoided"}],
         )
         if negative_template is not None:
-            reasons.append(render_template(negative_template, available_values))
+            reasons.append(render_template(negative_template, primary_values))
     else:
+        closing_values = {
+            "signals": secondary_signal_phrase if secondary_signal_phrase not in used_signal_phrases else "",
+            "movies": movie_phrase,
+            "avoided": avoided_phrase,
+        }
         closing_template = select_template(
             template_bank=template_bank,
             usage=usage,
             group_name="natural_closing",
             style=user_profile.style,
-            available_values=available_values,
+            available_values=closing_values,
             movie_id=candidate.movieId,
             rank=rank,
             slot="reason_3",
             template_session_id=template_session_id,
+            requirement_priority=[set(), {"signals"}],
         )
         if closing_template is not None:
-            closing_reason = render_template(closing_template, available_values)
+            if set(closing_template.requires) == {"signals"} and not closing_values["signals"]:
+                closing_reason = ""
+            else:
+                closing_reason = render_template(closing_template, closing_values)
             if not reasons or closing_reason != reasons[-1]:
-                reasons.append(closing_reason)
+                if closing_reason:
+                    reasons.append(closing_reason)
 
     deduped_reasons: list[str] = []
     seen_reasons: set[str] = set()
@@ -252,6 +311,15 @@ def _build_signal_phrase(signals: list[str]) -> str:
     if len(cleaned) == 2:
         return f"{cleaned[0]} y {cleaned[1]}"
     return f"{cleaned[0]}, {cleaned[1]} y {cleaned[2]}"
+
+
+def _split_primary_secondary_signals(
+    evidence: list[ExplanationEvidence],
+) -> tuple[list[str], list[str]]:
+    signals = [item.displayText for item in evidence if item.displayText]
+    if len(signals) >= 4:
+        return signals[:2], signals[2:4]
+    return signals[:3], signals[3:4]
 
 
 def _build_movie_phrase(movie_titles: list[str]) -> str:

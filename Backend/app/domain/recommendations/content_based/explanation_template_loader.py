@@ -80,6 +80,7 @@ def select_template(
     rank: int,
     slot: str,
     template_session_id: str,
+    requirement_priority: list[set[str]] | None = None,
 ) -> ExplanationTemplate | None:
     styles_to_try = [style, "mixed"]
     if style not in {"family", "teen", "mixed"}:
@@ -96,6 +97,16 @@ def select_template(
     viable = [template for template in candidates if _requirements_satisfied(template, available_values)]
     if not viable:
         return None
+
+    if requirement_priority:
+        prioritized: list[ExplanationTemplate] = []
+        for required_set in requirement_priority:
+            matching = [template for template in viable if set(template.requires) == required_set]
+            if matching:
+                prioritized = matching
+                break
+        if prioritized:
+            viable = prioritized
 
     unused = [template for template in viable if template.id not in usage.used_template_ids]
     pool = unused or viable
