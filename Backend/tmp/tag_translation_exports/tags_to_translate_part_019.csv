@@ -1,37 +1,4 @@
 tag,count,sources,datasetRoles
-candyman series,2,userTags,collaborative_support
-cannes: best director,2,userTags,collaborative_support
-cannonball,2,userTags,collaborative_support|public
-cantankerous,2,keywords,collaborative_support|public
-caped superhero,2,userTags,collaborative_support|public
-caper movie,2,userTags,collaborative_support
-capitalist,2,keywords|userTags,collaborative_support
-capitalist society,2,userTags,collaborative_support|public
-capoeira,2,keywords|userTags,collaborative_support|public
-capra-esque,2,userTags,collaborative_support
-capsized boat,2,userTags,collaborative_support
-capsized ship,2,keywords|userTags,collaborative_support|public
-captured woman,2,keywords,collaborative_support|public
-car crashes through a window,2,userTags,collaborative_support
-car phone,2,userTags,collaborative_support
-car rollover,2,userTags,collaborative_support
-cara delevingne,2,userTags,collaborative_support|public
-carbon monoxide poisoning,2,userTags,collaborative_support
-card counting,2,userTags,collaborative_support|public
-card trick,2,keywords|userTags,collaborative_support
-career change,2,userTags,public
-carefree,2,keywords,collaborative_support|public
-caregiver patient relationship,2,keywords,collaborative_support|public
-caregiving,2,keywords|userTags,collaborative_support|public
-cargo hold,2,userTags,collaborative_support|public
-carl hiaasen,2,userTags,collaborative_support|public
-carl weathers,2,userTags,collaborative_support|public
-carmen electra,2,userTags,collaborative_support
-carnism,2,userTags,collaborative_support|public
-carnival ride,2,userTags,collaborative_support|public
-carnivorous plant,2,keywords|userTags,collaborative_support|public
-carol kane,2,userTags,collaborative_support
-carpe diem,2,userTags,collaborative_support|public
 carrot,2,keywords|userTags,collaborative_support|public
 cartel warfare,2,keywords,collaborative_support
 cartoon bird,2,keywords|userTags,public
@@ -799,3 +766,36 @@ dream like reality,2,userTags,collaborative_support|public
 drifting,2,keywords|userTags,collaborative_support
 drinking alcohol,2,userTags,collaborative_support
 drinking blood,2,keywords|userTags,collaborative_support
+drinking game,2,keywords|userTags,collaborative_support|public
+drinking one's urine,2,userTags,collaborative_support
+drinking problem,2,userTags,collaborative_support|public
+driven to suicide,2,keywords,collaborative_support
+driving a car,2,keywords|userTags,collaborative_support|public
+driving school,2,keywords,collaborative_support
+drop-out,2,keywords|userTags,collaborative_support|public
+drug bust,2,keywords|userTags,collaborative_support
+drug gang,2,keywords|userTags,collaborative_support
+drug kingpin,2,keywords,collaborative_support
+drug runner,2,keywords|userTags,collaborative_support
+drug stealing,2,keywords,collaborative_support
+drugged food,2,userTags,collaborative_support|public
+drugs and addiction,2,userTags,collaborative_support
+drum,2,keywords|userTags,collaborative_support
+drunk driving,2,userTags,collaborative_support
+drunkard,2,keywords|userTags,collaborative_support
+dual personality,2,keywords|userTags,collaborative_support|public
+dual wield,2,userTags,collaborative_support
+dualism,2,userTags,collaborative_support
+dubbing,2,userTags,collaborative_support
+duct tape over mouth,2,userTags,collaborative_support
+duet,2,userTags,collaborative_support
+dull characters,2,userTags,collaborative_support
+dumb characters,2,userTags,collaborative_support|public
+dumb ending,2,userTags,collaborative_support
+dumb fun,2,userTags,collaborative_support
+dumb kids,2,userTags,collaborative_support
+dumb plot,2,userTags,collaborative_support
+dumbest movie ever,2,userTags,collaborative_support
+dummy,2,userTags,collaborative_support
+dumplings,2,userTags,collaborative_support|public
+dune,2,keywords|userTags,public

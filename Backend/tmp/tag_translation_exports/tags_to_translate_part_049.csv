@@ -1,36 +1,4 @@
 tag,count,sources,datasetRoles
-rupert friend,1,userTags,public
-rupert murdoch,1,userTags,collaborative_support
-rura penthe,1,keywords,collaborative_support
-rural americana,1,keywords,collaborative_support
-rural ireland,1,keywords,collaborative_support
-rural japan,1,userTags,public
-rural living,1,userTags,collaborative_support
-rural noir,1,userTags,collaborative_support
-rural poverty,1,userTags,collaborative_support
-rural romance,1,userTags,collaborative_support
-rural school,1,userTags,collaborative_support
-rural texas,1,keywords,collaborative_support
-rural turkey,1,userTags,collaborative_support
-rush,1,userTags,collaborative_support
-rush hour,1,userTags,public
-rushed story,1,userTags,collaborative_support
-rusia,1,userTags,public
-russell crowe's singing,1,userTags,public
-russell mulcahy,1,userTags,collaborative_support
-russia for foreigners,1,userTags,collaborative_support
-russian accent,1,userTags,collaborative_support
-russian accents,1,userTags,collaborative_support
-russian aristocracy,1,keywords,collaborative_support
-russian communist tragedy,1,userTags,collaborative_support
-russian defector,1,keywords,collaborative_support
-russian front,1,userTags,collaborative_support
-russian history,1,keywords|userTags,public
-russian mofia,1,userTags,collaborative_support
-russian nesting dolls,1,keywords,collaborative_support
-russian politics,1,keywords,collaborative_support
-russian revolution,1,userTags,collaborative_support
-russian revolution (1917),1,keywords,collaborative_support
 russian science fiction,1,userTags,collaborative_support
 russian ship,1,userTags,public
 russian soldier,1,keywords,collaborative_support
@@ -508,6 +476,7 @@ self deprecating,1,userTags,collaborative_support
 self destruction,1,userTags,collaborative_support
 self exile,1,keywords,public
 self government,1,keywords,collaborative_support
+self harm,1,userTags,collaborative_support
 self immolation,1,keywords|userTags,collaborative_support
 self improvement,1,userTags,collaborative_support
 self indulgent,1,userTags,collaborative_support
@@ -799,3 +768,34 @@ shaun dooley,1,userTags,collaborative_support
 shaun evans,1,userTags,collaborative_support
 shave,1,keywords|userTags,collaborative_support
 shaved head,1,keywords|userTags,collaborative_support
+shaving points,1,keywords,collaborative_support
+shawn ashmore,1,userTags,collaborative_support
+shawn christensen,1,userTags,collaborative_support
+she was cute with a pig nose,1,userTags,public
+shea whigham,1,userTags,collaborative_support
+sheeny,1,userTags,collaborative_support
+sheep rustling,1,keywords|userTags,collaborative_support
+sheep shearing,1,keywords,public
+sheep zombies,1,userTags,collaborative_support
+sheepdog,1,keywords,collaborative_support
+sheeva,1,userTags,collaborative_support
+sheikh,1,keywords,public
+shelby foote,1,userTags,collaborative_support
+shell shock,1,keywords,collaborative_support
+shell shocked soldier,1,keywords,collaborative_support
+shelley hennig,1,userTags,public
+shelley henning,1,userTags,public
+shelley long,1,userTags,collaborative_support
+sheltered,1,keywords|userTags,public
+shepard fairey,1,userTags,collaborative_support
+shepherd,1,keywords|userTags,public
+sheri moon zombie,1,userTags,collaborative_support
+sheriff bullock,1,userTags,public
+sheriff of nottingham,1,userTags,collaborative_support
+sheriffs and outlaws,1,userTags,collaborative_support
+sherlock,1,userTags,collaborative_support
+sherlock holmes parody,1,userTags,collaborative_support
+sherrif,1,userTags,collaborative_support
+sheryl lee,1,userTags,collaborative_support
+shia leboeuf,1,userTags,collaborative_support
+"shibuya, tokyo",1,keywords,public

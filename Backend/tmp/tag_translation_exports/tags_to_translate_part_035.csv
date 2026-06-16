@@ -1,36 +1,4 @@
 tag,count,sources,datasetRoles
-dog allergy,1,keywords|userTags,public
-dog biscuit,1,userTags,collaborative_support
-dog breed,1,userTags,public
-dog breeder,1,userTags,public
-dog carrying a severed hand,1,userTags,collaborative_support
-dog collar,1,userTags,public
-dog dirt,1,keywords|userTags,public
-dog driving car,1,userTags,collaborative_support
-dog eating human,1,userTags,collaborative_support
-dog fight,1,userTags,public
-dog food,1,userTags,collaborative_support
-dog gets killed,1,userTags,collaborative_support
-dog hero,1,keywords,collaborative_support
-dog humping someone's leg,1,userTags,public
-dog killed by a truck,1,userTags,collaborative_support
-dog lives,1,userTags,public
-dog man friendship,1,keywords,collaborative_support
-dog missing,1,userTags,public
-dog on roller skates,1,userTags,collaborative_support
-dog owner,1,keywords,collaborative_support
-dog poo,1,userTags,collaborative_support
-dog psychiatrist,1,userTags,public
-dog salon,1,userTags,collaborative_support
-dog skeleton,1,userTags,collaborative_support
-dog sled team,1,userTags,public
-dog suicide,1,userTags,collaborative_support
-dog survives,1,userTags,public
-dog tags,1,userTags,collaborative_support
-dog toy,1,userTags,public
-dog urination,1,userTags,public
-dog watches tv,1,userTags,collaborative_support
-dog wearing clothing,1,userTags,collaborative_support
 dogcatcher,1,userTags,public
 dogfights,1,userTags,public
 doggy style sex,1,userTags,collaborative_support
@@ -799,3 +767,35 @@ enviroment,1,keywords|userTags,collaborative_support
 enviromentalism,1,keywords,collaborative_support
 environmental activist,1,keywords,collaborative_support
 environmental change,1,keywords|userTags,public
+environmental group,1,userTags,collaborative_support
+environmental illness,1,keywords|userTags,collaborative_support
+environmental message,1,userTags,collaborative_support
+environmental pollution,1,userTags,collaborative_support
+environmental preservation,1,userTags,public
+environmental protection agency,1,keywords,public
+environmental protest,1,userTags,collaborative_support
+ephebophilia,1,userTags,collaborative_support
+epic biopic,1,userTags,collaborative_support
+epic chase,1,keywords,public
+epic drama,1,userTags,collaborative_support
+epic history,1,userTags,collaborative_support
+epic moments,1,userTags,collaborative_support
+epic sword fight,1,userTags,collaborative_support
+epically bad,1,userTags,collaborative_support
+epically stupid ending,1,userTags,public
+epico,1,userTags,collaborative_support
+epictetus,1,userTags,public
+epidemiologist,1,keywords|userTags,collaborative_support
+epidemy,1,userTags,collaborative_support
+epifedrine,1,userTags,collaborative_support
+epileptic,1,keywords,collaborative_support
+epileptic seizure,1,keywords|userTags,collaborative_support
+epinephrine,1,keywords,collaborative_support
+episode cinema,1,userTags,collaborative_support
+epistaxis,1,keywords,public
+epoque,1,userTags,collaborative_support
+equador,1,userTags,collaborative_support
+equal pay,1,userTags,collaborative_support
+equality under the law,1,userTags,public
+equilibrium,1,userTags,public
+equipment,1,userTags,collaborative_support

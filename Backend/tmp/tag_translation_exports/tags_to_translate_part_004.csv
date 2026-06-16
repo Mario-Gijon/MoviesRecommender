@@ -1,39 +1,4 @@
 tag,count,sources,datasetRoles
-surgery,19,keywords|userTags,collaborative_support|public
-tedious,19,userTags,collaborative_support|public
-telekinesis,19,keywords|userTags,collaborative_support|public
-telepathy,19,keywords|userTags,collaborative_support|public
-thrilling,19,userTags,collaborative_support|public
-truth,19,keywords|userTags,collaborative_support|public
-unsettling,19,userTags,collaborative_support|public
-urban legend,19,keywords|userTags,collaborative_support
-us army,19,keywords|userTags,collaborative_support|public
-val kilmer,19,userTags,collaborative_support|public
-very funny,19,userTags,collaborative_support|public
-victim,19,keywords|userTags,collaborative_support|public
-vietnam veteran,19,keywords|userTags,collaborative_support|public
-vulgar,19,keywords|userTags,collaborative_support|public
-war crimes,19,keywords|userTags,collaborative_support|public
-winona ryder,19,userTags,collaborative_support|public
-young boy,19,keywords|userTags,collaborative_support|public
-acceptance,18,keywords|userTags,collaborative_support|public
-actor playing himself,18,userTags,collaborative_support|public
-allegorical,18,keywords|userTags,collaborative_support|public
-antihero,18,userTags,collaborative_support|public
-asia,18,keywords|userTags,collaborative_support|public
-asian,18,userTags,collaborative_support|public
-assassins,18,keywords|userTags,collaborative_support|public
-asthma,18,keywords|userTags,collaborative_support|public
-babe scientist,18,userTags,collaborative_support|public
-bad luck,18,keywords|userTags,collaborative_support|public
-badass,18,userTags,collaborative_support|public
-barefoot female,18,keywords|userTags,collaborative_support|public
-"based on magazine, newspaper or article",18,keywords|userTags,collaborative_support|public
-billy bob thornton,18,userTags,collaborative_support|public
-brazilian,18,userTags,collaborative_support|public
-brendan fraser,18,userTags,collaborative_support|public
-cannabis,18,keywords|userTags,collaborative_support|public
-captain,18,userTags,collaborative_support|public
 cgi animation,18,userTags,public
 chosen one,18,keywords|userTags,collaborative_support|public
 cillian murphy,18,userTags,collaborative_support|public
@@ -799,3 +764,38 @@ narcissism,14,keywords|userTags,collaborative_support|public
 nature documentary,14,keywords|userTags,collaborative_support|public
 neighborhood,14,keywords|userTags,collaborative_support|public
 nuclear weapons,14,keywords|userTags,collaborative_support|public
+nypd,14,keywords|userTags,collaborative_support
+observational documentary,14,keywords,collaborative_support|public
+offbeat,14,keywords|userTags,collaborative_support|public
+online dating,14,keywords|userTags,collaborative_support|public
+oppl,14,userTags,collaborative_support|public
+oscar nom 2007,14,userTags,collaborative_support|public
+oscar nominee,14,userTags,collaborative_support|public
+panic,14,keywords|userTags,collaborative_support|public
+paul bettany,14,userTags,collaborative_support|public
+pennsylvania,14,userTags,collaborative_support|public
+philadelphia,14,userTags,collaborative_support|public
+physics,14,keywords|userTags,collaborative_support|public
+pig,14,keywords|userTags,collaborative_support|public
+pimp,14,keywords|userTags,collaborative_support
+police operation,14,keywords|userTags,collaborative_support|public
+pollution,14,keywords|userTags,collaborative_support|public
+poor dialogue,14,userTags,collaborative_support|public
+popularity,14,userTags,collaborative_support|public
+"portland, oregon",14,keywords,collaborative_support|public
+portrait of an artist,14,keywords,collaborative_support|public
+pot smoking,14,keywords|userTags,collaborative_support
+prisoner of war,14,keywords|userTags,collaborative_support|public
+puppetry,14,keywords|userTags,collaborative_support|public
+puppy,14,keywords|userTags,collaborative_support|public
+quebec,14,keywords|userTags,collaborative_support|public
+rap,14,userTags,collaborative_support|public
+retired,14,keywords|userTags,collaborative_support|public
+rio de janeiro,14,keywords|userTags,collaborative_support|public
+roadtrip,14,keywords|userTags,collaborative_support|public
+sadomasochism,14,keywords|userTags,collaborative_support|public
+saoirse ronan,14,userTags,collaborative_support|public
+school drama,14,userTags,collaborative_support|public
+sci-fi horror,14,keywords|userTags,collaborative_support|public
+servant,14,keywords|userTags,collaborative_support|public
+sex addiction,14,keywords|userTags,collaborative_support

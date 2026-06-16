@@ -1,36 +1,4 @@
 tag,count,sources,datasetRoles
-environmental group,1,userTags,collaborative_support
-environmental illness,1,keywords|userTags,collaborative_support
-environmental message,1,userTags,collaborative_support
-environmental pollution,1,userTags,collaborative_support
-environmental preservation,1,userTags,public
-environmental protection agency,1,keywords,public
-environmental protest,1,userTags,collaborative_support
-ephebophilia,1,userTags,collaborative_support
-epic biopic,1,userTags,collaborative_support
-epic chase,1,keywords,public
-epic drama,1,userTags,collaborative_support
-epic history,1,userTags,collaborative_support
-epic moments,1,userTags,collaborative_support
-epic sword fight,1,userTags,collaborative_support
-epically bad,1,userTags,collaborative_support
-epically stupid ending,1,userTags,public
-epico,1,userTags,collaborative_support
-epictetus,1,userTags,public
-epidemiologist,1,keywords|userTags,collaborative_support
-epidemy,1,userTags,collaborative_support
-epifedrine,1,userTags,collaborative_support
-epileptic,1,keywords,collaborative_support
-epileptic seizure,1,keywords|userTags,collaborative_support
-epinephrine,1,keywords,collaborative_support
-episode cinema,1,userTags,collaborative_support
-epistaxis,1,keywords,public
-epoque,1,userTags,collaborative_support
-equador,1,userTags,collaborative_support
-equal pay,1,userTags,collaborative_support
-equality under the law,1,userTags,public
-equilibrium,1,userTags,public
-equipment,1,userTags,collaborative_support
 equivocal,1,userTags,collaborative_support
 era,1,userTags,public
 eradicator character,1,userTags,public
@@ -799,3 +767,35 @@ female comedian,1,userTags,public
 female comic,1,userTags,public
 female computer voice,1,userTags,public
 female criminal,1,userTags,collaborative_support
+female district attorney,1,userTags,collaborative_support
+female doctor,1,userTags,collaborative_support
+female domination,1,keywords|userTags,public
+female editor,1,userTags,collaborative_support
+female engineer,1,userTags,collaborative_support
+female environmentalist,1,userTags,collaborative_support
+female explorer,1,keywords,public
+female female kiss,1,userTags,collaborative_support
+female female relationship,1,userTags,collaborative_support
+female flatulence,1,userTags,public
+female freedom,1,userTags,collaborative_support
+female frienship,1,userTags,collaborative_support
+female gangleader,1,keywords,collaborative_support
+female general,1,keywords|userTags,public
+female genital mutilation,1,keywords,collaborative_support
+female hacker,1,userTags,collaborative_support
+female hero male villain,1,userTags,public
+female high school student,1,userTags,collaborative_support
+female high school student murdered,1,userTags,collaborative_support
+female homicidal maniac,1,userTags,collaborative_support
+female hysteria,1,keywords,collaborative_support
+female impersonation,1,userTags,public
+female impersonator,1,keywords,collaborative_support
+female independence,1,userTags,collaborative_support
+female knight,1,userTags,collaborative_support
+female led relationship,1,userTags,collaborative_support
+female lifeguard,1,keywords|userTags,collaborative_support
+female mad scientist,1,userTags,collaborative_support
+female magazine editor,1,userTags,public
+female masculine short hair,1,userTags,collaborative_support
+female mass murderer,1,userTags,collaborative_support
+female mass murderers,1,userTags,collaborative_support

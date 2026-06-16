@@ -1,37 +1,4 @@
 tag,count,sources,datasetRoles
-drinking game,2,keywords|userTags,collaborative_support|public
-drinking one's urine,2,userTags,collaborative_support
-drinking problem,2,userTags,collaborative_support|public
-driven to suicide,2,keywords,collaborative_support
-driving a car,2,keywords|userTags,collaborative_support|public
-driving school,2,keywords,collaborative_support
-drop-out,2,keywords|userTags,collaborative_support|public
-drug bust,2,keywords|userTags,collaborative_support
-drug gang,2,keywords|userTags,collaborative_support
-drug kingpin,2,keywords,collaborative_support
-drug runner,2,keywords|userTags,collaborative_support
-drug stealing,2,keywords,collaborative_support
-drugged food,2,userTags,collaborative_support|public
-drugs and addiction,2,userTags,collaborative_support
-drum,2,keywords|userTags,collaborative_support
-drunk driving,2,userTags,collaborative_support
-drunkard,2,keywords|userTags,collaborative_support
-dual personality,2,keywords|userTags,collaborative_support|public
-dual wield,2,userTags,collaborative_support
-dualism,2,userTags,collaborative_support
-dubbing,2,userTags,collaborative_support
-duct tape over mouth,2,userTags,collaborative_support
-duet,2,userTags,collaborative_support
-dull characters,2,userTags,collaborative_support
-dumb characters,2,userTags,collaborative_support|public
-dumb ending,2,userTags,collaborative_support
-dumb fun,2,userTags,collaborative_support
-dumb kids,2,userTags,collaborative_support
-dumb plot,2,userTags,collaborative_support
-dumbest movie ever,2,userTags,collaborative_support
-dummy,2,userTags,collaborative_support
-dumplings,2,userTags,collaborative_support|public
-dune,2,keywords|userTags,public
 dungeons and dragons,2,userTags,public
 dust storm,2,userTags,collaborative_support|public
 dwarfs,2,userTags,public
@@ -799,3 +766,36 @@ helsinki finland,2,userTags,collaborative_support
 henry rollins,2,userTags,collaborative_support
 hercule poirot,2,userTags,collaborative_support
 hereditary disease,2,keywords,collaborative_support|public
+hero is a wimp,2,userTags,collaborative_support
+hero worship,2,keywords|userTags,collaborative_support|public
+hicktown,2,userTags,collaborative_support|public
+hidden agenda,2,userTags,collaborative_support
+hidden gem,2,userTags,collaborative_support
+hidden past,2,keywords,collaborative_support
+hidden safehouses,2,keywords,collaborative_support|public
+hideaki anno,2,userTags,collaborative_support
+hiding in a closet,2,userTags,collaborative_support
+high concept,2,keywords,collaborative_support|public
+high fashion,2,keywords|userTags,collaborative_support|public
+high production values,2,userTags,collaborative_support|public
+high school athlete,2,keywords,collaborative_support|public
+high school band,2,keywords|userTags,collaborative_support|public
+high school crush,2,keywords,collaborative_support|public
+high school drop out,2,keywords,collaborative_support|public
+high school romance,2,keywords,public
+highschool music teacher,2,userTags,collaborative_support
+hilarious!! :d,2,userTags,collaborative_support
+hillarious comedy,2,userTags,collaborative_support
+hindu,2,keywords|userTags,collaborative_support
+hip hop culture,2,userTags,public
+hippos,2,userTags,public
+hired killers,2,userTags,collaborative_support|public
+hiroshima,2,userTags,public
+"hiroshima, japan",2,keywords,public
+hiroyuki sanada,2,userTags,collaborative_support
+historian,2,userTags,collaborative_support|public
+historical background,2,userTags,collaborative_support
+historical references,2,userTags,collaborative_support|public
+historical reinterpretation,2,keywords,collaborative_support
+historical revisionism,2,keywords|userTags,collaborative_support
+history epic,2,userTags,collaborative_support|public

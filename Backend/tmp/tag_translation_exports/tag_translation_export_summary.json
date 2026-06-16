@@ -1,6 +1,6 @@
 {
-  "totalUniqueTags": 43255,
-  "totalTagOccurrences": 294738,
+  "totalUniqueTags": 43224,
+  "totalTagOccurrences": 255785,
   "exportedFiles": [
     "/home/mario/Documents/Trabalo/AppRecommender/NewRecommenderApp/Backend/tmp/tag_translation_exports/tags_to_translate_part_001.csv",
     "/home/mario/Documents/Trabalo/AppRecommender/NewRecommenderApp/Backend/tmp/tag_translation_exports/tags_to_translate_part_002.csv",
@@ -60,143 +60,6 @@
   ],
   "topTags": [
     {
-      "tag": "category_display_penalty",
-      "count": 5549,
-      "sources": [
-        "standDisplayReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "adult_or_sensitive",
-      "count": 5138,
-      "sources": [
-        "publicExclusionReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "Certification indicates adult/sensitive content",
-      "count": 4090,
-      "sources": [
-        "suitabilityReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "blocked_public_topic",
-      "count": 2755,
-      "sources": [
-        "publicExclusionReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "Public blocked topic signal detected",
-      "count": 2755,
-      "sources": [
-        "suitabilityReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "below_public_min_year",
-      "count": 2398,
-      "sources": [
-        "publicExclusionReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "Sensitive genre signal also detected",
-      "count": 2358,
-      "sources": [
-        "suitabilityReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "stand_family_suitability",
-      "count": 1765,
-      "sources": [
-        "standDisplayReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support",
-        "public"
-      ]
-    },
-    {
-      "tag": "strong_movielens_data",
-      "count": 1416,
-      "sources": [
-        "standDisplayReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support",
-        "public"
-      ]
-    },
-    {
-      "tag": "stand_teen_suitability",
-      "count": 1364,
-      "sources": [
-        "standDisplayReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support",
-        "public"
-      ]
-    },
-    {
-      "tag": "recent_movie",
-      "count": 1203,
-      "sources": [
-        "standDisplayReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support",
-        "public"
-      ]
-    },
-    {
-      "tag": "murder",
-      "count": 1092,
-      "sources": [
-        "keywords",
-        "publicBlockedTerms",
-        "userTags"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
-      ]
-    },
-    {
-      "tag": "moderate_stand_genre_appeal",
-      "count": 996,
-      "sources": [
-        "standDisplayReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support",
-        "public"
-      ]
-    },
-    {
       "tag": "comedy",
       "count": 992,
       "sources": [
@@ -206,16 +69,6 @@
       "datasetRoles": [
         "collaborative_support",
         "public"
-      ]
-    },
-    {
-      "tag": "Certification indicates teen suitability",
-      "count": 939,
-      "sources": [
-        "suitabilityReasons"
-      ],
-      "datasetRoles": [
-        "collaborative_support"
       ]
     },
     {
@@ -253,6 +106,17 @@
       ]
     },
     {
+      "tag": "murder",
+      "count": 791,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support"
+      ]
+    },
+    {
       "tag": "action",
       "count": 766,
       "sources": [
@@ -267,6 +131,160 @@
     {
       "tag": "romance",
       "count": 740,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "drama",
+      "count": 736,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "woman director",
+      "count": 712,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "boring",
+      "count": 675,
+      "sources": [
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "nudity (topless)",
+      "count": 666,
+      "sources": [
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "friendship",
+      "count": 635,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "family",
+      "count": 564,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "sequel",
+      "count": 550,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "independent film",
+      "count": 549,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "new york city",
+      "count": 533,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "violence",
+      "count": 529,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "based on true story",
+      "count": 500,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "revenge",
+      "count": 493,
+      "sources": [
+        "keywords",
+        "userTags"
+      ],
+      "datasetRoles": [
+        "collaborative_support",
+        "public"
+      ]
+    },
+    {
+      "tag": "duringcreditsstinger",
+      "count": 489,
       "sources": [
         "keywords",
         "userTags"

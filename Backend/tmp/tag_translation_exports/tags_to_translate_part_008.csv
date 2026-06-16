@@ -1,38 +1,4 @@
 tag,count,sources,datasetRoles
-body bag,7,keywords|userTags,collaborative_support|public
-bohemian,7,keywords|userTags,collaborative_support|public
-bomber,7,keywords|userTags,collaborative_support
-bonding,7,userTags,collaborative_support|public
-book editor,7,keywords|userTags,collaborative_support|public
-bookstore,7,userTags,collaborative_support
-boy genius,7,keywords|userTags,collaborative_support|public
-brain,7,userTags,collaborative_support|public
-breaking through a door,7,userTags,collaborative_support
-brendan gleeson,7,userTags,collaborative_support|public
-brian de palma,7,userTags,collaborative_support|public
-bright,7,userTags,collaborative_support|public
-british asian,7,keywords,collaborative_support|public
-british empire,7,keywords|userTags,collaborative_support|public
-british prime minister,7,keywords|userTags,collaborative_support|public
-british royal family,7,keywords|userTags,collaborative_support|public
-brother sister incest,7,keywords|userTags,collaborative_support|public
-brother-in-law,7,keywords|userTags,collaborative_support|public
-bryan cranston,7,userTags,collaborative_support|public
-bryce dallas howard,7,userTags,collaborative_support|public
-btaegekids,7,userTags,collaborative_support|public
-bulletproof vest,7,keywords|userTags,collaborative_support|public
-bullshit,7,userTags,collaborative_support|public
-butterfly effect,7,keywords|userTags,collaborative_support|public
-cactus,7,userTags,collaborative_support|public
-cairo,7,keywords|userTags,collaborative_support|public
-camel,7,keywords|userTags,collaborative_support|public
-cameo-fest,7,userTags,collaborative_support|public
-camera shot of bare feet,7,userTags,collaborative_support|public
-campaign,7,keywords|userTags,collaborative_support|public
-cannon,7,keywords|userTags,collaborative_support|public
-capital punishment,7,keywords|userTags,collaborative_support
-captivating,7,userTags,collaborative_support|public
-car explosion,7,keywords|userTags,collaborative_support|public
 car racing,7,keywords|userTags,collaborative_support|public
 car theft,7,keywords|userTags,collaborative_support
 car trouble,7,keywords|userTags,collaborative_support
@@ -231,6 +197,7 @@ high school life,7,userTags,collaborative_support|public
 himalaya,7,userTags,collaborative_support|public
 hipster,7,keywords|userTags,collaborative_support|public
 hit by a car,7,keywords|userTags,collaborative_support
+hitler,7,userTags,collaborative_support
 homecoming,7,keywords|userTags,collaborative_support|public
 homeless man,7,keywords|userTags,collaborative_support|public
 homicide investigation,7,keywords,collaborative_support
@@ -373,6 +340,7 @@ naturalist,7,keywords|userTags,collaborative_support|public
 nebraska,7,keywords|userTags,collaborative_support|public
 need to own,7,userTags,collaborative_support
 neil patrick harris,7,userTags,collaborative_support|public
+neo-nazi,7,userTags,collaborative_support
 new job,7,keywords|userTags,collaborative_support|public
 new neighbor,7,keywords,collaborative_support|public
 nick hornby,7,userTags,collaborative_support|public
@@ -544,7 +512,6 @@ the avengers,7,userTags,collaborative_support|public
 the conjuring,7,userTags,collaborative_support
 theater director,7,keywords|userTags,collaborative_support|public
 thieves,7,userTags,collaborative_support
-third reich,7,publicBlockedTerms|userTags,collaborative_support
 tiff top 30 of the 2000s,7,userTags,collaborative_support|public
 time bomb,7,keywords|userTags,collaborative_support
 time warp,7,keywords|userTags,collaborative_support|public
@@ -799,3 +766,36 @@ che guevara,6,keywords|userTags,collaborative_support
 cheating death,6,keywords|userTags,collaborative_support
 chemotherapy,6,keywords|userTags,collaborative_support|public
 chewing gum,6,keywords|userTags,collaborative_support|public
+child actors,6,userTags,collaborative_support|public
+child killing,6,userTags,collaborative_support|public
+child molestation,6,keywords|userTags,collaborative_support
+child pornography,6,keywords|userTags,collaborative_support
+child soldier,6,keywords|userTags,collaborative_support
+child vampire,6,keywords|userTags,collaborative_support|public
+child wish,6,userTags,collaborative_support|public
+childhood crush,6,keywords|userTags,collaborative_support|public
+children's author,6,keywords|userTags,collaborative_support|public
+children's book,6,keywords|userTags,collaborative_support|public
+chinese woman,6,keywords|userTags,collaborative_support
+choice,6,keywords|userTags,collaborative_support
+chris columbus,6,userTags,collaborative_support|public
+chris farley,6,userTags,collaborative_support
+christian allegory,6,keywords|userTags,collaborative_support|public
+christopher mintz-plasse,6,userTags,collaborative_support|public
+chucky,6,userTags,collaborative_support
+church choir,6,keywords|userTags,collaborative_support|public
+cinema digital sound,6,userTags,collaborative_support
+city name in title,6,userTags,collaborative_support|public
+clairvoyance,6,keywords|userTags,collaborative_support|public
+clairvoyant,6,keywords|userTags,collaborative_support
+clea duvall,6,userTags,collaborative_support
+cleaning lady,6,keywords|userTags,collaborative_support|public
+cliched plot,6,userTags,collaborative_support|public
+cliff,6,keywords|userTags,collaborative_support|public
+clumsy fellow,6,keywords|userTags,collaborative_support|public
+coaching,6,keywords|userTags,collaborative_support|public
+coincidence,6,keywords|userTags,collaborative_support|public
+colors,6,userTags,collaborative_support|public
+columbia pictures,6,userTags,collaborative_support|public
+columbia tristar home video,6,userTags,collaborative_support
+commercialism,6,keywords|userTags,collaborative_support|public

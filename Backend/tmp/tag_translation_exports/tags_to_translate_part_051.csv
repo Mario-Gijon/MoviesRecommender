@@ -1,35 +1,4 @@
 tag,count,sources,datasetRoles
-staged death,1,keywords,collaborative_support
-stagnation,1,keywords,collaborative_support
-staircase,1,keywords|userTags,collaborative_support
-stake out,1,keywords,collaborative_support
-stalked by a killer,1,keywords,collaborative_support
-stalkerish,1,userTags,collaborative_support
-stallman,1,keywords,public
-stallone,1,userTags,collaborative_support
-stamford ct,1,userTags,collaborative_support
-stamina,1,keywords,public
-stammering,1,keywords|userTags,collaborative_support
-stamp collector,1,keywords,collaborative_support
-stan,1,userTags,collaborative_support
-stan & ollie,1,userTags,public
-stan lee,1,userTags,public
-stana katic,1,userTags,public
-stand together,1,userTags,collaborative_support
-stand up comedy special,1,userTags,public
-stand-off,1,userTags,collaborative_support
-standard model,1,userTags,collaborative_support
-standard romantic comedy,1,userTags,public
-standout performance,1,userTags,collaborative_support
-stanislaw lem,1,userTags,public
-stanley cup,1,keywords,public
-stanley swerdlow,1,userTags,collaborative_support
-star athlete,1,keywords,collaborative_support
-star spangled banner,1,keywords|userTags,collaborative_support
-star trek: next generation,1,userTags,collaborative_support
-star trek: original series,1,userTags,collaborative_support
-star trek: reboot,1,userTags,public
-star wars connection,1,userTags,collaborative_support
 star wars reference,1,userTags,public
 star wars universe,1,userTags,collaborative_support
 starfighter,1,userTags,collaborative_support
@@ -799,3 +768,34 @@ teen slang,1,userTags,collaborative_support
 teen slasher,1,userTags,collaborative_support
 teen social issues,1,keywords,public
 teen titans go,1,userTags,public
+teenage children,1,keywords,collaborative_support
+teenage friendship,1,keywords,public
+teenage girls,1,userTags,collaborative_support
+teenage mortality,1,keywords|userTags,collaborative_support
+teenage mutant ninja turtles,1,userTags,collaborative_support
+teenage runaway,1,userTags,collaborative_support
+teenage superhero,1,userTags,public
+teenage years,1,userTags,collaborative_support
+teenager love,1,userTags,collaborative_support
+teengers,1,userTags,public
+teenmovie,1,userTags,public
+teeth,1,keywords,collaborative_support
+teflon,1,userTags,collaborative_support
+tehran iran,1,userTags,collaborative_support
+"tehran, iran",1,userTags,collaborative_support
+tejano,1,userTags,collaborative_support
+"tel aviv, israel",1,keywords,collaborative_support
+telecine,1,userTags,collaborative_support
+telecontrol,1,keywords,collaborative_support
+telekinetic,1,userTags,public
+telemarketer,1,keywords,collaborative_support
+telemarketing,1,keywords|userTags,collaborative_support
+telepath,1,userTags,public
+telephone conversation,1,userTags,collaborative_support
+teleportation ability,1,keywords,public
+teleprompter,1,keywords,public
+television / tv studio,1,keywords,collaborative_support
+television and film producer,1,keywords,collaborative_support
+television host,1,keywords,public
+television journalist,1,keywords,public
+television repair,1,keywords,collaborative_support

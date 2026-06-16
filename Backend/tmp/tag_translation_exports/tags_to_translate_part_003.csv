@@ -1,35 +1,4 @@
 tag,count,sources,datasetRoles
-keira knightley,28,userTags,collaborative_support|public
-legal thriller,28,keywords|userTags,collaborative_support
-little boy,28,keywords|userTags,collaborative_support|public
-loss of virginity,28,keywords|userTags,collaborative_support|public
-lust,28,keywords|userTags,collaborative_support|public
-matthew mcconaughey,28,userTags,collaborative_support|public
-mischievous,28,keywords,collaborative_support|public
-moral dilemma,28,keywords|userTags,collaborative_support|public
-muslim,28,keywords|userTags,collaborative_support|public
-natalie portman,28,userTags,collaborative_support|public
-older woman younger man relationship,28,keywords|userTags,collaborative_support|public
-original plot,28,userTags,collaborative_support|public
-orphanage,28,keywords|userTags,collaborative_support|public
-orphans,28,userTags,collaborative_support|public
-passion,28,userTags,collaborative_support|public
-pg,28,userTags,collaborative_support|public
-political thriller,28,keywords|userTags,collaborative_support|public
-race,28,keywords|userTags,collaborative_support|public
-racing,28,keywords|userTags,collaborative_support|public
-racist,28,keywords|userTags,collaborative_support|public
-rags to riches,28,keywords|userTags,collaborative_support|public
-religious,28,userTags,collaborative_support|public
-rescue mission,28,keywords|userTags,collaborative_support|public
-"rome, italy",28,keywords,collaborative_support|public
-santa claus,28,keywords|userTags,collaborative_support|public
-screenplay,28,keywords|userTags,collaborative_support|public
-secret service,28,keywords|userTags,collaborative_support|public
-series of murders,28,keywords|userTags,collaborative_support
-shaky camera,28,userTags,collaborative_support|public
-sinister,28,keywords|userTags,collaborative_support|public
-soccer,28,userTags,collaborative_support|public
 spirit,28,keywords|userTags,collaborative_support|public
 strippers,28,userTags,collaborative_support|public
 success,28,keywords|userTags,collaborative_support|public
@@ -356,7 +325,6 @@ desperation,23,keywords|userTags,collaborative_support|public
 disheartening,23,keywords|userTags,collaborative_support|public
 english,23,userTags,collaborative_support|public
 family secrets,23,keywords|userTags,collaborative_support|public
-family_context_softens_sensitive_penalty,23,standDisplayReasons,collaborative_support|public
 female villain,23,keywords|userTags,collaborative_support|public
 fishing,23,keywords|userTags,collaborative_support|public
 folklore,23,keywords|userTags,collaborative_support|public
@@ -446,7 +414,6 @@ claymation,22,keywords|userTags,collaborative_support|public
 closeted homosexual,22,keywords|userTags,collaborative_support|public
 columbia tristar,22,userTags,collaborative_support|public
 dead body,22,keywords|userTags,collaborative_support|public
-dictator,22,keywords|publicBlockedTerms|userTags,collaborative_support
 disaster movie,22,keywords|userTags,collaborative_support|public
 drunk,22,keywords|userTags,collaborative_support|public
 ed harris,22,userTags,collaborative_support|public
@@ -570,7 +537,6 @@ milla jovovich,21,userTags,collaborative_support|public
 misfit,21,keywords|userTags,collaborative_support|public
 movie star,21,keywords|userTags,collaborative_support|public
 mutants,21,keywords|userTags,collaborative_support|public
-nazism,21,keywords|publicBlockedTerms|userTags,collaborative_support
 neo-western,21,keywords|userTags,collaborative_support|public
 new york state,21,keywords|userTags,collaborative_support|public
 not scary,21,userTags,collaborative_support
@@ -704,7 +670,6 @@ witches,20,keywords|userTags,collaborative_support|public
 1890s,19,keywords|userTags,collaborative_support|public
 accountant,19,keywords|userTags,collaborative_support|public
 actor reprises previous role,19,userTags,collaborative_support|public
-adolf hitler,19,keywords|publicBlockedTerms|userTags,collaborative_support
 alec baldwin,19,userTags,collaborative_support|public
 ambassador,19,keywords|userTags,collaborative_support|public
 america,19,keywords|userTags,collaborative_support|public
@@ -799,3 +764,38 @@ scifi,19,userTags,collaborative_support|public
 shallow characters,19,userTags,collaborative_support|public
 sibling rivalry,19,keywords|userTags,collaborative_support|public
 socialism,19,keywords|userTags,collaborative_support|public
+surgery,19,keywords|userTags,collaborative_support|public
+tedious,19,userTags,collaborative_support|public
+telekinesis,19,keywords|userTags,collaborative_support|public
+telepathy,19,keywords|userTags,collaborative_support|public
+thrilling,19,userTags,collaborative_support|public
+truth,19,keywords|userTags,collaborative_support|public
+unsettling,19,userTags,collaborative_support|public
+urban legend,19,keywords|userTags,collaborative_support
+us army,19,keywords|userTags,collaborative_support|public
+val kilmer,19,userTags,collaborative_support|public
+very funny,19,userTags,collaborative_support|public
+victim,19,keywords|userTags,collaborative_support|public
+vietnam veteran,19,keywords|userTags,collaborative_support|public
+vulgar,19,keywords|userTags,collaborative_support|public
+war crimes,19,keywords|userTags,collaborative_support|public
+winona ryder,19,userTags,collaborative_support|public
+young boy,19,keywords|userTags,collaborative_support|public
+acceptance,18,keywords|userTags,collaborative_support|public
+actor playing himself,18,userTags,collaborative_support|public
+allegorical,18,keywords|userTags,collaborative_support|public
+antihero,18,userTags,collaborative_support|public
+asia,18,keywords|userTags,collaborative_support|public
+asian,18,userTags,collaborative_support|public
+assassins,18,keywords|userTags,collaborative_support|public
+asthma,18,keywords|userTags,collaborative_support|public
+babe scientist,18,userTags,collaborative_support|public
+bad luck,18,keywords|userTags,collaborative_support|public
+badass,18,userTags,collaborative_support|public
+barefoot female,18,keywords|userTags,collaborative_support|public
+"based on magazine, newspaper or article",18,keywords|userTags,collaborative_support|public
+billy bob thornton,18,userTags,collaborative_support|public
+brazilian,18,userTags,collaborative_support|public
+brendan fraser,18,userTags,collaborative_support|public
+cannabis,18,keywords|userTags,collaborative_support|public
+captain,18,userTags,collaborative_support|public

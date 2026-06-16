@@ -15,14 +15,20 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 EXPORT_DIR = BACKEND_DIR / "tmp" / "tag_translation_exports"
 SUMMARY_PATH = EXPORT_DIR / "tag_translation_export_summary.json"
 EXPORT_FILENAME_TEMPLATE = "tags_to_translate_part_{part_number:03d}.csv"
-TAG_LIKE_COLUMNS = [
+INCLUDED_TAG_COLUMN_NAMES = {
     "keywords",
     "userTags",
-    "publicBlockedTerms",
-    "standDisplayReasons",
-    "publicExclusionReasons",
-    "suitabilityReasons",
-]
+}
+EXCLUDED_TAG_COLUMN_SUFFIXES = (
+    "reasons",
+    "score",
+)
+EXCLUDED_TAG_COLUMN_NAMES = {
+    "genres",
+    "displayGenres",
+    "topCast",
+    "directors",
+}
 DATASET_SOURCES = [
     ("public", OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH),
     ("collaborative_support", OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH),
@@ -83,9 +89,7 @@ def _collect_tag_aggregates() -> dict[str, TagAggregate]:
             if reader.fieldnames is None:
                 raise RuntimeError(f"CSV file has no header: {csv_path}")
 
-            present_columns = [
-                column_name for column_name in TAG_LIKE_COLUMNS if column_name in reader.fieldnames
-            ]
+            present_columns = _find_tag_like_columns(reader.fieldnames)
 
             for row in reader:
                 row_tags: dict[str, RowTagData] = {}
@@ -181,6 +185,23 @@ def _build_summary(
             for item in ordered_top_tags
         ],
     }
+
+
+def _find_tag_like_columns(fieldnames: list[str]) -> list[str]:
+    present_columns: list[str] = []
+    for column_name in fieldnames:
+        normalized_name = column_name.strip()
+        lowercase_name = normalized_name.lower()
+        if normalized_name in INCLUDED_TAG_COLUMN_NAMES:
+            present_columns.append(normalized_name)
+            continue
+        if lowercase_name in {name.lower() for name in EXCLUDED_TAG_COLUMN_NAMES}:
+            continue
+        if lowercase_name.endswith(EXCLUDED_TAG_COLUMN_SUFFIXES):
+            continue
+        if "keyword" in lowercase_name or "tag" in lowercase_name:
+            present_columns.append(normalized_name)
+    return present_columns
 
 
 def _split_pipe_values(value: str | None) -> list[str]:

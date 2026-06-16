@@ -1,37 +1,4 @@
 tag,count,sources,datasetRoles
-nothing,9,userTags,collaborative_support|public
-nr,9,userTags,collaborative_support
-nuclear missile,9,keywords|userTags,collaborative_support|public
-number in title,9,userTags,collaborative_support|public
-obsessive compulsive disorder,9,userTags,collaborative_support|public
-oil rig,9,keywords|userTags,collaborative_support|public
-ok,9,userTags,collaborative_support|public
-one-sided,9,userTags,collaborative_support|public
-oscar (best music - original score),9,userTags,collaborative_support|public
-over-the-top action,9,userTags,collaborative_support
-owl,9,keywords|userTags,collaborative_support|public
-pacific war,9,keywords|userTags,collaborative_support|public
-paedophilia,9,keywords|userTags,collaborative_support
-paradox,9,keywords|userTags,collaborative_support|public
-partying,9,keywords|userTags,collaborative_support|public
-patriarchy,9,keywords|userTags,collaborative_support|public
-patricia arquette,9,userTags,collaborative_support|public
-paul thomas anderson,9,userTags,collaborative_support
-paul walker,9,userTags,collaborative_support|public
-perfectionist,9,keywords|userTags,collaborative_support|public
-performance,9,userTags,collaborative_support|public
-pessimistic,9,keywords|userTags,collaborative_support
-pigs,9,userTags,collaborative_support
-pittsburgh,9,userTags,collaborative_support|public
-planned murder,9,userTags,collaborative_support
-plasticine,9,keywords|userTags,collaborative_support|public
-political documentary,9,keywords,collaborative_support
-politically incorrect,9,keywords|userTags,collaborative_support|public
-pop,9,keywords|userTags,collaborative_support|public
-porn star,9,keywords|userTags,collaborative_support
-positive,9,userTags,collaborative_support|public
-post 9/11,9,keywords|userTags,collaborative_support|public
-post war,9,keywords|userTags,collaborative_support|public
 power struggle,9,keywords|userTags,collaborative_support
 prague,9,userTags,collaborative_support|public
 predator,9,keywords|userTags,collaborative_support
@@ -647,7 +614,6 @@ starting over,8,keywords|userTags,collaborative_support|public
 stealing,8,keywords|userTags,collaborative_support|public
 stockholm syndrome,8,keywords|userTags,collaborative_support|public
 stolen identity,8,keywords|userTags,collaborative_support
-strong_public_recognition,8,standDisplayReasons,collaborative_support|public
 stupid character choices,8,userTags,collaborative_support
 substance abuse,8,keywords|userTags,collaborative_support|public
 subterranean,8,keywords|userTags,collaborative_support|public
@@ -799,3 +765,37 @@ bludgeoning,7,keywords|userTags,collaborative_support
 blue panties,7,userTags,collaborative_support|public
 bmw,7,keywords|userTags,collaborative_support|public
 boat chase,7,keywords|userTags,collaborative_support|public
+body bag,7,keywords|userTags,collaborative_support|public
+bohemian,7,keywords|userTags,collaborative_support|public
+bomber,7,keywords|userTags,collaborative_support
+bonding,7,userTags,collaborative_support|public
+book editor,7,keywords|userTags,collaborative_support|public
+bookstore,7,userTags,collaborative_support
+boy genius,7,keywords|userTags,collaborative_support|public
+brain,7,userTags,collaborative_support|public
+breaking through a door,7,userTags,collaborative_support
+brendan gleeson,7,userTags,collaborative_support|public
+brian de palma,7,userTags,collaborative_support|public
+bright,7,userTags,collaborative_support|public
+british asian,7,keywords,collaborative_support|public
+british empire,7,keywords|userTags,collaborative_support|public
+british prime minister,7,keywords|userTags,collaborative_support|public
+british royal family,7,keywords|userTags,collaborative_support|public
+brother sister incest,7,keywords|userTags,collaborative_support|public
+brother-in-law,7,keywords|userTags,collaborative_support|public
+bryan cranston,7,userTags,collaborative_support|public
+bryce dallas howard,7,userTags,collaborative_support|public
+btaegekids,7,userTags,collaborative_support|public
+bulletproof vest,7,keywords|userTags,collaborative_support|public
+bullshit,7,userTags,collaborative_support|public
+butterfly effect,7,keywords|userTags,collaborative_support|public
+cactus,7,userTags,collaborative_support|public
+cairo,7,keywords|userTags,collaborative_support|public
+camel,7,keywords|userTags,collaborative_support|public
+cameo-fest,7,userTags,collaborative_support|public
+camera shot of bare feet,7,userTags,collaborative_support|public
+campaign,7,keywords|userTags,collaborative_support|public
+cannon,7,keywords|userTags,collaborative_support|public
+capital punishment,7,keywords|userTags,collaborative_support
+captivating,7,userTags,collaborative_support|public
+car explosion,7,keywords|userTags,collaborative_support|public

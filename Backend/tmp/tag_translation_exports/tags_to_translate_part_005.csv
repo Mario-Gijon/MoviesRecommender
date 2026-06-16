@@ -1,39 +1,4 @@
 tag,count,sources,datasetRoles
-nypd,14,keywords|userTags,collaborative_support
-observational documentary,14,keywords,collaborative_support|public
-offbeat,14,keywords|userTags,collaborative_support|public
-online dating,14,keywords|userTags,collaborative_support|public
-oppl,14,userTags,collaborative_support|public
-oscar nom 2007,14,userTags,collaborative_support|public
-oscar nominee,14,userTags,collaborative_support|public
-panic,14,keywords|userTags,collaborative_support|public
-paul bettany,14,userTags,collaborative_support|public
-pennsylvania,14,userTags,collaborative_support|public
-philadelphia,14,userTags,collaborative_support|public
-physics,14,keywords|userTags,collaborative_support|public
-pig,14,keywords|userTags,collaborative_support|public
-pimp,14,keywords|userTags,collaborative_support
-police operation,14,keywords|userTags,collaborative_support|public
-pollution,14,keywords|userTags,collaborative_support|public
-poor dialogue,14,userTags,collaborative_support|public
-popularity,14,userTags,collaborative_support|public
-"portland, oregon",14,keywords,collaborative_support|public
-portrait of an artist,14,keywords,collaborative_support|public
-pot smoking,14,keywords|userTags,collaborative_support
-prisoner of war,14,keywords|userTags,collaborative_support|public
-puppetry,14,keywords|userTags,collaborative_support|public
-puppy,14,keywords|userTags,collaborative_support|public
-quebec,14,keywords|userTags,collaborative_support|public
-rap,14,userTags,collaborative_support|public
-retired,14,keywords|userTags,collaborative_support|public
-rio de janeiro,14,keywords|userTags,collaborative_support|public
-roadtrip,14,keywords|userTags,collaborative_support|public
-sadomasochism,14,keywords|userTags,collaborative_support|public
-saoirse ronan,14,userTags,collaborative_support|public
-school drama,14,userTags,collaborative_support|public
-sci-fi horror,14,keywords|userTags,collaborative_support|public
-servant,14,keywords|userTags,collaborative_support|public
-sex addiction,14,keywords|userTags,collaborative_support
 sexual predator,14,keywords|userTags,collaborative_support
 snuff,14,keywords|userTags,collaborative_support
 social justice,14,keywords|userTags,collaborative_support|public
@@ -375,6 +340,7 @@ deep south,12,keywords|userTags,collaborative_support|public
 dentist,12,keywords|userTags,collaborative_support|public
 derogatory,12,keywords,collaborative_support|public
 detached,12,keywords|userTags,collaborative_support|public
+dictator,12,keywords|userTags,collaborative_support
 dimensionalized 2-d to 3-d,12,userTags,collaborative_support|public
 dinner party,12,keywords|userTags,collaborative_support|public
 dirty cops,12,userTags,collaborative_support|public
@@ -568,6 +534,7 @@ wizards,12,userTags,collaborative_support|public
 x-men,12,userTags,collaborative_support|public
 70mm blowup,11,userTags,collaborative_support
 aardman,11,userTags,collaborative_support|public
+adolf hitler,11,keywords|userTags,collaborative_support
 adulterous wife,11,keywords|userTags,collaborative_support|public
 aerial combat,11,keywords|userTags,collaborative_support|public
 aggression,11,keywords|userTags,collaborative_support|public
@@ -675,6 +642,7 @@ disk,11,keywords|userTags,collaborative_support|public
 distrust,11,keywords|userTags,collaborative_support|public
 domineering mother,11,keywords|userTags,collaborative_support|public
 dormitory,11,keywords|userTags,collaborative_support|public
+drug,11,keywords|userTags,collaborative_support
 drug traffic,11,userTags,collaborative_support
 dublin,11,userTags,collaborative_support|public
 dying,11,keywords|userTags,collaborative_support|public
@@ -787,8 +755,8 @@ mother role,11,keywords|userTags,collaborative_support|public
 mother-daughter relationship,11,userTags,collaborative_support|public
 mother-daughter relationships,11,userTags,collaborative_support|public
 mummy,11,keywords|userTags,collaborative_support|public
+nazism,11,keywords|userTags,collaborative_support
 negotiation,11,keywords|userTags,collaborative_support|public
-neo-nazi,11,publicBlockedTerms|userTags,collaborative_support
 nicholas sparks,11,userTags,collaborative_support|public
 no happy ending,11,userTags,collaborative_support|public
 no story,11,userTags,collaborative_support|public
@@ -799,3 +767,35 @@ old friends,11,keywords|userTags,collaborative_support|public
 oscar,11,userTags,collaborative_support|public
 pakistan,11,keywords|userTags,collaborative_support|public
 palace,11,keywords|userTags,collaborative_support|public
+palestinian-israeli conflict,11,keywords,collaborative_support|public
+pathetic,11,keywords|userTags,collaborative_support|public
+pedro almodovar,11,userTags,collaborative_support
+penguins,11,userTags,collaborative_support|public
+penis,11,userTags,collaborative_support|public
+personal growth,11,keywords|userTags,collaborative_support|public
+pizza,11,keywords|userTags,collaborative_support|public
+plastic surgery,11,keywords|userTags,collaborative_support|public
+political activism,11,keywords|userTags,collaborative_support|public
+porn industry,11,keywords|userTags,collaborative_support
+portal,11,keywords|userTags,collaborative_support|public
+portland,11,userTags,collaborative_support|public
+pregnancy and birth,11,userTags,collaborative_support|public
+prodigy,11,keywords|userTags,collaborative_support|public
+protection,11,keywords|userTags,collaborative_support|public
+psychic powers,11,keywords|userTags,collaborative_support|public
+reality,11,userTags,collaborative_support|public
+reality tv,11,userTags,collaborative_support|public
+recluse,11,keywords|userTags,collaborative_support|public
+recording studio,11,keywords|userTags,collaborative_support|public
+reluctant hero,11,keywords|userTags,collaborative_support|public
+rich,11,keywords|userTags,collaborative_support|public
+rich and poor,11,userTags,collaborative_support|public
+rob schneider,11,userTags,collaborative_support|public
+romania,11,keywords|userTags,collaborative_support|public
+romantic rivalry,11,keywords|userTags,collaborative_support
+salesman,11,keywords|userTags,collaborative_support|public
+saturday night live,11,userTags,collaborative_support|public
+scandinavian,11,userTags,collaborative_support|public
+scholarship,11,keywords|userTags,collaborative_support|public
+scope,11,userTags,collaborative_support|public
+sean connery,11,userTags,collaborative_support|public

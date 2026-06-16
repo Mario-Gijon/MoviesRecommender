@@ -1,37 +1,4 @@
 tag,count,sources,datasetRoles
-practical joke,2,keywords|userTags,collaborative_support
-prairie,2,keywords|userTags,collaborative_support
-prank gone wrong,2,keywords|userTags,collaborative_support
-prank telephone call,2,keywords|userTags,collaborative_support
-pre-school,2,keywords,collaborative_support|public
-precocity,2,keywords|userTags,public
-predictable movie,2,userTags,collaborative_support|public
-predictable twist,2,userTags,collaborative_support
-pregnancy from rape,2,keywords,collaborative_support
-pregnancy test,2,userTags,collaborative_support
-pregnant character,2,userTags,collaborative_support
-prescription medication,2,keywords|userTags,collaborative_support
-presidential campaign,2,keywords|userTags,collaborative_support
-presidential candidate,2,keywords|userTags,collaborative_support
-presidential elections,2,userTags,collaborative_support
-pressure to perform,2,keywords,collaborative_support
-pretend family,2,keywords,collaborative_support|public
-pretended murder,2,keywords,collaborative_support
-pretty but pointless,2,userTags,public
-pretty funny,2,userTags,collaborative_support
-pretty good,2,userTags,collaborative_support
-preventable problems,2,userTags,collaborative_support
-pride and vanity,2,keywords,public
-prime number,2,keywords,collaborative_support
-prime suspect,2,keywords,collaborative_support
-princess diana,2,keywords|userTags,collaborative_support|public
-principal witness,2,keywords|userTags,collaborative_support
-prison brutality,2,keywords,collaborative_support
-prison drama,2,keywords|userTags,collaborative_support
-prison release,2,keywords,collaborative_support
-prisoner abuse,2,keywords|userTags,collaborative_support
-prisoners of war,2,userTags,collaborative_support
-private,2,keywords,collaborative_support|public
 private eye,2,keywords|userTags,collaborative_support
 prix un certain regard,2,userTags,collaborative_support
 priyanka chopra,2,userTags,collaborative_support
@@ -799,3 +766,36 @@ step dad,2,userTags,collaborative_support
 step family,2,userTags,public
 step sister,2,userTags,collaborative_support|public
 stepfather stepdaughter relationship,2,keywords,collaborative_support|public
+stepford wife,2,keywords|userTags,collaborative_support
+stephen hawking,2,userTags,collaborative_support|public
+stephen mchattie,2,userTags,collaborative_support
+stephen merchant,2,userTags,collaborative_support|public
+stephen tobolowsky,2,userTags,collaborative_support
+stereotype,2,keywords,collaborative_support|public
+stereotypical,2,userTags,collaborative_support
+steve oedekerk,2,userTags,collaborative_support
+stick fighting,2,keywords,collaborative_support|public
+stieg larsson,2,userTags,collaborative_support
+stigmata,2,keywords|userTags,collaborative_support
+stilted,2,userTags,collaborative_support|public
+stitch character,2,userTags,public
+stock car racing,2,keywords|userTags,collaborative_support
+stockholm,2,userTags,collaborative_support
+stockings,2,keywords|userTags,collaborative_support
+stocks,2,keywords,collaborative_support
+stolen dog,2,keywords|userTags,collaborative_support
+store,2,userTags,collaborative_support|public
+store owner,2,keywords,collaborative_support
+storm chaser,2,keywords|userTags,collaborative_support
+story teller,2,keywords,collaborative_support|public
+story within a story,2,userTags,collaborative_support
+straight razor,2,keywords|userTags,collaborative_support
+straitjacket,2,keywords|userTags,collaborative_support|public
+strange behavior,2,keywords|userTags,collaborative_support
+strangely compelling,2,userTags,collaborative_support|public
+strangers,2,userTags,collaborative_support|public
+strangulation,2,keywords,collaborative_support
+strap-on,2,userTags,collaborative_support
+stream,2,userTags,collaborative_support|public
+street fight,2,keywords,collaborative_support
+street singer,2,keywords,collaborative_support

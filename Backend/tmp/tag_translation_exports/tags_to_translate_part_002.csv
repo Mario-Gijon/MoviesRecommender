@@ -1,35 +1,4 @@
 tag,count,sources,datasetRoles
-bathroom,53,keywords|userTags,collaborative_support|public
-bible,53,keywords|userTags,collaborative_support|public
-blasphemous,53,userTags,collaborative_support|public
-bloody,53,keywords|userTags,collaborative_support|public
-german,53,userTags,collaborative_support|public
-irish,53,keywords|userTags,collaborative_support|public
-johnny depp,53,userTags,collaborative_support|public
-meditative,53,keywords|userTags,collaborative_support|public
-mistaken identity,53,keywords|userTags,collaborative_support|public
-occult,53,keywords|userTags,collaborative_support|public
-prequel,53,keywords|userTags,collaborative_support|public
-sympathetic,53,keywords|userTags,collaborative_support|public
-chicago,52,userTags,collaborative_support|public
-domestic violence,52,keywords|userTags,collaborative_support|public
-kaf,52,userTags,collaborative_support|public
-nostalgia,52,keywords|userTags,collaborative_support|public
-pets,52,keywords|userTags,collaborative_support|public
-weak plot,52,userTags,collaborative_support|public
-bad writing,51,userTags,collaborative_support|public
-cafe,51,keywords|userTags,collaborative_support|public
-cautionary,51,keywords,collaborative_support|public
-court,51,keywords|userTags,collaborative_support|public
-father,51,keywords|userTags,collaborative_support|public
-married couple,51,keywords|userTags,collaborative_support|public
-nightclub,51,keywords|userTags,collaborative_support|public
-secret identity,51,keywords|userTags,collaborative_support|public
-slapstick comedy,51,keywords|userTags,collaborative_support|public
-slavery,51,keywords|publicBlockedTerms|userTags,collaborative_support
-voyeurism,51,keywords|userTags,collaborative_support|public
-argument,50,keywords|userTags,collaborative_support|public
-artificial intelligence (a.i.),50,keywords,collaborative_support|public
 assassination attempt,50,keywords|userTags,collaborative_support|public
 automobile,50,keywords|userTags,collaborative_support|public
 based on manga,50,keywords|userTags,collaborative_support|public
@@ -76,7 +45,6 @@ boxing,48,keywords|userTags,collaborative_support|public
 camp,48,keywords|userTags,collaborative_support|public
 forgiveness,48,keywords|userTags,collaborative_support|public
 genius,48,keywords|userTags,collaborative_support|public
-holocaust,48,publicBlockedTerms|userTags,collaborative_support
 marriage crisis,48,keywords|userTags,collaborative_support|public
 nicolas cage,48,userTags,collaborative_support|public
 psychiatrist,48,keywords|userTags,collaborative_support|public
@@ -132,6 +100,7 @@ russian,46,keywords|userTags,collaborative_support|public
 scenic,46,keywords|userTags,collaborative_support|public
 sexual abuse,46,keywords|userTags,collaborative_support|public
 single father,46,keywords|userTags,collaborative_support|public
+slavery,46,keywords|userTags,collaborative_support
 somber,46,keywords|userTags,collaborative_support|public
 stalker,46,keywords|userTags,collaborative_support|public
 stop motion,46,keywords|userTags,collaborative_support|public
@@ -213,6 +182,7 @@ disturbed,42,keywords|userTags,collaborative_support|public
 empathetic,42,keywords|userTags,collaborative_support|public
 good soundtrack,42,userTags,collaborative_support|public
 hacker,42,keywords|userTags,collaborative_support|public
+holocaust,42,userTags,collaborative_support
 house,42,keywords|userTags,collaborative_support|public
 joyful,42,keywords|userTags,collaborative_support|public
 kiss,42,keywords|userTags,collaborative_support|public
@@ -485,7 +455,6 @@ despair,34,keywords|userTags,collaborative_support|public
 education,34,keywords|userTags,collaborative_support|public
 election,34,keywords|userTags,collaborative_support|public
 ewan mcgregor,34,userTags,collaborative_support|public
-fascism,34,keywords|publicBlockedTerms|userTags,collaborative_support
 foreign language,34,keywords|userTags,collaborative_support|public
 frustrated,34,keywords,collaborative_support|public
 gentle,34,keywords|userTags,collaborative_support|public
@@ -531,7 +500,6 @@ gory,33,userTags,collaborative_support
 great ending,33,userTags,collaborative_support|public
 hacking,33,keywords|userTags,collaborative_support|public
 harsh,33,keywords|userTags,collaborative_support|public
-hitler,33,publicBlockedTerms|userTags,collaborative_support
 homicide,33,keywords|userTags,collaborative_support
 humanity,33,keywords|userTags,collaborative_support|public
 jail,33,keywords|userTags,collaborative_support|public
@@ -579,7 +547,6 @@ existential,32,keywords|userTags,collaborative_support|public
 exploitation,32,keywords|userTags,collaborative_support|public
 film noir,32,keywords|userTags,collaborative_support|public
 formulaic,32,userTags,collaborative_support|public
-genocide,32,keywords|publicBlockedTerms|userTags,collaborative_support
 hope,32,keywords|userTags,collaborative_support|public
 human animal relationship,32,keywords|userTags,collaborative_support|public
 kevin spacey,32,userTags,collaborative_support|public
@@ -732,9 +699,11 @@ duel,29,keywords|userTags,collaborative_support|public
 dwayne johnson,29,userTags,collaborative_support|public
 egypt,29,keywords|userTags,collaborative_support|public
 execution,29,keywords|userTags,collaborative_support|public
+fascism,29,keywords|userTags,collaborative_support
 father figure,29,keywords|userTags,collaborative_support|public
 fish,29,keywords|userTags,collaborative_support|public
 gas station,29,keywords|userTags,collaborative_support|public
+genocide,29,keywords|userTags,collaborative_support
 girl power,29,keywords|userTags,collaborative_support|public
 gold,29,keywords|userTags,collaborative_support|public
 great performances,29,userTags,collaborative_support|public
@@ -799,3 +768,34 @@ hunting,28,keywords|userTags,collaborative_support|public
 ironic,28,keywords|userTags,collaborative_support|public
 jack black,28,keywords|userTags,collaborative_support|public
 jump scares,28,userTags,collaborative_support|public
+keira knightley,28,userTags,collaborative_support|public
+legal thriller,28,keywords|userTags,collaborative_support
+little boy,28,keywords|userTags,collaborative_support|public
+loss of virginity,28,keywords|userTags,collaborative_support|public
+lust,28,keywords|userTags,collaborative_support|public
+matthew mcconaughey,28,userTags,collaborative_support|public
+mischievous,28,keywords,collaborative_support|public
+moral dilemma,28,keywords|userTags,collaborative_support|public
+muslim,28,keywords|userTags,collaborative_support|public
+natalie portman,28,userTags,collaborative_support|public
+older woman younger man relationship,28,keywords|userTags,collaborative_support|public
+original plot,28,userTags,collaborative_support|public
+orphanage,28,keywords|userTags,collaborative_support|public
+orphans,28,userTags,collaborative_support|public
+passion,28,userTags,collaborative_support|public
+pg,28,userTags,collaborative_support|public
+political thriller,28,keywords|userTags,collaborative_support|public
+race,28,keywords|userTags,collaborative_support|public
+racing,28,keywords|userTags,collaborative_support|public
+racist,28,keywords|userTags,collaborative_support|public
+rags to riches,28,keywords|userTags,collaborative_support|public
+religious,28,userTags,collaborative_support|public
+rescue mission,28,keywords|userTags,collaborative_support|public
+"rome, italy",28,keywords,collaborative_support|public
+santa claus,28,keywords|userTags,collaborative_support|public
+screenplay,28,keywords|userTags,collaborative_support|public
+secret service,28,keywords|userTags,collaborative_support|public
+series of murders,28,keywords|userTags,collaborative_support
+shaky camera,28,userTags,collaborative_support|public
+sinister,28,keywords|userTags,collaborative_support|public
+soccer,28,userTags,collaborative_support|public
