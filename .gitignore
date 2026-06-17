@@ -16,7 +16,7 @@ Backend/.venv/
 .DS_Store
 .vscode/
 .idea/
-tmp/
+tmp/*
 
 # Local datasets
 Backend/app/data/raw/*
