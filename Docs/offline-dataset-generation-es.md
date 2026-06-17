@@ -2,11 +2,10 @@
 
 ## Comando recomendado
 
-Comando base para generar el dataset offline sin auditoría (suponiendo que tenemos un entorno virtual de python .venv):
+Comando base para generar el dataset offline sin auditoría:
 
 ```bash
 cd Backend
-source .venv/bin/activate
 
 python -m app.scripts.run_movielens_32m_pipeline \
   --download-raw-movielens \
@@ -390,7 +389,6 @@ Desde `catalog` en adelante:
 
 ```bash
 cd Backend
-source .venv/bin/activate
 
 python -m app.scripts.run_movielens_32m_pipeline \
   --start-at catalog \
@@ -406,7 +404,6 @@ Solo auditoría:
 
 ```bash
 cd Backend
-source .venv/bin/activate
 
 python -m app.scripts.run_movielens_32m_pipeline \
   --start-at audit \

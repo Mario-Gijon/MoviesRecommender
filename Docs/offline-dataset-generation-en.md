@@ -2,11 +2,10 @@
 
 ## Recommended command
 
-Base command to generate the offline dataset without the audit dashboard (assuming we have created a Python Virtual Environment .venv):
+Base command to generate the offline dataset without the audit dashboard:
 
 ```bash
 cd Backend
-source .venv/bin/activate
 
 python -m app.scripts.run_movielens_32m_pipeline \
   --download-raw-movielens \
@@ -390,7 +389,6 @@ From `catalog` onward:
 
 ```bash
 cd Backend
-source .venv/bin/activate
 
 python -m app.scripts.run_movielens_32m_pipeline \
   --start-at catalog \
@@ -406,7 +404,6 @@ Audit only:
 
 ```bash
 cd Backend
-source .venv/bin/activate
 
 python -m app.scripts.run_movielens_32m_pipeline \
   --start-at audit \
