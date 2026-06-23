@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "local"
     tmdb_bearer_token: str | None = None
+    active_collaborative_algorithm: str = "popularity_baseline"
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

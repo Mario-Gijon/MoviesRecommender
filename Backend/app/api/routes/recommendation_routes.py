@@ -36,9 +36,7 @@ from app.schemas.content_recommendation_schemas import (
 )
 from app.schemas.error_schemas import ErrorResponse
 from app.schemas.recommendation_schemas import RecommenderDetails
-
-
-DEFAULT_COLLABORATIVE_ALGORITHM_ID = "popularity_baseline"
+from app.core.config import settings
 
 router = APIRouter(tags=["recommendations"])
 
@@ -91,7 +89,7 @@ def create_collaborative_recommendations(
                 limit=payload.limit,
                 template_session_id=payload.templateSessionId,
             ),
-            algorithm_id=DEFAULT_COLLABORATIVE_ALGORITHM_ID,
+            algorithm_id=settings.active_collaborative_algorithm,
         )
     except CollaborativeRecommendationError as exc:
         raise HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message}) from exc
