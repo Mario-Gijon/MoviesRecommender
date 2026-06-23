@@ -20,10 +20,16 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.models import (
 def get_item_knn_cosine_artifacts(
     config: ItemKnnCosineBuildConfig,
 ) -> ItemKnnCosineArtifacts:
+    return get_item_knn_cosine_variant_artifacts(config.variant_id)
+
+
+def get_item_knn_cosine_variant_artifacts(
+    variant_id: str,
+) -> ItemKnnCosineArtifacts:
     variant_dir = (
         COLLABORATIVE_RECOMMENDER_MODELS_DIR
         / ALGORITHM_ID
-        / config.variant_id
+        / variant_id
     )
 
     return ItemKnnCosineArtifacts(
@@ -32,6 +38,18 @@ def get_item_knn_cosine_artifacts(
         neighbors_sqlite_path=variant_dir / "neighbors.sqlite",
         manifest_path=variant_dir / "model_manifest.json",
     )
+
+
+def load_item_knn_cosine_manifest(variant_id: str) -> dict[str, Any]:
+    artifacts = get_item_knn_cosine_variant_artifacts(variant_id)
+
+    if not artifacts.manifest_path.exists():
+        raise RuntimeError(
+            f"ItemKNN Cosine manifest does not exist for variant {variant_id}: "
+            f"{artifacts.manifest_path}"
+        )
+
+    return json.loads(artifacts.manifest_path.read_text(encoding="utf-8"))
 
 
 def prepare_item_knn_cosine_artifacts(

@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException
 
 from app.catalog.catalog_repository import catalog_repository
-from app.recommenders.collaborative.common.errors import CollaborativeRecommendationError
+from app.recommenders.collaborative.common.errors import (
+    CollaborativeRecommendationError,
+)
 from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationRequest as DomainCollaborativeRecommendationRequest,
     CollaborativeRecommendationResult as DomainCollaborativeRecommendationResult,
@@ -61,11 +63,16 @@ def create_content_based_recommendations(
             )
         )
     except ContentRecommendationDomainError as exc:
-        raise HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message}) from exc
+        raise HTTPException(
+            status_code=400, detail={"code": exc.code, "message": exc.message}
+        ) from exc
     except RuntimeError as exc:
         raise HTTPException(
             status_code=500,
-            detail={"code": "internal_error", "message": "Unexpected recommendation error."},
+            detail={
+                "code": "internal_error",
+                "message": "Unexpected recommendation error.",
+            },
         ) from exc
 
     return _to_content_recommendation_response(response)
@@ -92,11 +99,16 @@ def create_collaborative_recommendations(
             algorithm_id=settings.active_collaborative_algorithm,
         )
     except CollaborativeRecommendationError as exc:
-        raise HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message}) from exc
+        raise HTTPException(
+            status_code=400, detail={"code": exc.code, "message": exc.message}
+        ) from exc
     except RuntimeError as exc:
         raise HTTPException(
             status_code=500,
-            detail={"code": "internal_error", "message": "Unexpected collaborative recommendation error."},
+            detail={
+                "code": "internal_error",
+                "message": "Unexpected collaborative recommendation error.",
+            },
         ) from exc
 
     return _to_collaborative_recommendation_response(
@@ -160,7 +172,10 @@ def _to_collaborative_recommendation_response(
 ) -> CollaborativeRecommendationResponse:
     return CollaborativeRecommendationResponse(
         strategy="collaborative",
-        profile=_build_collaborative_profile(request),
+        profile=_build_collaborative_profile(
+            request=request,
+            response=response,
+        ),
         recommendations=[
             CollaborativeRecommendationItemResponse(
                 movieId=item.movie_id,
@@ -171,7 +186,12 @@ def _to_collaborative_recommendation_response(
                 scores=CollaborativeRecommendationScores(
                     recommendationScore=item.score,
                     collaborativeScore=item.score,
-                    popularityScore=item.score,
+                    popularityScore=(
+                        item.score
+                        if response.recommender_details.algorithm_id
+                        == "popularity_baseline"
+                        else None
+                    ),
                 ),
                 explanation=CollaborativeRecommendationExplanation(
                     headline=item.explanation.headline,
@@ -199,15 +219,24 @@ def _to_collaborative_recommendation_response(
 
 
 def _build_collaborative_profile(
+    *,
     request: CollaborativeRecommendationRequest,
+    response: DomainCollaborativeRecommendationResult,
 ) -> CollaborativeRecommendationProfileResponse:
     non_neutral_rating_count = sum(1 for item in request.ratings if item.rating != 3)
     positive_rating_count = sum(1 for item in request.ratings if item.rating >= 4)
     negative_rating_count = sum(1 for item in request.ratings if item.rating <= 2)
 
+    if response.recommender_details.is_personalized:
+        style = "personalized_collaborative"
+        headline = "Perfil colaborativo personalizado según tus valoraciones."
+    else:
+        style = "baseline"
+        headline = "Baseline colaborativo basado en valoraciones agregadas."
+
     return CollaborativeRecommendationProfileResponse(
-        style="baseline",
-        headline="Baseline colaborativo basado en valoraciones agregadas.",
+        style=style,
+        headline=headline,
         ratedMovieCount=len(request.ratings),
         nonNeutralRatingCount=non_neutral_rating_count,
         positiveRatingCount=positive_rating_count,

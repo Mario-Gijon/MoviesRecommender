@@ -13,6 +13,7 @@ from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
     OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
     OFFLINE_DATASET_MANIFEST_PATH,
+    OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
 )
 from app.recommenders.collaborative.algorithms.item_knn_cosine.models import (
     ItemKnnCosineBuildConfig,
@@ -30,6 +31,7 @@ def build_item_knn_cosine_model(config: ItemKnnCosineBuildConfig) -> None:
     _validate_config(config)
     _validate_input_file(OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH)
     _validate_input_file(OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH)
+    _validate_input_file(OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH)
 
     started_at = time.perf_counter()
     artifacts = prepare_item_knn_cosine_artifacts(config)
@@ -38,12 +40,15 @@ def build_item_knn_cosine_model(config: ItemKnnCosineBuildConfig) -> None:
     print(f"Building ItemKNN Cosine variant: {config.variant_id}")
     print(f"Output directory: {artifacts.variant_dir}")
 
+    public_movie_ids = _load_public_movie_ids()
     support_movie_ids = _load_support_movie_ids()
-    ratings = _load_collaborative_ratings(support_movie_ids)
+    model_movie_ids = _merge_movie_ids(public_movie_ids, support_movie_ids)
+
+    ratings = _load_collaborative_ratings(model_movie_ids)
 
     rating_matrix, column_movie_ids, user_count = _build_user_item_matrix(
         ratings=ratings,
-        support_movie_ids=support_movie_ids,
+        model_movie_ids=model_movie_ids,
     )
     rating_count = int(rating_matrix.nnz)
 
@@ -76,7 +81,9 @@ def build_item_knn_cosine_model(config: ItemKnnCosineBuildConfig) -> None:
         counts={
             "ratings": rating_count,
             "users": user_count,
+            "publicMovies": len(public_movie_ids),
             "supportMovies": len(support_movie_ids),
+            "modelMovies": len(model_movie_ids),
             "generatedNeighborRows": generated_neighbor_rows,
             "buildTimeSeconds": int(elapsed_seconds),
             "neighborsCsvSizeMb": int(file_size_mb(artifacts.neighbors_csv_path)),
@@ -85,6 +92,9 @@ def build_item_knn_cosine_model(config: ItemKnnCosineBuildConfig) -> None:
     )
 
     print("ItemKNN Cosine build completed.")
+    print(f"Public movies: {len(public_movie_ids)}")
+    print(f"Support movies: {len(support_movie_ids)}")
+    print(f"Model movies: {len(model_movie_ids)}")
     print(f"Generated neighbor rows: {generated_neighbor_rows}")
     print(f"CSV: {artifacts.neighbors_csv_path}")
     print(f"SQLite: {artifacts.neighbors_sqlite_path}")
@@ -115,6 +125,21 @@ def _load_dataset_metadata() -> dict:
     return json.loads(OFFLINE_DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
+def _load_public_movie_ids() -> list[int]:
+    public_movies = pd.read_csv(
+        OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
+        usecols=["movieId"],
+        dtype={"movieId": np.int32},
+    )
+
+    movie_ids = public_movies["movieId"].drop_duplicates().astype(int).tolist()
+
+    if not movie_ids:
+        raise RuntimeError("Public movies CSV contains no movieId values.")
+
+    return movie_ids
+
+
 def _load_support_movie_ids() -> list[int]:
     support_movies = pd.read_csv(
         OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
@@ -130,8 +155,30 @@ def _load_support_movie_ids() -> list[int]:
     return movie_ids
 
 
-def _load_collaborative_ratings(support_movie_ids: Sequence[int]) -> pd.DataFrame:
-    support_movie_id_set = set(support_movie_ids)
+def _merge_movie_ids(
+    public_movie_ids: Sequence[int],
+    support_movie_ids: Sequence[int],
+) -> list[int]:
+    seen_movie_ids: set[int] = set()
+    model_movie_ids: list[int] = []
+
+    for movie_id in [*public_movie_ids, *support_movie_ids]:
+        movie_id = int(movie_id)
+
+        if movie_id in seen_movie_ids:
+            continue
+
+        seen_movie_ids.add(movie_id)
+        model_movie_ids.append(movie_id)
+
+    if not model_movie_ids:
+        raise RuntimeError("ItemKNN Cosine model movie universe is empty.")
+
+    return model_movie_ids
+
+
+def _load_collaborative_ratings(model_movie_ids: Sequence[int]) -> pd.DataFrame:
+    model_movie_id_set = set(model_movie_ids)
 
     ratings = pd.read_csv(
         OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
@@ -143,10 +190,10 @@ def _load_collaborative_ratings(support_movie_ids: Sequence[int]) -> pd.DataFram
         },
     )
 
-    ratings = ratings[ratings["movieId"].isin(support_movie_id_set)]
+    ratings = ratings[ratings["movieId"].isin(model_movie_id_set)]
 
     if ratings.empty:
-        raise RuntimeError("Collaborative ratings CSV contains no ratings for support movies.")
+        raise RuntimeError("Collaborative ratings CSV contains no ratings for model movies.")
 
     return ratings
 
@@ -154,11 +201,11 @@ def _load_collaborative_ratings(support_movie_ids: Sequence[int]) -> pd.DataFram
 def _build_user_item_matrix(
     *,
     ratings: pd.DataFrame,
-    support_movie_ids: Sequence[int],
+    model_movie_ids: Sequence[int],
 ) -> tuple[sparse.csr_matrix, list[int], int]:
     movie_id_to_column = {
         int(movie_id): column
-        for column, movie_id in enumerate(support_movie_ids)
+        for column, movie_id in enumerate(model_movie_ids)
     }
 
     movie_columns = ratings["movieId"].map(movie_id_to_column)
@@ -176,12 +223,12 @@ def _build_user_item_matrix(
                 movie_columns.to_numpy(dtype=np.int32),
             ),
         ),
-        shape=(len(user_ids), len(support_movie_ids)),
+        shape=(len(user_ids), len(model_movie_ids)),
         dtype=np.float32,
     )
     rating_matrix.sum_duplicates()
 
-    return rating_matrix, [int(movie_id) for movie_id in support_movie_ids], len(user_ids)
+    return rating_matrix, [int(movie_id) for movie_id in model_movie_ids], len(user_ids)
 
 
 def _write_neighbors(

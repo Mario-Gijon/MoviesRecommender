@@ -1,3 +1,7 @@
+from app.core.config import settings
+from app.recommenders.collaborative.algorithms.item_knn_cosine.recommender import (
+    ItemKnnCosineRecommender,
+)
 from app.recommenders.collaborative.algorithms.popularity_baseline.recommender import (
     PopularityBaselineRecommender,
 )
@@ -9,6 +13,9 @@ from app.recommenders.collaborative.common.errors import (
 
 COLLABORATIVE_RECOMMENDER_REGISTRY: dict[str, CollaborativeRecommender] = {
     PopularityBaselineRecommender.algorithm_id: PopularityBaselineRecommender(),
+    ItemKnnCosineRecommender.algorithm_id: ItemKnnCosineRecommender(
+        model_variant_id=settings.active_collaborative_model_variant,
+    ),
 }
 
 
