@@ -27,7 +27,7 @@ function RecommendationCard({ item, rank }) {
           </div>
 
           <div className="recommendation-score-line">
-            <span>Puntuación</span>
+            <span>Afinidad</span>
             <strong>{scoreLabel}</strong>
           </div>
 
