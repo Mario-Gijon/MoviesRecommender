@@ -1,12 +1,18 @@
 import { apiRequest } from '../../api/client'
-import { STRATEGY_ENDPOINTS } from './strategies'
+import { isStrategyEnabled, STRATEGY_ENDPOINTS } from './strategies'
 
 export function requestRecommendations({ strategy, ratings, limit, templateSessionId }) {
-  if (strategy !== 'content_based') {
+  if (!isStrategyEnabled(strategy)) {
     throw new Error('La estrategia seleccionada todavía no está disponible.')
   }
 
-  return apiRequest(STRATEGY_ENDPOINTS[strategy], {
+  const endpoint = STRATEGY_ENDPOINTS[strategy]
+
+  if (!endpoint) {
+    throw new Error('La estrategia seleccionada no existe.')
+  }
+
+  return apiRequest(endpoint, {
     method: 'POST',
     body: JSON.stringify({
       ratings,

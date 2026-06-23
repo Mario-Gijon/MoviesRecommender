@@ -8,8 +8,8 @@ export const RECOMMENDATION_STRATEGIES = [
   {
     value: 'collaborative',
     label: 'Filtrado colaborativo',
-    status: 'Próximamente',
-    disabled: true,
+    status: 'Baseline disponible',
+    disabled: false,
   },
   {
     value: 'hybrid',
@@ -26,5 +26,11 @@ export const STRATEGY_ENDPOINTS = {
 }
 
 export function isStrategyEnabled(strategy) {
-  return RECOMMENDATION_STRATEGIES.find((item) => item.value === strategy)?.disabled === false
+  const strategyConfig = RECOMMENDATION_STRATEGIES.find((item) => item.value === strategy)
+
+  if (!strategyConfig) {
+    return false
+  }
+
+  return strategyConfig.disabled === false
 }

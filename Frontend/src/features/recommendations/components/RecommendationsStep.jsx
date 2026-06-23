@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 
 import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
+import { isStrategyEnabled } from '../strategies'
 import RecommendationCard from './RecommendationCard'
 import RecommendationProfileSummary from './RecommendationProfileSummary'
 import StrategySelector from './StrategySelector'
@@ -16,7 +17,7 @@ function RecommendationsStep({
   const scrollPanelRef = useRef(null)
   const canGenerate =
     ratedMoviesCount > 0 &&
-    selectedStrategy === 'content_based' &&
+    isStrategyEnabled(selectedStrategy) &&
     !isLoadingRecommendations
 
   useSmoothWheelScroll(scrollPanelRef)

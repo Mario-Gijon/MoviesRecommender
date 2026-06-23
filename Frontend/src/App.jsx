@@ -182,6 +182,12 @@ function App() {
     })
   }
 
+  function handleSelectStrategy(strategy) {
+    setSelectedStrategy(strategy)
+    setRecommendations(null)
+    setErrorMessage('')
+  }
+
   function handleNextStep() {
     setActiveStep((currentStep) => Math.min(currentStep + 1, STEPS.length))
   }
@@ -266,7 +272,7 @@ function App() {
         {activeStep === 3 ? (
           <RecommendationsStep
             selectedStrategy={selectedStrategy}
-            onSelectStrategy={setSelectedStrategy}
+            onSelectStrategy={handleSelectStrategy}
             onGenerateRecommendations={handleGenerateRecommendations}
             recommendations={recommendations}
             isLoadingRecommendations={isLoadingRecommendations}
