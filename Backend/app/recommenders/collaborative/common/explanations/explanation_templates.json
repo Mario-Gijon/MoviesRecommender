@@ -1,0 +1,407 @@
+{
+  "version": 1,
+  "description": "Template bank for collaborative recommendation explanations. Templates explain recommendations using collaborative evidence: ratings from other users, item-item rating patterns, positively rated source movies and negatively rated source movies. No content metadata is used to compute the recommendation score.",
+  "selection": {
+    "deterministic": true,
+    "recommended_seed_parts": [
+      "templateSessionId",
+      "movieId",
+      "rank",
+      "slot",
+      "profileStyle"
+    ],
+    "fallback_order": [
+      "requested_style",
+      "mixed",
+      "family",
+      "teen"
+    ]
+  },
+  "groups": {
+    "headline": {
+      "family": [
+        {
+          "id": "family_headline_001",
+          "text": "Una recomendación apoyada en valoraciones de otros usuarios.",
+          "requires": []
+        },
+        {
+          "id": "family_headline_002",
+          "text": "Una peli que suele gustar junto a tus elecciones.",
+          "requires": []
+        },
+        {
+          "id": "family_headline_003",
+          "text": "Una opción que aparece cerca de lo que has valorado bien.",
+          "requires": []
+        },
+        {
+          "id": "family_headline_movies_001",
+          "text": "Una recomendación conectada por valoraciones con {movies}.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "family_headline_movies_002",
+          "text": "Una peli que otros usuarios relacionan con {movies}.",
+          "requires": [
+            "movies"
+          ]
+        }
+      ],
+      "teen": [
+        {
+          "id": "teen_headline_001",
+          "text": "Una recomendación basada en valoraciones reales.",
+          "requires": []
+        },
+        {
+          "id": "teen_headline_002",
+          "text": "Una candidata que sale por patrones de la comunidad.",
+          "requires": []
+        },
+        {
+          "id": "teen_headline_003",
+          "text": "Una peli que el modelo conecta con tus puntuaciones.",
+          "requires": []
+        },
+        {
+          "id": "teen_headline_movies_001",
+          "text": "Una peli conectada por valoraciones con {movies}.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "teen_headline_movies_002",
+          "text": "Algo que suele valorarse cerca de {movies}.",
+          "requires": [
+            "movies"
+          ]
+        }
+      ],
+      "mixed": [
+        {
+          "id": "mixed_headline_001",
+          "text": "Una recomendación colaborativa para tu perfil.",
+          "requires": []
+        },
+        {
+          "id": "mixed_headline_002",
+          "text": "Una opción calculada desde patrones de valoración.",
+          "requires": []
+        },
+        {
+          "id": "mixed_headline_movies_001",
+          "text": "Una recomendación relacionada por usuarios con {movies}.",
+          "requires": [
+            "movies"
+          ]
+        }
+      ]
+    },
+    "positive_connection_reason": {
+      "family": [
+        {
+          "id": "family_positive_001",
+          "text": "Muchos usuarios que valoraron bien {movies} también conectan con esta.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "family_positive_002",
+          "text": "Esta aparece cerca de {movies} cuando se comparan valoraciones de usuarios.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "family_positive_003",
+          "text": "El modelo la recomienda porque {movies} y esta suelen recibir valoraciones parecidas.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "family_positive_004",
+          "text": "No se ha elegido por género o sinopsis: sale porque la comunidad la valora de forma parecida a {movies}.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "family_positive_fallback_001",
+          "text": "La recomendación se apoya en películas que has puntuado alto y en cómo las valora la comunidad.",
+          "requires": []
+        }
+      ],
+      "teen": [
+        {
+          "id": "teen_positive_001",
+          "text": "Usuarios que puntuaron alto {movies} también suelen puntuar bien esta.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "teen_positive_002",
+          "text": "Esta sale porque sus valoraciones se mueven cerca de {movies}.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "teen_positive_003",
+          "text": "El sistema ha visto una relación fuerte entre esta peli y {movies} en los ratings de otros usuarios.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "teen_positive_004",
+          "text": "No va de etiquetas ni de género: va de que la gente que valora bien {movies} también suele valorar bien esta.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "teen_positive_fallback_001",
+          "text": "La recomendación sale de cruzar tus notas con patrones reales de otros usuarios.",
+          "requires": []
+        }
+      ],
+      "mixed": [
+        {
+          "id": "mixed_positive_001",
+          "text": "Usuarios que valoraron bien {movies} también tienden a valorar bien esta.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "mixed_positive_002",
+          "text": "La conexión con {movies} viene de patrones de valoración compartidos por la comunidad.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "mixed_positive_003",
+          "text": "Esta película aparece cercana a {movies} al comparar cómo las puntúan los usuarios.",
+          "requires": [
+            "movies"
+          ]
+        },
+        {
+          "id": "mixed_positive_fallback_001",
+          "text": "La recomendación se calcula a partir de tus valoraciones y de patrones de otros usuarios.",
+          "requires": []
+        }
+      ]
+    },
+    "collaborative_support_reason": {
+      "family": [
+        {
+          "id": "family_support_001",
+          "text": "La recomendación usa filtrado colaborativo: compara patrones de valoraciones, no descripciones de películas.",
+          "requires": []
+        },
+        {
+          "id": "family_support_002",
+          "text": "No sale por popularidad general, sino por cómo se relacionan las valoraciones de unas películas con otras.",
+          "requires": []
+        },
+        {
+          "id": "family_support_003",
+          "text": "El modelo mira qué películas suelen gustar juntas a muchos usuarios.",
+          "requires": []
+        },
+        {
+          "id": "family_support_004",
+          "text": "La conexión viene de datos de valoración reales de la comunidad.",
+          "requires": []
+        }
+      ],
+      "teen": [
+        {
+          "id": "teen_support_001",
+          "text": "No es random: es filtrado colaborativo con patrones reales de ratings.",
+          "requires": []
+        },
+        {
+          "id": "teen_support_002",
+          "text": "No tira de sinopsis ni géneros; compara cómo la gente puntúa unas pelis frente a otras.",
+          "requires": []
+        },
+        {
+          "id": "teen_support_003",
+          "text": "El modelo busca pelis que suelen gustar a usuarios con señales parecidas en sus valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "teen_support_004",
+          "text": "La relación se calcula desde valoraciones de usuarios, no desde metadatos.",
+          "requires": []
+        }
+      ],
+      "mixed": [
+        {
+          "id": "mixed_support_001",
+          "text": "La recomendación viene de filtrado colaborativo sobre valoraciones reales.",
+          "requires": []
+        },
+        {
+          "id": "mixed_support_002",
+          "text": "El sistema compara patrones de ratings entre películas para encontrar candidatas.",
+          "requires": []
+        },
+        {
+          "id": "mixed_support_003",
+          "text": "No se apoya solo en popularidad: usa similitud entre valoraciones de usuarios.",
+          "requires": []
+        }
+      ]
+    },
+    "negative_balance_reason": {
+      "family": [
+        {
+          "id": "family_negative_001",
+          "text": "También se tiene en cuenta que {avoided} no encajó tan bien en tus puntuaciones.",
+          "requires": [
+            "avoided"
+          ]
+        },
+        {
+          "id": "family_negative_002",
+          "text": "Si una candidata se acerca demasiado a {avoided}, esa señal puede restarle fuerza.",
+          "requires": [
+            "avoided"
+          ]
+        },
+        {
+          "id": "family_negative_003",
+          "text": "Tus notas bajas también cuentan: {avoided} ayuda a evitar recomendaciones menos adecuadas.",
+          "requires": [
+            "avoided"
+          ]
+        }
+      ],
+      "teen": [
+        {
+          "id": "teen_negative_001",
+          "text": "También pesa que {avoided} no parecía ir tanto contigo.",
+          "requires": [
+            "avoided"
+          ]
+        },
+        {
+          "id": "teen_negative_002",
+          "text": "Si una peli se parece demasiado en ratings a {avoided}, el score puede bajar.",
+          "requires": [
+            "avoided"
+          ]
+        },
+        {
+          "id": "teen_negative_003",
+          "text": "No solo suma lo que te gustó: también resta señales cercanas a {avoided}.",
+          "requires": [
+            "avoided"
+          ]
+        }
+      ],
+      "mixed": [
+        {
+          "id": "mixed_negative_001",
+          "text": "También se considera que {avoided} recibió una puntuación baja.",
+          "requires": [
+            "avoided"
+          ]
+        },
+        {
+          "id": "mixed_negative_002",
+          "text": "Las películas cercanas en valoraciones a {avoided} pueden perder fuerza en el ranking.",
+          "requires": [
+            "avoided"
+          ]
+        },
+        {
+          "id": "mixed_negative_003",
+          "text": "Tus valoraciones bajas también ayudan a ajustar el resultado, como ocurre con {avoided}.",
+          "requires": [
+            "avoided"
+          ]
+        }
+      ]
+    },
+    "natural_closing": {
+      "family": [
+        {
+          "id": "family_closing_001",
+          "text": "Por eso aparece como una opción segura dentro del catálogo del stand.",
+          "requires": []
+        },
+        {
+          "id": "family_closing_002",
+          "text": "Puede ser una buena candidata si quieres seguir una pista marcada por otros usuarios.",
+          "requires": []
+        },
+        {
+          "id": "family_closing_003",
+          "text": "Es una recomendación pensada para ser fácil de explicar y segura para el público.",
+          "requires": []
+        },
+        {
+          "id": "family_closing_004",
+          "text": "La idea es proponerte algo que la comunidad suele conectar con tus valoraciones.",
+          "requires": []
+        }
+      ],
+      "teen": [
+        {
+          "id": "teen_closing_001",
+          "text": "Por eso tiene sentido dentro de tu perfil colaborativo.",
+          "requires": []
+        },
+        {
+          "id": "teen_closing_002",
+          "text": "Puede ser una buena prueba si quieres seguir lo que marcan usuarios con gustos parecidos.",
+          "requires": []
+        },
+        {
+          "id": "teen_closing_003",
+          "text": "No promete ser perfecta, pero el patrón de ratings la coloca bastante arriba.",
+          "requires": []
+        },
+        {
+          "id": "teen_closing_004",
+          "text": "La comunidad deja una pista bastante clara para incluirla aquí.",
+          "requires": []
+        }
+      ],
+      "mixed": [
+        {
+          "id": "mixed_closing_001",
+          "text": "Por eso aparece como una candidata razonable en el ranking.",
+          "requires": []
+        },
+        {
+          "id": "mixed_closing_002",
+          "text": "Puede ser una opción interesante según el patrón de valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "mixed_closing_003",
+          "text": "La recomendación queda respaldada por relaciones colaborativas entre películas.",
+          "requires": []
+        },
+        {
+          "id": "mixed_closing_004",
+          "text": "Es una forma de seguir lo que sugieren usuarios con valoraciones similares.",
+          "requires": []
+        }
+      ]
+    }
+  }
+}

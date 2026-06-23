@@ -18,6 +18,13 @@ from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendedMovie,
     CollaborativeRecommenderDetails,
 )
+from app.recommenders.collaborative.common.explanations.explanations import (
+    CollaborativeExplanationContribution,
+    build_collaborative_explanation,
+)
+from app.recommenders.collaborative.common.explanations.profile_style import (
+    infer_collaborative_profile_style,
+)
 
 
 @dataclass
@@ -135,15 +142,35 @@ class ItemKnnCosineRecommender:
             reverse=True,
         )
 
+        profile_style = infer_collaborative_profile_style(request.ratings)
+
         recommendations = [
             CollaborativeRecommendedMovie(
                 movie_id=candidate.movie_id,
                 rank=rank,
                 score=round(candidate.score, 6),
-                explanation=_build_explanation(candidate),
+                explanation=build_collaborative_explanation(
+                    candidate_movie_id=candidate.movie_id,
+                    rank=rank,
+                    profile_style=profile_style,
+                    template_session_id=request.template_session_id,
+                    contributions=[
+                        CollaborativeExplanationContribution(
+                            source_movie_id=contribution.source_movie_id,
+                            source_rating=contribution.source_rating,
+                            rating_weight=contribution.rating_weight,
+                            similarity=contribution.similarity,
+                            support=contribution.support,
+                            contribution=contribution.contribution,
+                        )
+                        for contribution in candidate.contributions
+                    ],
+                ),
                 algorithm_details=_build_algorithm_details(candidate),
             )
-            for rank, candidate in enumerate(ranked_candidates[: request.limit], start=1)
+            for rank, candidate in enumerate(
+                ranked_candidates[: request.limit], start=1
+            )
         ]
 
         return CollaborativeRecommendationResult(
@@ -160,6 +187,7 @@ class ItemKnnCosineRecommender:
                     "candidatePolicy": "public_movies_only",
                     "similarity": "cosine",
                     "ratingMode": "raw_explicit_ratings",
+                    "profileStyle": profile_style,
                     "discardedNonPublicCandidates": discarded_non_public_candidates,
                     "discardedRatedCandidates": discarded_rated_candidates,
                     "ignoredNeutralRatings": ignored_neutral_ratings,
@@ -245,10 +273,14 @@ def _build_algorithm_details(candidate: CandidateScore) -> dict:
         "itemKnnScore": round(candidate.score, 6),
         "weightedSum": round(candidate.weighted_sum, 6),
         "similaritySum": round(candidate.similarity_sum, 6),
-        "normalizedPreference": round(
-            candidate.weighted_sum / candidate.similarity_sum,
-            6,
-        ) if candidate.similarity_sum != 0 else 0.0,
+        "normalizedPreference": (
+            round(
+                candidate.weighted_sum / candidate.similarity_sum,
+                6,
+            )
+            if candidate.similarity_sum != 0
+            else 0.0
+        ),
         "contributingMovies": [
             {
                 "movieId": contribution.source_movie_id,
