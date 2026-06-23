@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 RecommendationStrategy = Literal["content_based", "collaborative", "hybrid"]
@@ -15,3 +15,4 @@ class RecommenderDetails(BaseModel):
     isExplainable: bool
     timingMs: float | None = None
     status: str
+    details: dict[str, Any] = Field(default_factory=dict)
