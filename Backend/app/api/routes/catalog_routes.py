@@ -2,12 +2,8 @@ from math import ceil
 
 from fastapi import APIRouter, Query
 
-from app.domain.movies.movie_schemas import (
-    CatalogStatus,
-    Movie,
-    PaginatedMovieCatalogResponse,
-)
-from app.infrastructure.catalog.offline_catalog_repository import catalog_repository
+from app.catalog.catalog_repository import catalog_repository
+from app.schemas.catalog_schemas import CatalogStatus, PaginatedMovieCatalogResponse, PublicMovieRecord
 
 
 router = APIRouter(tags=["catalog"])
@@ -18,8 +14,8 @@ def get_catalog_status() -> CatalogStatus:
     return catalog_repository.get_status()
 
 
-@router.get("/movies/featured", response_model=list[Movie])
-def get_featured_movies() -> list[Movie]:
+@router.get("/movies/featured", response_model=list[PublicMovieRecord])
+def get_featured_movies() -> list[PublicMovieRecord]:
     return catalog_repository.get_featured_movies()
 
 

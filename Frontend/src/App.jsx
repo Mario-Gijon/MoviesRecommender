@@ -39,15 +39,15 @@ function App() {
   const [catalogSearch, setCatalogSearch] = useState('')
   const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState('')
   const [ratings, setRatings] = useState({})
-  const [selectedStrategy, setSelectedStrategy] = useState('hybrid')
+  const [selectedStrategy, setSelectedStrategy] = useState('content_based')
   const [recommendations, setRecommendations] = useState(null)
   const [isCatalogLoading, setIsCatalogLoading] = useState(true)
   const [isCatalogLoadingMore, setIsCatalogLoadingMore] = useState(false)
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [catalogError, setCatalogError] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [templateSessionId] = useState(() => `frontend-session-${Date.now()}`)
   const catalogRequestIdRef = useRef(0)
-  const templateSessionIdRef = useRef(`frontend-session-${Date.now()}`)
 
   async function loadCatalogPage({ page, append, search }) {
     const requestId = catalogRequestIdRef.current + 1
@@ -196,17 +196,20 @@ function App() {
       setErrorMessage('')
 
       const response = await requestRecommendations({
+        strategy: selectedStrategy,
         ratings: Object.entries(ratings).map(([movieId, rating]) => ({
           movieId: Number(movieId),
           rating,
         })),
         limit: 10,
-        templateSessionId: templateSessionIdRef.current,
+        templateSessionId,
       })
 
       setRecommendations(response)
-    } catch {
-      setErrorMessage('Could not generate recommendations.')
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Could not generate recommendations.',
+      )
     } finally {
       setIsLoadingRecommendations(false)
     }

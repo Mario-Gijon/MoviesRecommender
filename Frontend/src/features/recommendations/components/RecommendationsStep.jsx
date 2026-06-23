@@ -3,21 +3,28 @@ import { useRef } from 'react'
 import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import RecommendationCard from './RecommendationCard'
 import RecommendationProfileSummary from './RecommendationProfileSummary'
+import StrategySelector from './StrategySelector'
 
 function RecommendationsStep({
+  selectedStrategy,
+  onSelectStrategy,
   onGenerateRecommendations,
   recommendations,
   isLoadingRecommendations,
   ratedMoviesCount,
 }) {
   const scrollPanelRef = useRef(null)
-  const canGenerate = ratedMoviesCount > 0 && !isLoadingRecommendations
+  const canGenerate =
+    ratedMoviesCount > 0 &&
+    selectedStrategy === 'content_based' &&
+    !isLoadingRecommendations
 
   useSmoothWheelScroll(scrollPanelRef)
 
   return (
     <div className="recommend-game-step compact-recommend-step">
       <div className="recommend-toolbar compact-recommend-toolbar">
+        <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
         <button
           type="button"
           className="game-nav-button primary generate-button"
@@ -34,8 +41,8 @@ function RecommendationsStep({
             <RecommendationProfileSummary profile={recommendations.profile} />
 
             <div className="recommendation-grid">
-              {recommendations.recommendations.map((item, index) => (
-                <RecommendationCard key={item.movieId} item={item} rank={index + 1} />
+              {recommendations.recommendations.map((item) => (
+                <RecommendationCard key={item.movieId} item={item} rank={item.rank} />
               ))}
             </div>
           </div>

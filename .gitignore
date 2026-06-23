@@ -24,3 +24,10 @@ Backend/app/data/raw/*
 Backend/app/data/pipeline_cache/*
 !Backend/app/data/pipeline_cache/README.md
 Backend/app/data/offline_dataset/*
+
+# Local/generated backend data
+/Backend/data/raw/
+/Backend/data/pipeline_cache/
+/Backend/data/offline_dataset/
+/Backend/data/recommender_models/
+/Backend/data/recommender_audit/

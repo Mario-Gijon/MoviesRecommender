@@ -6,7 +6,7 @@ from app.api.routes.catalog_routes import router as catalog_router
 from app.api.routes.health_routes import router as health_router
 from app.api.routes.recommendation_routes import router as recommendation_router
 from app.core.config import settings
-from app.infrastructure.datasets.movielens_paths import (
+from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_AUDIT_DIR,
     OFFLINE_DATASET_POSTERS_DIR,
 )
@@ -15,7 +15,7 @@ from app.infrastructure.datasets.movielens_paths import (
 if not OFFLINE_DATASET_POSTERS_DIR.exists():
     raise RuntimeError(
         "Offline posters directory is missing. "
-        "Run python -m app.scripts.download_offline_movie_posters first."
+        "Run python -m pipelines.dataset_generation.download_offline_movie_posters first."
     )
 
 OFFLINE_DATASET_AUDIT_DIR.mkdir(parents=True, exist_ok=True)

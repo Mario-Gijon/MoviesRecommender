@@ -1,36 +1,29 @@
 from fastapi import APIRouter, HTTPException
 
-from app.domain.recommendations.content_based.recommender import (
+from app.catalog.catalog_repository import catalog_repository
+from app.recommenders.content_based.models import (
+    ContentRecommendationRequest as DomainContentRecommendationRequest,
+    ContentRecommendationResponse as DomainContentRecommendationResponse,
+    TemporaryMovieRating,
+)
+from app.recommenders.content_based.recommender import (
     ContentRecommendationDomainError,
     recommend_content_based_movies,
 )
-from app.domain.recommendations.content_based.schemas import (
-    ContentRecommendationResponse as DomainContentRecommendationResponse,
-    ContentRecommendationRequest as DomainContentRecommendationRequest,
-    TemporaryMovieRating,
-)
-from app.infrastructure.catalog.offline_catalog_repository import catalog_repository
-from app.domain.recommendations.recommendation_schemas import (
+from app.schemas.catalog_schemas import PublicMovieRecord
+from app.schemas.content_recommendation_schemas import (
     ContentBasedRecommendationRequest,
     ContentBasedRecommendationResponse,
     ContentRecommendationExplanation,
     ContentRecommendationItemResponse,
     ContentRecommendationProfileResponse,
     ContentRecommendationScores,
-    ErrorResponse,
-    PublicMovieRecordResponse,
-    RecommendationRequest,
-    RecommendationResponse,
 )
-from app.domain.recommendations.recommendation_strategy import build_placeholder_response
+from app.schemas.error_schemas import ErrorResponse
+from app.schemas.recommendation_schemas import RecommenderDetails
 
 
 router = APIRouter(tags=["recommendations"])
-
-
-@router.post("/recommendations", response_model=RecommendationResponse)
-def create_recommendations(payload: RecommendationRequest) -> RecommendationResponse:
-    return build_placeholder_response(payload)
 
 
 @router.post(
@@ -67,6 +60,7 @@ def _to_content_recommendation_response(
     response: DomainContentRecommendationResponse,
 ) -> ContentBasedRecommendationResponse:
     return ContentBasedRecommendationResponse(
+        strategy="content_based",
         profile=ContentRecommendationProfileResponse.model_validate(
             response.profile,
             from_attributes=True,
@@ -74,7 +68,8 @@ def _to_content_recommendation_response(
         recommendations=[
             ContentRecommendationItemResponse(
                 movieId=item.movieId,
-                movie=PublicMovieRecordResponse.model_validate(
+                rank=rank,
+                movie=PublicMovieRecord.model_validate(
                     catalog_repository.get_public_movie_by_id(item.movieId)
                 ),
                 scores=ContentRecommendationScores(
@@ -87,9 +82,23 @@ def _to_content_recommendation_response(
                     item.explanation,
                     from_attributes=True,
                 ),
+                algorithmDetails={
+                    "contentSimilarity": item.contentSimilarity,
+                    "mmrScore": item.mmrScore,
+                    "standDisplayScore": item.standDisplayScore,
+                    "matchedSignals": item.explanation.matchedSignals,
+                },
             )
-            for item in response.recommendations
+            for rank, item in enumerate(response.recommendations, start=1)
         ],
+        recommenderDetails=RecommenderDetails(
+            strategy="content_based",
+            algorithmId="content_based_default",
+            algorithmLabel="Content-based",
+            isPersonalized=True,
+            isExplainable=True,
+            status="ready",
+        ),
         templateSessionId=response.templateSessionId,
         limit=response.limit,
     )

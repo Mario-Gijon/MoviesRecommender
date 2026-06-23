@@ -1,20 +1,18 @@
-const STRATEGIES = [
-  { value: 'content', label: 'Content' },
-  { value: 'collaborative', label: 'Collaborative' },
-  { value: 'hybrid', label: 'Hybrid' },
-]
+import { RECOMMENDATION_STRATEGIES } from '../strategies'
 
 function StrategySelector({ value, onChange }) {
   return (
     <div className="game-strategy-tabs" aria-label="Recommendation strategy">
-      {STRATEGIES.map((strategy) => (
+      {RECOMMENDATION_STRATEGIES.map((strategy) => (
         <button
           key={strategy.value}
           type="button"
           className={value === strategy.value ? 'game-strategy-button active' : 'game-strategy-button'}
           onClick={() => onChange(strategy.value)}
+          disabled={strategy.disabled}
         >
-          {strategy.label}
+          <span>{strategy.label}</span>
+          <small>{strategy.status}</small>
         </button>
       ))}
     </div>
