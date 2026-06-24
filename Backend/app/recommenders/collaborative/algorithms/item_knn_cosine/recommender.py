@@ -61,6 +61,10 @@ class ItemKnnCosineRecommender:
         self._artifacts = get_item_knn_cosine_variant_artifacts(model_variant_id)
         self._manifest = self._load_manifest()
         self._fallback_recommender = PopularityBaselineRecommender()
+        self._public_movie_ids = frozenset(
+            int(movie["movieId"])
+            for movie in catalog_repository.get_recommendation_candidates()
+        )
 
     def recommend(
         self,
@@ -70,10 +74,7 @@ class ItemKnnCosineRecommender:
         self._validate_artifacts()
 
         rated_movie_ids = {rating.movie_id for rating in request.ratings}
-        public_movie_ids = {
-            int(movie["movieId"])
-            for movie in catalog_repository.get_recommendation_candidates()
-        }
+        public_movie_ids = self._public_movie_ids
 
         candidate_scores: dict[int, CandidateScore] = {}
         discarded_non_public_candidates = 0
@@ -83,61 +84,67 @@ class ItemKnnCosineRecommender:
 
         personalized_started_at = time.perf_counter()
 
-        connection = sqlite3.connect(self._artifacts.neighbors_sqlite_path)
-        try:
-            for rating in request.ratings:
-                rating_weight = _rating_to_weight(rating.rating)
+        effective_ratings: list[tuple[int, int, float]] = []
+        for rating in request.ratings:
+            rating_weight = _rating_to_weight(rating.rating)
 
-                if rating_weight == 0:
-                    ignored_neutral_ratings += 1
+            if rating_weight == 0:
+                ignored_neutral_ratings += 1
+                continue
+
+            effective_ratings.append(
+                (
+                    rating.movie_id,
+                    rating.rating,
+                    rating_weight,
+                )
+            )
+
+        neighbor_rows_by_source = _load_neighbor_rows_by_source(
+            sqlite_path=self._artifacts.neighbors_sqlite_path,
+            source_movie_ids=list(dict.fromkeys(
+                movie_id
+                for movie_id, _, _ in effective_ratings
+            )),
+        )
+
+        for source_movie_id, source_rating, rating_weight in effective_ratings:
+            rows = neighbor_rows_by_source.get(source_movie_id, [])
+
+            if not rows:
+                missing_source_neighbor_rows += 1
+                continue
+
+            for neighbor_movie_id, similarity, support in rows:
+                neighbor_movie_id = int(neighbor_movie_id)
+
+                if neighbor_movie_id in rated_movie_ids:
+                    discarded_rated_candidates += 1
                     continue
 
-                rows = connection.execute(
-                    """
-                    SELECT neighbor_movie_id, similarity, support
-                    FROM item_neighbors
-                    WHERE source_movie_id = ?
-                    ORDER BY rank
-                    """,
-                    (rating.movie_id,),
-                ).fetchall()
-
-                if not rows:
-                    missing_source_neighbor_rows += 1
+                if neighbor_movie_id not in public_movie_ids:
+                    discarded_non_public_candidates += 1
                     continue
 
-                for neighbor_movie_id, similarity, support in rows:
-                    neighbor_movie_id = int(neighbor_movie_id)
+                similarity = float(similarity)
+                contribution = similarity * rating_weight
 
-                    if neighbor_movie_id in rated_movie_ids:
-                        discarded_rated_candidates += 1
-                        continue
-
-                    if neighbor_movie_id not in public_movie_ids:
-                        discarded_non_public_candidates += 1
-                        continue
-
-                    similarity = float(similarity)
-                    contribution = similarity * rating_weight
-
-                    candidate_score = candidate_scores.setdefault(
-                        neighbor_movie_id,
-                        CandidateScore(movie_id=neighbor_movie_id),
+                candidate_score = candidate_scores.setdefault(
+                    neighbor_movie_id,
+                    CandidateScore(movie_id=neighbor_movie_id),
+                )
+                candidate_score.weighted_sum += contribution
+                candidate_score.similarity_sum += abs(similarity)
+                candidate_score.contributions.append(
+                    CandidateContribution(
+                        source_movie_id=source_movie_id,
+                        source_rating=source_rating,
+                        rating_weight=rating_weight,
+                        similarity=similarity,
+                        support=int(support),
+                        contribution=contribution,
                     )
-                    candidate_score.weighted_sum += contribution
-                    candidate_score.similarity_sum += abs(similarity)
-                    candidate_score.contributions.append(
-                        CandidateContribution(
-                            source_movie_id=rating.movie_id,
-                            source_rating=rating.rating,
-                            rating_weight=rating_weight,
-                            similarity=similarity,
-                            support=int(support),
-                            contribution=contribution,
-                        )
-                    )
-        finally:
-            connection.close()
+                )
 
         ranked_candidates = sorted(
             [
@@ -217,6 +224,7 @@ class ItemKnnCosineRecommender:
                     "candidatePolicy": "public_movies_only",
                     "similarity": "cosine",
                     "ratingMode": "raw_explicit_ratings",
+                    "neighborQueryMode": "batched_source_movie_ids",
                     "profileStyle": profile_style,
                     "personalizedRecommendations": personalized_recommendations,
                     "fallbackUsed": fallback_recommendations_added > 0,
@@ -257,6 +265,44 @@ class ItemKnnCosineRecommender:
                     f"{self._model_variant_id}: {self._artifacts.neighbors_sqlite_path}"
                 ),
             )
+
+
+def _load_neighbor_rows_by_source(
+    *,
+    sqlite_path: str,
+    source_movie_ids: list[int],
+) -> dict[int, list[tuple[int, float, int]]]:
+    if not source_movie_ids:
+        return {}
+
+    placeholders = ", ".join("?" for _ in source_movie_ids)
+
+    connection = sqlite3.connect(sqlite_path)
+    try:
+        rows = connection.execute(
+            f"""
+            SELECT source_movie_id, neighbor_movie_id, similarity, support
+            FROM item_neighbors
+            WHERE source_movie_id IN ({placeholders})
+            ORDER BY source_movie_id, rank
+            """,
+            source_movie_ids,
+        ).fetchall()
+    finally:
+        connection.close()
+
+    rows_by_source: dict[int, list[tuple[int, float, int]]] = {}
+
+    for source_movie_id, neighbor_movie_id, similarity, support in rows:
+        rows_by_source.setdefault(int(source_movie_id), []).append(
+            (
+                int(neighbor_movie_id),
+                float(similarity),
+                int(support),
+            )
+        )
+
+    return rows_by_source
 
 
 def _rating_to_weight(rating: int) -> float:
