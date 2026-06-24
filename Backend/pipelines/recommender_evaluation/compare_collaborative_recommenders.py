@@ -32,6 +32,10 @@ from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationRequest,
     CollaborativeUserRating,
 )
+from app.recommenders.collaborative.algorithms.popularity_baseline.storage import (
+    get_popularity_baseline_artifacts,
+    load_popularity_baseline_manifest,
+)
 
 
 @dataclass(frozen=True)
@@ -136,35 +140,41 @@ def main() -> None:
     selected_rows = select_best_variant_per_algorithm(rows)
     overall_winner = max(selected_rows, key=lambda item: item["decisionScore"])
 
-    write_json(output_dir / "evaluation_cases.json", [
-        {
-            "caseId": case.case_id,
-            "userId": case.user_id,
-            "ratings": [
-                {
-                    "movieId": rating.movie_id,
-                    "rating": rating.rating,
-                }
-                for rating in case.ratings
-            ],
-            "holdoutMovieIds": case.holdout_movie_ids,
-        }
-        for case in evaluation_cases
-    ])
+    write_json(
+        output_dir / "evaluation_cases.json",
+        [
+            {
+                "caseId": case.case_id,
+                "userId": case.user_id,
+                "ratings": [
+                    {
+                        "movieId": rating.movie_id,
+                        "rating": rating.rating,
+                    }
+                    for rating in case.ratings
+                ],
+                "holdoutMovieIds": case.holdout_movie_ids,
+            }
+            for case in evaluation_cases
+        ],
+    )
     write_json(output_dir / "variant_metrics.json", rows)
     write_json(output_dir / "selected_variants.json", selected_rows)
-    write_json(output_dir / "comparison_summary.json", {
-        "runId": run_id,
-        "startedAt": started_at.isoformat(),
-        "caseCount": len(evaluation_cases),
-        "limit": args.limit,
-        "runtimeRepeats": args.runtime_repeats,
-        "apiRepeats": args.api_repeats,
-        "skipApi": args.skip_api,
-        "selectionWeights": selection_weights(),
-        "selectedVariants": selected_rows,
-        "overallWinner": overall_winner,
-    })
+    write_json(
+        output_dir / "comparison_summary.json",
+        {
+            "runId": run_id,
+            "startedAt": started_at.isoformat(),
+            "caseCount": len(evaluation_cases),
+            "limit": args.limit,
+            "runtimeRepeats": args.runtime_repeats,
+            "apiRepeats": args.api_repeats,
+            "skipApi": args.skip_api,
+            "selectionWeights": selection_weights(),
+            "selectedVariants": selected_rows,
+            "overallWinner": overall_winner,
+        },
+    )
 
     write_csv(output_dir / "variant_metrics.csv", rows)
     write_csv(output_dir / "selected_variants.csv", selected_rows)
@@ -235,7 +245,9 @@ def build_evaluation_cases(
         rng.shuffle(negatives)
 
         holdout_rows = positives[:holdout_count]
-        input_positive_rows = positives[holdout_count:holdout_count + min_positive_input]
+        input_positive_rows = positives[
+            holdout_count : holdout_count + min_positive_input
+        ]
         input_rows = list(input_positive_rows)
 
         if negatives:
@@ -313,13 +325,15 @@ def load_evaluated_recommenders(
     *,
     requested_variants: list[str] | None,
 ) -> list[EvaluatedRecommender]:
+    baseline_manifest = load_popularity_baseline_manifest()
+
     recommenders = [
         EvaluatedRecommender(
             algorithm_id=PopularityBaselineRecommender.algorithm_id,
             algorithm_label=PopularityBaselineRecommender.algorithm_label,
             variant_id="default",
             recommender=PopularityBaselineRecommender(),
-            manifest={},
+            manifest=baseline_manifest,
         )
     ]
 
@@ -362,18 +376,25 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
     parameters = evaluated.manifest.get("parameters", {})
 
     if evaluated.algorithm_id == "popularity_baseline":
+        artifacts = get_popularity_baseline_artifacts()
+        ranking_sqlite_size_mb = file_size_mb(artifacts.ranking_sqlite_path)
+
         return {
             "topK": None,
             "minSupport": None,
-            "buildTimeSeconds": 0,
+            "buildTimeSeconds": counts.get("buildTimeSeconds", 0),
             "ratings": None,
             "users": None,
-            "publicMovies": None,
+            "publicMovies": counts.get("publicCandidates"),
             "supportMovies": None,
-            "modelMovies": None,
+            "modelMovies": counts.get("rankedMovies"),
             "neighborRows": 0,
             "neighborsCsvSizeMb": 0,
             "neighborsSqliteSizeMb": 0,
+            "rankingRows": counts.get("rankedMovies"),
+            "rankingCsvSizeMb": file_size_mb(artifacts.ranking_csv_path),
+            "rankingSqliteSizeMb": ranking_sqlite_size_mb,
+            "modelArtifactSizeMb": ranking_sqlite_size_mb,
         }
 
     variant_dir = (
@@ -383,6 +404,7 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
     )
     csv_path = variant_dir / "neighbors.csv"
     sqlite_path = variant_dir / "neighbors.sqlite"
+    neighbors_sqlite_size_mb = file_size_mb(sqlite_path)
 
     return {
         "topK": parameters.get("topK"),
@@ -395,7 +417,11 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
         "modelMovies": counts.get("modelMovies"),
         "neighborRows": counts.get("generatedNeighborRows"),
         "neighborsCsvSizeMb": file_size_mb(csv_path),
-        "neighborsSqliteSizeMb": file_size_mb(sqlite_path),
+        "neighborsSqliteSizeMb": neighbors_sqlite_size_mb,
+        "rankingRows": 0,
+        "rankingCsvSizeMb": 0,
+        "rankingSqliteSizeMb": 0,
+        "modelArtifactSizeMb": neighbors_sqlite_size_mb,
     }
 
 
@@ -408,10 +434,16 @@ def benchmark_runtime_and_quality(
     runtime_repeats: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     timings_ms: list[float] = []
+    personalized_runtime_ms: list[float] = []
+    fallback_runtime_ms: list[float] = []
+    total_runtime_details_ms: list[float] = []
+
     recommendations_returned: list[int] = []
     discarded_non_public: list[int] = []
     discarded_rated: list[int] = []
     missing_sources: list[int] = []
+    fallback_used_values: list[int] = []
+    fallback_recommendations_added: list[int] = []
 
     quality_accumulator = QualityAccumulator(
         public_movie_count=public_movie_count,
@@ -426,7 +458,16 @@ def benchmark_runtime_and_quality(
             result = evaluated.recommender.recommend(request)
             elapsed_ms = (time.perf_counter() - started) * 1000
 
+            details = result.recommender_details.details
+
             timings_ms.append(elapsed_ms)
+            personalized_runtime_ms.append(
+                float(details.get("personalizedRuntimeMs", elapsed_ms))
+            )
+            fallback_runtime_ms.append(float(details.get("fallbackRuntimeMs", 0.0)))
+            total_runtime_details_ms.append(
+                float(details.get("totalRuntimeMs", elapsed_ms))
+            )
 
             if repeat_index == 0:
                 recommended_ids = [item.movie_id for item in result.recommendations]
@@ -435,11 +476,31 @@ def benchmark_runtime_and_quality(
                     recommended_movie_ids=recommended_ids,
                 )
 
-                details = result.recommender_details.details
-                recommendations_returned.append(len(result.recommendations))
-                discarded_non_public.append(int(details.get("discardedNonPublicCandidates", 0)))
+                recommendation_count = len(result.recommendations)
+                fallback_added = int(details.get("fallbackRecommendationsAdded", 0))
+
+                recommendations_returned.append(recommendation_count)
+                fallback_recommendations_added.append(fallback_added)
+                fallback_used_values.append(
+                    1 if bool(details.get("fallbackUsed", False)) else 0
+                )
+                discarded_non_public.append(
+                    int(details.get("discardedNonPublicCandidates", 0))
+                )
                 discarded_rated.append(int(details.get("discardedRatedCandidates", 0)))
                 missing_sources.append(int(details.get("missingSourceNeighborRows", 0)))
+
+    fallback_used_cases = sum(fallback_used_values)
+    cases_below_limit = sum(
+        1
+        for recommendation_count in recommendations_returned
+        if recommendation_count < limit
+    )
+    zero_recommendation_cases = sum(
+        1
+        for recommendation_count in recommendations_returned
+        if recommendation_count == 0
+    )
 
     runtime_metrics = {
         "runtimeRuns": len(timings_ms),
@@ -448,7 +509,29 @@ def benchmark_runtime_and_quality(
         "p95RuntimeMs": round_float(percentile(timings_ms, 95)),
         "p99RuntimeMs": round_float(percentile(timings_ms, 99)),
         "maxRuntimeMs": round_float(max(timings_ms)),
+        "avgPersonalizedRuntimeMs": round_float(mean(personalized_runtime_ms)),
+        "avgFallbackRuntimeMs": round_float(mean(fallback_runtime_ms)),
+        "avgTotalRuntimeMs": round_float(mean(total_runtime_details_ms)),
         "avgRecommendationsReturned": round_float(mean(recommendations_returned)),
+        "minRecommendationsReturned": (
+            min(recommendations_returned) if recommendations_returned else 0
+        ),
+        "zeroRecommendationCases": zero_recommendation_cases,
+        "casesBelowLimit": cases_below_limit,
+        "casesBelowLimitPct": (
+            round_float(cases_below_limit / len(recommendations_returned) * 100)
+            if recommendations_returned
+            else 0.0
+        ),
+        "fallbackUsedCases": fallback_used_cases,
+        "fallbackUsedPct": (
+            round_float(fallback_used_cases / len(fallback_used_values) * 100)
+            if fallback_used_values
+            else 0.0
+        ),
+        "avgFallbackRecommendationsAdded": round_float(
+            mean(fallback_recommendations_added)
+        ),
         "avgDiscardedNonPublicCandidates": round_float(mean(discarded_non_public)),
         "avgDiscardedRatedCandidates": round_float(mean(discarded_rated)),
         "avgMissingSourceNeighborRows": round_float(mean(missing_sources)),
@@ -472,6 +555,12 @@ def benchmark_api(
     recommendations_returned: list[int] = []
     status_code_errors = 0
 
+    api_personalized_runtime_ms: list[float] = []
+    api_fallback_runtime_ms: list[float] = []
+    api_total_runtime_ms: list[float] = []
+    api_fallback_used_values: list[int] = []
+    api_fallback_recommendations_added: list[int] = []
+
     for _ in range(api_repeats):
         for case in cases:
             started = time.perf_counter()
@@ -489,7 +578,33 @@ def benchmark_api(
                 continue
 
             payload = response.json()
-            recommendations_returned.append(len(payload.get("recommendations", [])))
+            details = payload.get("recommenderDetails", {}).get("details", {})
+
+            recommendation_count = len(payload.get("recommendations", []))
+            fallback_added = int(details.get("fallbackRecommendationsAdded", 0))
+
+            recommendations_returned.append(recommendation_count)
+            api_personalized_runtime_ms.append(
+                float(details.get("personalizedRuntimeMs", 0.0))
+            )
+            api_fallback_runtime_ms.append(float(details.get("fallbackRuntimeMs", 0.0)))
+            api_total_runtime_ms.append(float(details.get("totalRuntimeMs", 0.0)))
+            api_fallback_recommendations_added.append(fallback_added)
+            api_fallback_used_values.append(
+                1 if bool(details.get("fallbackUsed", False)) else 0
+            )
+
+    api_fallback_used_cases = sum(api_fallback_used_values)
+    api_cases_below_limit = sum(
+        1
+        for recommendation_count in recommendations_returned
+        if recommendation_count < limit
+    )
+    api_zero_recommendation_cases = sum(
+        1
+        for recommendation_count in recommendations_returned
+        if recommendation_count == 0
+    )
 
     return {
         "apiRuns": len(timings_ms),
@@ -501,6 +616,28 @@ def benchmark_api(
         "avgResponseSizeKb": round_float(mean(response_sizes_kb)),
         "avgApiRecommendationsReturned": round_float(mean(recommendations_returned)),
         "statusCodeErrorCount": status_code_errors,
+        "avgApiPersonalizedRuntimeMs": round_float(mean(api_personalized_runtime_ms)),
+        "avgApiFallbackRuntimeMs": round_float(mean(api_fallback_runtime_ms)),
+        "avgApiTotalRuntimeMs": round_float(mean(api_total_runtime_ms)),
+        "apiFallbackUsedCases": api_fallback_used_cases,
+        "apiFallbackUsedPct": (
+            round_float(api_fallback_used_cases / len(api_fallback_used_values) * 100)
+            if api_fallback_used_values
+            else 0.0
+        ),
+        "avgApiFallbackRecommendationsAdded": round_float(
+            mean(api_fallback_recommendations_added)
+        ),
+        "minApiRecommendationsReturned": (
+            min(recommendations_returned) if recommendations_returned else 0
+        ),
+        "apiZeroRecommendationCases": api_zero_recommendation_cases,
+        "apiCasesBelowLimit": api_cases_below_limit,
+        "apiCasesBelowLimitPct": (
+            round_float(api_cases_below_limit / len(recommendations_returned) * 100)
+            if recommendations_returned
+            else 0.0
+        ),
     }
 
 
@@ -515,6 +652,16 @@ def empty_api_metrics() -> dict[str, Any]:
         "avgResponseSizeKb": None,
         "avgApiRecommendationsReturned": None,
         "statusCodeErrorCount": None,
+        "avgApiPersonalizedRuntimeMs": None,
+        "avgApiFallbackRuntimeMs": None,
+        "avgApiTotalRuntimeMs": None,
+        "apiFallbackUsedCases": None,
+        "apiFallbackUsedPct": None,
+        "avgApiFallbackRecommendationsAdded": None,
+        "minApiRecommendationsReturned": None,
+        "apiZeroRecommendationCases": None,
+        "apiCasesBelowLimit": None,
+        "apiCasesBelowLimitPct": None,
     }
 
 
@@ -560,9 +707,7 @@ class QualityAccumulator:
 
     def metrics(self) -> dict[str, Any]:
         coverage_pct = (
-            len(self.unique_recommended_movie_ids)
-            / self.public_movie_count
-            * 100
+            len(self.unique_recommended_movie_ids) / self.public_movie_count * 100
         )
 
         return {
@@ -637,7 +782,7 @@ def add_decision_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     recall_scores = normalize_higher_is_better(rows, "recallAt10")
     coverage_scores = normalize_higher_is_better(rows, "catalogCoveragePct")
     latency_scores = normalize_lower_is_better(rows, "p95ApiMs")
-    size_scores = normalize_lower_is_better(rows, "neighborsSqliteSizeMb")
+    size_scores = normalize_lower_is_better(rows, "modelArtifactSizeMb")
 
     scored_rows = []
     for index, row in enumerate(rows):
@@ -646,7 +791,7 @@ def add_decision_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             + weights["recallAt10"] * recall_scores[index]
             + weights["catalogCoveragePct"] * coverage_scores[index]
             + weights["p95ApiMs"] * latency_scores[index]
-            + weights["neighborsSqliteSizeMb"] * size_scores[index]
+            + weights["modelArtifactSizeMb"] * size_scores[index]
         )
 
         scored_row = dict(row)
@@ -662,7 +807,7 @@ def selection_weights() -> dict[str, float]:
         "recallAt10": 0.25,
         "catalogCoveragePct": 0.15,
         "p95ApiMs": 0.10,
-        "neighborsSqliteSizeMb": 0.05,
+        "modelArtifactSizeMb": 0.05,
     }
 
 
@@ -690,10 +835,7 @@ def normalize(values: list[float]) -> list[float]:
     if maximum == minimum:
         return [1.0 for _ in values]
 
-    return [
-        (value - minimum) / (maximum - minimum)
-        for value in values
-    ]
+    return [(value - minimum) / (maximum - minimum) for value in values]
 
 
 def numeric_value(value: object) -> float:
