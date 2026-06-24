@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from dataclasses import dataclass, field
 
 from app.catalog.catalog_repository import catalog_repository
@@ -10,19 +11,22 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.storage import (
     get_item_knn_cosine_variant_artifacts,
     load_item_knn_cosine_manifest,
 )
-from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
-from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
-    CollaborativeRecommendationResult,
-    CollaborativeRecommendedMovie,
-    CollaborativeRecommenderDetails,
+from app.recommenders.collaborative.algorithms.popularity_baseline.recommender import (
+    PopularityBaselineRecommender,
 )
+from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
 from app.recommenders.collaborative.common.explanations.explanations import (
     CollaborativeExplanationContribution,
     build_collaborative_explanation,
 )
 from app.recommenders.collaborative.common.explanations.profile_style import (
     infer_collaborative_profile_style,
+)
+from app.recommenders.collaborative.common.models import (
+    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationResult,
+    CollaborativeRecommendedMovie,
+    CollaborativeRecommenderDetails,
 )
 
 
@@ -56,11 +60,13 @@ class ItemKnnCosineRecommender:
         self._model_variant_id = model_variant_id
         self._artifacts = get_item_knn_cosine_variant_artifacts(model_variant_id)
         self._manifest = self._load_manifest()
+        self._fallback_recommender = PopularityBaselineRecommender()
 
     def recommend(
         self,
         request: CollaborativeRecommendationRequest,
     ) -> CollaborativeRecommendationResult:
+        total_started_at = time.perf_counter()
         self._validate_artifacts()
 
         rated_movie_ids = {rating.movie_id for rating in request.ratings}
@@ -74,6 +80,8 @@ class ItemKnnCosineRecommender:
         discarded_rated_candidates = 0
         ignored_neutral_ratings = 0
         missing_source_neighbor_rows = 0
+
+        personalized_started_at = time.perf_counter()
 
         connection = sqlite3.connect(self._artifacts.neighbors_sqlite_path)
         try:
@@ -172,6 +180,28 @@ class ItemKnnCosineRecommender:
             )
         ]
 
+        personalized_runtime_ms = _elapsed_ms(personalized_started_at)
+        personalized_recommendations = len(recommendations)
+
+        fallback_runtime_ms = 0.0
+        fallback_recommendations_added = 0
+
+        if len(recommendations) < request.limit:
+            fallback_started_at = time.perf_counter()
+            excluded_movie_ids = {item.movie_id for item in recommendations}
+            fallback_recommendations = self._fallback_recommender.recommend_fillers(
+                rated_movie_ids=rated_movie_ids,
+                excluded_movie_ids=excluded_movie_ids,
+                limit=request.limit - len(recommendations),
+                start_rank=len(recommendations) + 1,
+                fallback=True,
+            )
+            fallback_runtime_ms = _elapsed_ms(fallback_started_at)
+            fallback_recommendations_added = len(fallback_recommendations)
+            recommendations.extend(fallback_recommendations)
+
+        total_runtime_ms = _elapsed_ms(total_started_at)
+
         return CollaborativeRecommendationResult(
             recommendations=recommendations,
             recommender_details=CollaborativeRecommenderDetails(
@@ -181,12 +211,24 @@ class ItemKnnCosineRecommender:
                 is_explainable=True,
                 status="ready",
                 model_version=self._manifest.get("modelVersion"),
+                timing_ms=round(total_runtime_ms, 6),
                 details={
                     "modelVariant": self._model_variant_id,
                     "candidatePolicy": "public_movies_only",
                     "similarity": "cosine",
                     "ratingMode": "raw_explicit_ratings",
                     "profileStyle": profile_style,
+                    "personalizedRecommendations": personalized_recommendations,
+                    "fallbackUsed": fallback_recommendations_added > 0,
+                    "fallbackAlgorithm": (
+                        PopularityBaselineRecommender.algorithm_id
+                        if fallback_recommendations_added > 0
+                        else None
+                    ),
+                    "fallbackRecommendationsAdded": fallback_recommendations_added,
+                    "personalizedRuntimeMs": round(personalized_runtime_ms, 6),
+                    "fallbackRuntimeMs": round(fallback_runtime_ms, 6),
+                    "totalRuntimeMs": round(total_runtime_ms, 6),
                     "discardedNonPublicCandidates": discarded_non_public_candidates,
                     "discardedRatedCandidates": discarded_rated_candidates,
                     "ignoredNeutralRatings": ignored_neutral_ratings,
@@ -240,6 +282,7 @@ def _build_algorithm_details(candidate: CandidateScore) -> dict:
             if candidate.similarity_sum != 0
             else 0.0
         ),
+        "fallback": False,
         "contributingMovies": [
             {
                 "movieId": contribution.source_movie_id,
@@ -254,3 +297,5 @@ def _build_algorithm_details(candidate: CandidateScore) -> dict:
     }
 
 
+def _elapsed_ms(started_at: float) -> float:
+    return (time.perf_counter() - started_at) * 1000

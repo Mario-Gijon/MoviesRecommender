@@ -1,4 +1,13 @@
-from app.catalog.catalog_repository import catalog_repository
+from app.recommenders.collaborative.algorithms.popularity_baseline.models import (
+    ALGORITHM_ID,
+    ALGORITHM_LABEL,
+    PopularityRankingEntry,
+)
+from app.recommenders.collaborative.algorithms.popularity_baseline.storage import (
+    load_popularity_baseline_manifest,
+    load_popularity_ranking,
+)
+from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
 from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationExplanation,
     CollaborativeRecommendationRequest,
@@ -9,42 +18,28 @@ from app.recommenders.collaborative.common.models import (
 
 
 class PopularityBaselineRecommender:
-    algorithm_id = "popularity_baseline"
-    algorithm_label = "Popularity baseline"
+    algorithm_id = ALGORITHM_ID
+    algorithm_label = ALGORITHM_LABEL
+
+    def __init__(self) -> None:
+        self._ranking: list[PopularityRankingEntry] | None = None
+        self._manifest: dict | None = None
 
     def recommend(
         self,
         request: CollaborativeRecommendationRequest,
     ) -> CollaborativeRecommendationResult:
         rated_movie_ids = {rating.movie_id for rating in request.ratings}
-        candidates = [
-            movie
-            for movie in catalog_repository.get_recommendation_candidates()
-            if int(movie["movieId"]) not in rated_movie_ids
-        ]
 
-        scored_candidates = [
-            _score_movie(movie)
-            for movie in candidates
-            if _has_rating_signal(movie)
-        ]
-        scored_candidates.sort(key=lambda item: item["score"], reverse=True)
+        recommendations = self.recommend_fillers(
+            rated_movie_ids=rated_movie_ids,
+            excluded_movie_ids=set(),
+            limit=request.limit,
+            start_rank=1,
+            fallback=False,
+        )
 
-        recommendations = [
-            CollaborativeRecommendedMovie(
-                movie_id=int(item["movie"]["movieId"]),
-                rank=rank,
-                score=round(float(item["score"]), 6),
-                explanation=_build_explanation(item["movie"]),
-                algorithm_details={
-                    "averageRating": item["averageRating"],
-                    "ratingCount": item["ratingCount"],
-                    "weightedRating": round(float(item["score"]), 6),
-                    "standDisplayScore": item["standDisplayScore"],
-                },
-            )
-            for rank, item in enumerate(scored_candidates[: request.limit], start=1)
-        ]
+        manifest = self._load_manifest()
 
         return CollaborativeRecommendationResult(
             recommendations=recommendations,
@@ -54,8 +49,10 @@ class PopularityBaselineRecommender:
                 is_personalized=False,
                 is_explainable=True,
                 status="ready",
+                model_version=manifest.get("modelVersion"),
                 details={
                     "rankingSignal": "weighted_rating_popularity",
+                    "rankingSource": "precomputed_popularity_ranking",
                     "excludedRatedMovies": len(rated_movie_ids),
                 },
             ),
@@ -63,40 +60,87 @@ class PopularityBaselineRecommender:
             template_session_id=request.template_session_id,
         )
 
+    def recommend_fillers(
+        self,
+        *,
+        rated_movie_ids: set[int],
+        excluded_movie_ids: set[int],
+        limit: int,
+        start_rank: int,
+        fallback: bool = True,
+    ) -> list[CollaborativeRecommendedMovie]:
+        if limit <= 0:
+            return []
 
-def _has_rating_signal(movie: dict) -> bool:
-    rating_count = _rating_count(movie)
-    average_rating = _average_rating(movie)
-    return rating_count > 0 and average_rating > 0
+        recommendations: list[CollaborativeRecommendedMovie] = []
+
+        for entry in self._load_ranking():
+            if entry.movie_id in rated_movie_ids:
+                continue
+
+            if entry.movie_id in excluded_movie_ids:
+                continue
+
+            recommendations.append(
+                CollaborativeRecommendedMovie(
+                    movie_id=entry.movie_id,
+                    rank=start_rank + len(recommendations),
+                    score=round(entry.score, 6),
+                    explanation=(
+                        _build_fallback_explanation(entry)
+                        if fallback
+                        else _build_explanation(entry)
+                    ),
+                    algorithm_details={
+                        "averageRating": entry.average_rating,
+                        "ratingCount": entry.rating_count,
+                        "weightedRating": round(entry.score, 6),
+                        "standDisplayScore": entry.stand_display_score,
+                        "rankingSource": "precomputed_popularity_ranking",
+                        "fallback": fallback,
+                        "fallbackAlgorithm": self.algorithm_id if fallback else None,
+                    },
+                )
+            )
+
+            if len(recommendations) >= limit:
+                break
+
+        return recommendations
+
+    def _load_ranking(self) -> list[PopularityRankingEntry]:
+        if self._ranking is None:
+            try:
+                self._ranking = load_popularity_ranking()
+            except RuntimeError as exc:
+                raise CollaborativeModelArtifactError(
+                    code="popularity_baseline_ranking_missing",
+                    message=str(exc),
+                ) from exc
+
+        return self._ranking
+
+    def _load_manifest(self) -> dict:
+        if self._manifest is None:
+            try:
+                self._manifest = load_popularity_baseline_manifest()
+            except RuntimeError as exc:
+                raise CollaborativeModelArtifactError(
+                    code="popularity_baseline_manifest_missing",
+                    message=str(exc),
+                ) from exc
+
+        return self._manifest
 
 
-def _score_movie(movie: dict) -> dict:
-    rating_count = _rating_count(movie)
-    average_rating = _average_rating(movie)
-    stand_display_score = _float_value(movie.get("standDisplayScore"))
-    confidence = rating_count / (rating_count + 250)
-    weighted_rating = average_rating * confidence
-    normalized_stand_score = stand_display_score / 100 if stand_display_score > 1 else stand_display_score
-    score = weighted_rating * 0.85 + normalized_stand_score * 0.15
-
-    return {
-        "movie": movie,
-        "score": score,
-        "averageRating": average_rating,
-        "ratingCount": rating_count,
-        "standDisplayScore": stand_display_score,
-    }
-
-
-def _build_explanation(movie: dict) -> CollaborativeRecommendationExplanation:
-    rating_count = _rating_count(movie)
-    average_rating = _average_rating(movie)
-
+def _build_explanation(
+    entry: PopularityRankingEntry,
+) -> CollaborativeRecommendationExplanation:
     return CollaborativeRecommendationExplanation(
         headline="Es una recomendación sólida según las valoraciones de la comunidad.",
         reasons=[
-            f"Tiene una valoración media de {average_rating:.2f} sobre 5.",
-            f"La puntuación está respaldada por {rating_count} valoraciones.",
+            f"Tiene una valoración media de {entry.average_rating:.2f} sobre 5.",
+            f"La puntuación está respaldada por {entry.rating_count} valoraciones.",
         ],
         evidence=[
             "Baseline no personalizado basado en popularidad y calidad agregada.",
@@ -104,19 +148,17 @@ def _build_explanation(movie: dict) -> CollaborativeRecommendationExplanation:
     )
 
 
-def _rating_count(movie: dict) -> int:
-    filtered_rating_count = movie.get("filteredRatingCount")
-    rating_count = movie.get("ratingCount")
-    return int(filtered_rating_count or rating_count or 0)
-
-
-def _average_rating(movie: dict) -> float:
-    filtered_average_rating = movie.get("filteredAverageRating")
-    average_rating = movie.get("averageRating")
-    return _float_value(filtered_average_rating or average_rating)
-
-
-def _float_value(value: object) -> float:
-    if value is None:
-        return 0.0
-    return float(value)
+def _build_fallback_explanation(
+    entry: PopularityRankingEntry,
+) -> CollaborativeRecommendationExplanation:
+    return CollaborativeRecommendationExplanation(
+        headline="Completamos la lista con una opción bien valorada por la comunidad.",
+        reasons=[
+            "No había suficientes coincidencias personalizadas para completar todas las recomendaciones.",
+            f"Esta película destaca en el ranking público con una media de {entry.average_rating:.2f} sobre 5.",
+            f"Su posición está respaldada por {entry.rating_count} valoraciones de usuarios.",
+        ],
+        evidence=[
+            "Fallback público basado en ranking agregado de la comunidad.",
+        ],
+    )
