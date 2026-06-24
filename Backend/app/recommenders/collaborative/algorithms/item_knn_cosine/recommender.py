@@ -12,7 +12,6 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.storage import (
 )
 from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationExplanation,
     CollaborativeRecommendationRequest,
     CollaborativeRecommendationResult,
     CollaborativeRecommendedMovie,
@@ -222,46 +221,6 @@ def _rating_to_weight(rating: int) -> float:
     return float(rating - 3)
 
 
-def _build_explanation(
-    candidate: CandidateScore,
-) -> CollaborativeRecommendationExplanation:
-    positive_contributions = [
-        contribution
-        for contribution in candidate.contributions
-        if contribution.contribution > 0
-    ]
-    positive_contributions.sort(
-        key=lambda contribution: contribution.contribution,
-        reverse=True,
-    )
-
-    top_contributions = positive_contributions[:2]
-    source_titles = [
-        _movie_display_title(contribution.source_movie_id)
-        for contribution in top_contributions
-    ]
-
-    if source_titles:
-        headline = "Se parece a películas que valoraste positivamente."
-        reasons = [
-            f"Está relacionada colaborativamente con {', '.join(source_titles)}.",
-            "La similitud se ha calculado usando patrones reales de valoraciones de usuarios.",
-        ]
-    else:
-        headline = "Tiene señales colaborativas compatibles con tus valoraciones."
-        reasons = [
-            "El score combina similitudes item-item calculadas con ratings de usuarios.",
-        ]
-
-    return CollaborativeRecommendationExplanation(
-        headline=headline,
-        reasons=reasons,
-        evidence=[
-            "ItemKNN Cosine sobre vectores de ratings explícitos.",
-        ],
-    )
-
-
 def _build_algorithm_details(candidate: CandidateScore) -> dict:
     top_contributions = sorted(
         candidate.contributions,
@@ -295,6 +254,3 @@ def _build_algorithm_details(candidate: CandidateScore) -> dict:
     }
 
 
-def _movie_display_title(movie_id: int) -> str:
-    movie = catalog_repository.get_public_movie_by_id(movie_id)
-    return str(movie.get("displayTitle") or movie["title"])
