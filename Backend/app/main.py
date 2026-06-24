@@ -10,6 +10,7 @@ from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_AUDIT_DIR,
     OFFLINE_DATASET_POSTERS_DIR,
 )
+from app.api.routes.recommender_audit_routes import router as recommender_audit_router
 
 
 if not OFFLINE_DATASET_POSTERS_DIR.exists():
@@ -37,6 +38,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(catalog_router)
 app.include_router(recommendation_router)
+app.include_router(recommender_audit_router)
 app.mount("/offline/posters", StaticFiles(directory=OFFLINE_DATASET_POSTERS_DIR), name="offline-posters")
 app.mount(
     "/audit",
