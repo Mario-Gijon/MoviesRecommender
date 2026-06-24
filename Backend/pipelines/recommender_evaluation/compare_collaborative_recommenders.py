@@ -14,6 +14,7 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from html import escape
+import shutil
 
 from app.catalog.catalog_repository import catalog_repository
 from app.core.config import settings
@@ -80,10 +81,11 @@ class EvaluatedRecommender:
 def main() -> None:
     args = parse_args()
     started_at = datetime.now(timezone.utc)
-    run_id = started_at.strftime("%Y%m%d_%H%M%S")
+    evaluation_id = started_at.strftime("%Y%m%d_%H%M%S")
+    run_id = "current"
 
     output_dir = RECOMMENDER_AUDIT_DIR / "collaborative_comparison" / run_id
-    output_dir.mkdir(parents=True, exist_ok=False)
+    prepare_output_dir(output_dir)
 
     public_movie_ids = {
         int(movie["movieId"])
@@ -162,6 +164,7 @@ def main() -> None:
     )
     summary = {
         "runId": run_id,
+        "evaluationId": evaluation_id,
         "startedAt": started_at.isoformat(),
         "caseCount": len(evaluation_cases),
         "limit": args.limit,
@@ -296,6 +299,13 @@ def build_evaluation_cases(
         )
 
     return cases
+
+
+def prepare_output_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+
+    path.mkdir(parents=True, exist_ok=False)
 
 
 def load_public_ratings(public_movie_ids: set[int]) -> pd.DataFrame:
@@ -1043,6 +1053,7 @@ def write_markdown_report(
         markdown_key_value_table(
             {
                 "runId": summary["runId"],
+                "evaluationId": summary["evaluationId"],
                 "startedAt": summary["startedAt"],
                 "caseCount": summary["caseCount"],
                 "limit": summary["limit"],
@@ -1366,19 +1377,20 @@ def write_html_report(
     {html_metric_card("Limit", summary["limit"])}
     {html_metric_card("Runtime repeats", summary["runtimeRepeats"])}
     {html_metric_card("API repeats", summary["apiRepeats"])}
+    {html_metric_card("Evaluation ID", summary["evaluationId"])}
   </div>
 
   <section>
     <h2>Generated files</h2>
     <p>Files are generated in the same audit run directory.</p>
     <div class="links">
-      <a href="comparison_summary.json">comparison_summary.json</a>
-      <a href="variant_metrics.csv">variant_metrics.csv</a>
-      <a href="variant_metrics.json">variant_metrics.json</a>
-      <a href="selected_variants.csv">selected_variants.csv</a>
-      <a href="selected_variants.json">selected_variants.json</a>
-      <a href="evaluation_cases.json">evaluation_cases.json</a>
-      <a href="report.md">report.md</a>
+      <a href="/recommender-audit/collaborative/files/comparison_summary.json">comparison_summary.json</a>
+      <a href="/recommender-audit/collaborative/files/variant_metrics.csv">variant_metrics.csv</a>
+      <a href="/recommender-audit/collaborative/files/variant_metrics.json">variant_metrics.json</a>
+      <a href="/recommender-audit/collaborative/files/selected_variants.csv">selected_variants.csv</a>
+      <a href="/recommender-audit/collaborative/files/selected_variants.json">selected_variants.json</a>
+      <a href="/recommender-audit/collaborative/files/evaluation_cases.json">evaluation_cases.json</a>
+      <a href="/recommender-audit/collaborative/files/report.md">report.md</a>
     </div>
   </section>
 
