@@ -13,6 +13,8 @@ from typing import Any
 import pandas as pd
 from fastapi.testclient import TestClient
 
+from html import escape
+
 from app.catalog.catalog_repository import catalog_repository
 from app.core.config import settings
 from app.main import app
@@ -158,26 +160,38 @@ def main() -> None:
             for case in evaluation_cases
         ],
     )
+    summary = {
+        "runId": run_id,
+        "startedAt": started_at.isoformat(),
+        "caseCount": len(evaluation_cases),
+        "limit": args.limit,
+        "runtimeRepeats": args.runtime_repeats,
+        "apiRepeats": args.api_repeats,
+        "skipApi": args.skip_api,
+        "selectionWeights": selection_weights(),
+        "selectedVariants": selected_rows,
+        "highestDecisionScoreVariant": overall_winner,
+    }
+
     write_json(output_dir / "variant_metrics.json", rows)
     write_json(output_dir / "selected_variants.json", selected_rows)
-    write_json(
-        output_dir / "comparison_summary.json",
-        {
-            "runId": run_id,
-            "startedAt": started_at.isoformat(),
-            "caseCount": len(evaluation_cases),
-            "limit": args.limit,
-            "runtimeRepeats": args.runtime_repeats,
-            "apiRepeats": args.api_repeats,
-            "skipApi": args.skip_api,
-            "selectionWeights": selection_weights(),
-            "selectedVariants": selected_rows,
-            "overallWinner": overall_winner,
-        },
-    )
+    write_json(output_dir / "comparison_summary.json", summary)
 
     write_csv(output_dir / "variant_metrics.csv", rows)
     write_csv(output_dir / "selected_variants.csv", selected_rows)
+
+    write_markdown_report(
+        path=output_dir / "report.md",
+        summary=summary,
+        rows=rows,
+        selected_rows=selected_rows,
+    )
+    write_html_report(
+        path=output_dir / "index.html",
+        summary=summary,
+        rows=rows,
+        selected_rows=selected_rows,
+    )
 
     print()
     print(f"Evaluation completed: {output_dir}")
@@ -907,6 +921,589 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+REPORT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "decisionScore",
+    "buildTimeSeconds",
+    "modelArtifactSizeMb",
+    "neighborRows",
+    "rankingRows",
+    "avgRuntimeMs",
+    "avgPersonalizedRuntimeMs",
+    "avgFallbackRuntimeMs",
+    "avgTotalRuntimeMs",
+    "avgApiMs",
+    "p95ApiMs",
+    "hitRateAt10",
+    "recallAt10",
+    "ndcgAt10",
+    "catalogCoveragePct",
+    "fallbackUsedPct",
+    "minRecommendationsReturned",
+    "zeroRecommendationCases",
+    "casesBelowLimit",
+]
+
+OFFLINE_REPORT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "topK",
+    "minSupport",
+    "buildTimeSeconds",
+    "modelArtifactSizeMb",
+    "neighborsSqliteSizeMb",
+    "rankingSqliteSizeMb",
+    "neighborRows",
+    "rankingRows",
+    "modelMovies",
+    "publicMovies",
+]
+
+RUNTIME_REPORT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "avgRuntimeMs",
+    "p50RuntimeMs",
+    "p95RuntimeMs",
+    "p99RuntimeMs",
+    "maxRuntimeMs",
+    "avgPersonalizedRuntimeMs",
+    "avgFallbackRuntimeMs",
+    "avgTotalRuntimeMs",
+]
+
+API_REPORT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "avgApiMs",
+    "p50ApiMs",
+    "p95ApiMs",
+    "p99ApiMs",
+    "maxApiMs",
+    "avgResponseSizeKb",
+    "statusCodeErrorCount",
+]
+
+QUALITY_REPORT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "evaluationCases",
+    "hitRateAt5",
+    "hitRateAt10",
+    "recallAt5",
+    "recallAt10",
+    "ndcgAt5",
+    "ndcgAt10",
+    "mrrAt10",
+    "catalogCoveragePct",
+    "uniqueRecommendedMovies",
+]
+
+FALLBACK_REPORT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "fallbackUsedCases",
+    "fallbackUsedPct",
+    "avgFallbackRecommendationsAdded",
+    "minRecommendationsReturned",
+    "zeroRecommendationCases",
+    "casesBelowLimit",
+    "casesBelowLimitPct",
+    "apiFallbackUsedCases",
+    "apiFallbackUsedPct",
+    "avgApiFallbackRecommendationsAdded",
+    "minApiRecommendationsReturned",
+    "apiZeroRecommendationCases",
+    "apiCasesBelowLimit",
+    "apiCasesBelowLimitPct",
+]
+
+
+def write_markdown_report(
+    *,
+    path: Path,
+    summary: dict[str, Any],
+    rows: list[dict[str, Any]],
+    selected_rows: list[dict[str, Any]],
+) -> None:
+    sorted_rows = sort_rows_by_decision_score(rows)
+    sorted_selected_rows = sort_rows_by_algorithm(selected_rows)
+
+    content = [
+        "# Collaborative recommender evaluation",
+        "",
+        "This report presents measured values from a collaborative recommender evaluation run.",
+        "It does not add manual conclusions; rows are shown from generated metrics.",
+        "",
+        "## Run configuration",
+        "",
+        markdown_key_value_table(
+            {
+                "runId": summary["runId"],
+                "startedAt": summary["startedAt"],
+                "caseCount": summary["caseCount"],
+                "limit": summary["limit"],
+                "runtimeRepeats": summary["runtimeRepeats"],
+                "apiRepeats": summary["apiRepeats"],
+                "skipApi": summary["skipApi"],
+            }
+        ),
+        "",
+        "## Decision score weights",
+        "",
+        markdown_key_value_table(summary["selectionWeights"]),
+        "",
+        "## Decision score ranking",
+        "",
+        "Rows are sorted by `decisionScore` using the configured weights above.",
+        "",
+        markdown_rows_table(sorted_rows, REPORT_COLUMNS),
+        "",
+        "## Selected variants by algorithm",
+        "",
+        "Selected variants are the highest `decisionScore` rows per `algorithmId`.",
+        "",
+        markdown_rows_table(sorted_selected_rows, REPORT_COLUMNS),
+        "",
+        "## Offline/build metrics",
+        "",
+        markdown_rows_table(sorted_rows, OFFLINE_REPORT_COLUMNS),
+        "",
+        "## Runtime metrics",
+        "",
+        markdown_rows_table(sorted_rows, RUNTIME_REPORT_COLUMNS),
+        "",
+        "## API metrics",
+        "",
+        markdown_rows_table(sorted_rows, API_REPORT_COLUMNS),
+        "",
+        "## Quality metrics",
+        "",
+        markdown_rows_table(sorted_rows, QUALITY_REPORT_COLUMNS),
+        "",
+        "## Fallback and recommendation-count metrics",
+        "",
+        markdown_rows_table(sorted_rows, FALLBACK_REPORT_COLUMNS),
+        "",
+        "## Generated files",
+        "",
+        "- `comparison_summary.json`",
+        "- `variant_metrics.json`",
+        "- `variant_metrics.csv`",
+        "- `selected_variants.json`",
+        "- `selected_variants.csv`",
+        "- `evaluation_cases.json`",
+        "- `index.html`",
+        "",
+    ]
+
+    path.write_text("\n".join(content), encoding="utf-8")
+
+
+def write_html_report(
+    *,
+    path: Path,
+    summary: dict[str, Any],
+    rows: list[dict[str, Any]],
+    selected_rows: list[dict[str, Any]],
+) -> None:
+    sorted_rows = sort_rows_by_decision_score(rows)
+    sorted_selected_rows = sort_rows_by_algorithm(selected_rows)
+
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Collaborative recommender evaluation {escape(str(summary["runId"]))}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+    :root {{
+      color-scheme: dark;
+      --bg: #08111f;
+      --bg-soft: #0b1526;
+      --panel: #101a2f;
+      --panel-strong: #14213b;
+      --panel-soft: #17243d;
+      --text: #eaf2ff;
+      --muted: #9fb1c9;
+      --border: rgba(148, 163, 184, 0.24);
+      --border-strong: rgba(103, 217, 255, 0.32);
+      --blue: #4da3ff;
+      --gold: #e3b341;
+      --cyan: #67d9ff;
+      --red: #ff6b6b;
+      --green: #6bd6a7;
+      --shadow: rgba(0, 0, 0, 0.32);
+    }}
+
+    * {{
+      box-sizing: border-box;
+    }}
+
+    body {{
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(77, 163, 255, 0.16), transparent 34rem),
+        radial-gradient(circle at top right, rgba(227, 179, 65, 0.10), transparent 28rem),
+        linear-gradient(180deg, #08111f 0%, #0a1221 46%, #070d18 100%);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }}
+
+    main {{
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 34px;
+    }}
+
+    header {{
+      margin-bottom: 24px;
+      padding: 26px 28px;
+      border: 1px solid var(--border-strong);
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(77, 163, 255, 0.16), rgba(16, 26, 47, 0.88)),
+        var(--panel);
+      box-shadow: 0 22px 70px var(--shadow);
+    }}
+
+    h1 {{
+      margin: 0 0 8px;
+      font-size: 32px;
+      letter-spacing: -0.04em;
+      line-height: 1.08;
+    }}
+
+    h2 {{
+      margin: 0 0 14px;
+      font-size: 20px;
+      letter-spacing: -0.025em;
+    }}
+
+    p {{
+      margin: 0 0 12px;
+      color: var(--muted);
+    }}
+
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 20px 0;
+    }}
+
+    .metric-card {{
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+        var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 15px 17px;
+      box-shadow: 0 14px 44px rgba(0, 0, 0, 0.18);
+    }}
+
+    .metric-label {{
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }}
+
+    .metric-value {{
+      font-weight: 800;
+      font-size: 18px;
+      color: var(--text);
+    }}
+
+    section {{
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+        var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 22px;
+      margin: 18px 0;
+      box-shadow: 0 18px 56px rgba(0, 0, 0, 0.24);
+    }}
+
+    .table-wrap {{
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(8, 17, 31, 0.48);
+    }}
+
+    .table-wrap::-webkit-scrollbar {{
+      height: 11px;
+    }}
+
+    .table-wrap::-webkit-scrollbar-track {{
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+    }}
+
+    .table-wrap::-webkit-scrollbar-thumb {{
+      background: rgba(103, 217, 255, 0.36);
+      border-radius: 999px;
+    }}
+
+    .table-wrap::-webkit-scrollbar-thumb:hover {{
+      background: rgba(103, 217, 255, 0.56);
+    }}
+
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1080px;
+      font-size: 13px;
+    }}
+
+    th, td {{
+      padding: 11px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }}
+
+    th:first-child,
+    td:first-child,
+    th:nth-child(2),
+    td:nth-child(2) {{
+      text-align: left;
+    }}
+
+    th {{
+      background:
+        linear-gradient(180deg, rgba(77, 163, 255, 0.22), rgba(77, 163, 255, 0.10)),
+        var(--panel-strong);
+      color: #dbeafe;
+      font-weight: 800;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      border-bottom: 1px solid var(--border-strong);
+    }}
+
+    tbody tr {{
+      background: rgba(16, 26, 47, 0.62);
+    }}
+
+    tbody tr:nth-child(even) {{
+      background: rgba(23, 36, 61, 0.62);
+    }}
+
+    tbody tr:hover {{
+      background: rgba(77, 163, 255, 0.13);
+    }}
+
+    tr:last-child td {{
+      border-bottom: 0;
+    }}
+
+    code {{
+      background: rgba(103, 217, 255, 0.12);
+      color: #c8f4ff;
+      padding: 2px 7px;
+      border: 1px solid rgba(103, 217, 255, 0.22);
+      border-radius: 8px;
+    }}
+
+    .links a {{
+      display: inline-flex;
+      align-items: center;
+      margin: 5px 9px 5px 0;
+      padding: 8px 11px;
+      color: #dbeafe;
+      background: rgba(77, 163, 255, 0.12);
+      border: 1px solid rgba(77, 163, 255, 0.28);
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 13px;
+    }}
+
+    .links a:hover {{
+      background: rgba(77, 163, 255, 0.22);
+      border-color: rgba(103, 217, 255, 0.48);
+    }}
+
+    @media (max-width: 760px) {{
+      main {{
+        padding: 18px;
+      }}
+
+      header,
+      section {{
+        border-radius: 18px;
+      }}
+
+      h1 {{
+        font-size: 26px;
+      }}
+    }}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Collaborative recommender evaluation</h1>
+    <p>This page presents measured values from a generated evaluation run. It does not add manual conclusions.</p>
+  </header>
+
+  <div class="grid">
+    {html_metric_card("Run ID", summary["runId"])}
+    {html_metric_card("Started at", summary["startedAt"])}
+    {html_metric_card("Cases", summary["caseCount"])}
+    {html_metric_card("Limit", summary["limit"])}
+    {html_metric_card("Runtime repeats", summary["runtimeRepeats"])}
+    {html_metric_card("API repeats", summary["apiRepeats"])}
+  </div>
+
+  <section>
+    <h2>Generated files</h2>
+    <p>Files are generated in the same audit run directory.</p>
+    <div class="links">
+      <a href="comparison_summary.json">comparison_summary.json</a>
+      <a href="variant_metrics.csv">variant_metrics.csv</a>
+      <a href="variant_metrics.json">variant_metrics.json</a>
+      <a href="selected_variants.csv">selected_variants.csv</a>
+      <a href="selected_variants.json">selected_variants.json</a>
+      <a href="evaluation_cases.json">evaluation_cases.json</a>
+      <a href="report.md">report.md</a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decision score weights</h2>
+    {html_key_value_table(summary["selectionWeights"])}
+  </section>
+
+  <section>
+    <h2>Decision score ranking</h2>
+    <p>Rows are sorted by <code>decisionScore</code> using the configured weights above.</p>
+    {html_rows_table(sorted_rows, REPORT_COLUMNS)}
+  </section>
+
+  <section>
+    <h2>Selected variants by algorithm</h2>
+    <p>Selected variants are the highest <code>decisionScore</code> rows per <code>algorithmId</code>.</p>
+    {html_rows_table(sorted_selected_rows, REPORT_COLUMNS)}
+  </section>
+
+  <section>
+    <h2>Offline/build metrics</h2>
+    {html_rows_table(sorted_rows, OFFLINE_REPORT_COLUMNS)}
+  </section>
+
+  <section>
+    <h2>Runtime metrics</h2>
+    {html_rows_table(sorted_rows, RUNTIME_REPORT_COLUMNS)}
+  </section>
+
+  <section>
+    <h2>API metrics</h2>
+    {html_rows_table(sorted_rows, API_REPORT_COLUMNS)}
+  </section>
+
+  <section>
+    <h2>Quality metrics</h2>
+    {html_rows_table(sorted_rows, QUALITY_REPORT_COLUMNS)}
+  </section>
+
+  <section>
+    <h2>Fallback and recommendation-count metrics</h2>
+    {html_rows_table(sorted_rows, FALLBACK_REPORT_COLUMNS)}
+  </section>
+</main>
+</body>
+</html>
+"""
+
+    path.write_text(html, encoding="utf-8")
+
+
+def sort_rows_by_decision_score(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: numeric_value(row.get("decisionScore")),
+        reverse=True,
+    )
+
+
+def sort_rows_by_algorithm(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (str(row.get("algorithmId")), str(row.get("variantId"))),
+    )
+
+
+def markdown_key_value_table(values: dict[str, Any]) -> str:
+    rows = [{"key": key, "value": value} for key, value in values.items()]
+    return markdown_rows_table(rows, ["key", "value"])
+
+
+def markdown_rows_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
+    header = "| " + " | ".join(columns) + " |"
+    separator = "| " + " | ".join("---" for _ in columns) + " |"
+    body = [
+        "| " + " | ".join(markdown_value(row.get(column)) for column in columns) + " |"
+        for row in rows
+    ]
+
+    return "\n".join([header, separator, *body])
+
+
+def markdown_value(value: object) -> str:
+    formatted = format_report_value(value)
+    return formatted.replace("|", "\\|")
+
+
+def html_metric_card(label: str, value: object) -> str:
+    return (
+        '<div class="metric-card">'
+        f'<span class="metric-label">{escape(label)}</span>'
+        f'<span class="metric-value">{escape(format_report_value(value))}</span>'
+        "</div>"
+    )
+
+
+def html_key_value_table(values: dict[str, Any]) -> str:
+    rows = [{"key": key, "value": value} for key, value in values.items()]
+    return html_rows_table(rows, ["key", "value"])
+
+
+def html_rows_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
+    header = "".join(f"<th>{escape(column)}</th>" for column in columns)
+    body_rows = []
+
+    for row in rows:
+        cells = "".join(
+            f"<td>{escape(format_report_value(row.get(column)))}</td>"
+            for column in columns
+        )
+        body_rows.append(f"<tr>{cells}</tr>")
+
+    body = "".join(body_rows)
+    return f'<div class="table-wrap"><table><thead><tr>{header}</tr></thead><tbody>{body}</tbody></table></div>'
+
+
+def format_report_value(value: object) -> str:
+    if value is None:
+        return ""
+
+    if isinstance(value, float):
+        return f"{value:.6f}".rstrip("0").rstrip(".")
+
+    return str(value)
 
 
 if __name__ == "__main__":
