@@ -87,7 +87,6 @@ def write_model_manifest(
             "validationRatio": config.validation_ratio,
             "randomSeed": config.random_seed,
             "chunksize": config.chunksize,
-            "batchSize": config.batch_size,
             "initStd": config.init_std,
             "minRating": config.min_rating,
             "maxRating": config.max_rating,

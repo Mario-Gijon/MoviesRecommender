@@ -78,14 +78,14 @@ def build_biased_matrix_factorization_model(
     ).astype(np.float32)
 
     epoch_metrics: list[dict[str, Any]] = []
-    best_epoch = 0
+    best_checkpoint_epoch = 0
     best_validation_rmse = float("inf")
     best_validation_mae = float("inf")
     best_user_biases: np.ndarray | None = None
     best_movie_biases: np.ndarray | None = None
     best_user_factors: np.ndarray | None = None
     best_movie_factors: np.ndarray | None = None
-    best_validation_improved_at_epoch = 0
+    last_significant_improvement_epoch = 0
     stopped_early = False
     stopped_at_epoch: int | None = None
 
@@ -151,17 +151,17 @@ def build_biased_matrix_factorization_model(
             previous_best_validation_rmse - float(validation_rmse)
         ) > config.min_validation_improvement
 
+        if is_patience_improvement:
+            last_significant_improvement_epoch = epoch
+
         if is_absolute_best:
-            best_epoch = epoch
+            best_checkpoint_epoch = epoch
             best_validation_rmse = float(validation_rmse)
             best_validation_mae = float(validation_mae)
             best_user_biases = user_biases.copy()
             best_movie_biases = movie_biases.copy()
             best_user_factors = user_factors.copy()
             best_movie_factors = movie_factors.copy()
-
-        if is_patience_improvement:
-            best_validation_improved_at_epoch = epoch
 
         print(
             "Epoch",
@@ -175,7 +175,7 @@ def build_biased_matrix_factorization_model(
 
         if (
             config.early_stopping_patience is not None
-            and epoch - best_validation_improved_at_epoch
+            and epoch - last_significant_improvement_epoch
             >= config.early_stopping_patience
         ):
             stopped_early = True
@@ -183,8 +183,8 @@ def build_biased_matrix_factorization_model(
             print(
                 "Early stopping triggered at epoch",
                 epoch,
-                "best_epoch=",
-                best_epoch,
+                "best_checkpoint_epoch=",
+                best_checkpoint_epoch,
                 "best_validation_rmse=",
                 f"{best_validation_rmse:.6f}",
             )
@@ -228,9 +228,10 @@ def build_biased_matrix_factorization_model(
         training_metrics={
             "config": _config_to_dict(config),
             "savedModelSelection": "best_validation_rmse",
-            "savedEpoch": best_epoch,
+            "savedEpoch": best_checkpoint_epoch,
             "epochMetrics": epoch_metrics,
-            "bestEpoch": best_epoch,
+            "bestEpoch": best_checkpoint_epoch,
+            "bestCheckpointEpoch": best_checkpoint_epoch,
             "bestValidationRmse": round(best_validation_rmse, 6),
             "bestValidationMae": round(best_validation_mae, 6),
             "finalTrainRmse": final_epoch_metrics["trainRmse"],
@@ -240,6 +241,7 @@ def build_biased_matrix_factorization_model(
             "earlyStoppingEnabled": config.early_stopping_patience is not None,
             "earlyStoppingPatience": config.early_stopping_patience,
             "minValidationImprovement": config.min_validation_improvement,
+            "lastSignificantImprovementEpoch": last_significant_improvement_epoch,
             "stoppedEarly": stopped_early,
             "stoppedAtEpoch": stopped_at_epoch,
             "completedEpochs": completed_epochs,
@@ -258,9 +260,10 @@ def build_biased_matrix_factorization_model(
     )
 
     training_metrics_summary = {
-        "bestEpoch": best_epoch,
-        "savedEpoch": best_epoch,
+        "bestEpoch": best_checkpoint_epoch,
+        "savedEpoch": best_checkpoint_epoch,
         "savedModelSelection": "best_validation_rmse",
+        "bestCheckpointEpoch": best_checkpoint_epoch,
         "bestValidationRmse": round(best_validation_rmse, 6),
         "bestValidationMae": round(best_validation_mae, 6),
         "finalValidationRmse": final_epoch_metrics["validationRmse"],
@@ -279,7 +282,7 @@ def build_biased_matrix_factorization_model(
     print("Biased Matrix Factorization training completed.")
     print(f"Status: trained")
     print(f"Runtime status: not_implemented")
-    print(f"Best epoch: {best_epoch}")
+    print(f"Best epoch: {best_checkpoint_epoch}")
     print(f"Best validation RMSE: {best_validation_rmse:.6f}")
     print(f"Best validation MAE: {best_validation_mae:.6f}")
     print(f"Elapsed seconds: {elapsed_seconds}")
@@ -299,8 +302,6 @@ def _validate_config(config: BiasedMatrixFactorizationBuildConfig) -> None:
         raise ValueError("validation_ratio must be between 0 and 1.")
     if config.chunksize <= 0:
         raise ValueError("chunksize must be greater than 0.")
-    if config.batch_size <= 0:
-        raise ValueError("batch_size must be greater than 0.")
     if config.init_std <= 0:
         raise ValueError("init_std must be greater than 0.")
     if config.min_rating >= config.max_rating:
@@ -520,7 +521,6 @@ def _config_to_dict(config: BiasedMatrixFactorizationBuildConfig) -> dict[str, A
         "validationRatio": config.validation_ratio,
         "randomSeed": config.random_seed,
         "chunksize": config.chunksize,
-        "batchSize": config.batch_size,
         "initStd": config.init_std,
         "minRating": config.min_rating,
         "maxRating": config.max_rating,
@@ -538,7 +538,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-ratio", type=float, default=0.1)
     parser.add_argument("--random-seed", type=int, default=42)
     parser.add_argument("--chunksize", type=int, default=500_000)
-    parser.add_argument("--batch-size", type=int, default=8192)
     parser.add_argument("--init-std", type=float, default=0.05)
     parser.add_argument("--early-stopping-patience", type=int, default=None)
     parser.add_argument("--min-validation-improvement", type=float, default=0.0)
@@ -558,7 +557,6 @@ def main() -> None:
             random_seed=args.random_seed,
             overwrite=args.overwrite,
             chunksize=args.chunksize,
-            batch_size=args.batch_size,
             init_std=args.init_std,
             early_stopping_patience=args.early_stopping_patience,
             min_validation_improvement=args.min_validation_improvement,
