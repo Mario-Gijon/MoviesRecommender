@@ -12,6 +12,12 @@ from app.recommenders.collaborative.common.base import CollaborativeRecommender
 from app.recommenders.collaborative.common.errors import (
     CollaborativeAlgorithmNotAvailableError,
 )
+from app.recommenders.collaborative.algorithms.biased_matrix_factorization.models import (
+    BiasedMatrixFactorizationRuntimeConfig,
+)
+from app.recommenders.collaborative.algorithms.biased_matrix_factorization.recommender import (
+    BiasedMatrixFactorizationRecommender,
+)
 
 
 COLLABORATIVE_RECOMMENDER_REGISTRY: dict[str, CollaborativeRecommender] = {
@@ -20,6 +26,11 @@ COLLABORATIVE_RECOMMENDER_REGISTRY: dict[str, CollaborativeRecommender] = {
         model_variant_id=settings.active_collaborative_model_variant,
     ),
     UserKnnPearsonShrinkageRecommender.algorithm_id: UserKnnPearsonShrinkageRecommender(),
+    BiasedMatrixFactorizationRecommender.algorithm_id: BiasedMatrixFactorizationRecommender(
+        runtime_config=BiasedMatrixFactorizationRuntimeConfig(
+            variant_id=settings.biased_matrix_factorization_model_variant,
+        ),
+    ),
 }
 
 

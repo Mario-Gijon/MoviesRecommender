@@ -30,6 +30,7 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.recommender impor
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.models import (
     ALGORITHM_ID as BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID,
     ALGORITHM_LABEL as BIASED_MATRIX_FACTORIZATION_ALGORITHM_LABEL,
+    BMF_SCORING_MODES,
     BiasedMatrixFactorizationRuntimeConfig,
 )
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.recommender import (
@@ -100,6 +101,7 @@ class EvaluatedRecommender:
     variant_id: str
     recommender: object
     manifest: dict[str, Any]
+    artifact_variant_id: str | None = None
 
 
 def main() -> None:
@@ -399,8 +401,6 @@ def load_evaluated_recommenders(
                 continue
 
             variant_id = variant_dir.name
-            if requested_variants and variant_id not in requested_variants:
-                continue
 
             manifest_path = variant_dir / "model_manifest.json"
             if not manifest_path.exists():
@@ -422,21 +422,54 @@ def load_evaluated_recommenders(
                 )
                 continue
 
-            recommenders.append(
-                EvaluatedRecommender(
-                    algorithm_id=BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID,
-                    algorithm_label=BIASED_MATRIX_FACTORIZATION_ALGORITHM_LABEL,
-                    variant_id=variant_id,
-                    recommender=BiasedMatrixFactorizationRecommender(
-                        runtime_config=BiasedMatrixFactorizationRuntimeConfig(
-                            variant_id=variant_id
-                        )
-                    ),
-                    manifest=manifest,
+            for scoring_mode, movie_bias_weight in _iter_bmf_runtime_variants():
+                runtime_variant_id = _build_bmf_runtime_variant_id(
+                    artifact_variant_id=variant_id,
+                    scoring_mode=scoring_mode,
+                    movie_bias_weight=movie_bias_weight,
                 )
-            )
+                if requested_variants and (
+                    runtime_variant_id not in requested_variants
+                    and variant_id not in requested_variants
+                ):
+                    continue
+
+                recommenders.append(
+                    EvaluatedRecommender(
+                        algorithm_id=BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID,
+                        algorithm_label=BIASED_MATRIX_FACTORIZATION_ALGORITHM_LABEL,
+                        variant_id=runtime_variant_id,
+                        recommender=BiasedMatrixFactorizationRecommender(
+                            runtime_config=BiasedMatrixFactorizationRuntimeConfig(
+                                variant_id=variant_id,
+                                scoring_mode=scoring_mode,
+                                movie_bias_weight=movie_bias_weight,
+                            )
+                        ),
+                        manifest=manifest,
+                        artifact_variant_id=variant_id,
+                    )
+                )
 
     return recommenders
+
+
+def _iter_bmf_runtime_variants() -> list[tuple[str, float]]:
+    return [(scoring_mode, 0.25) for scoring_mode in BMF_SCORING_MODES]
+
+
+def _build_bmf_runtime_variant_id(
+    *,
+    artifact_variant_id: str,
+    scoring_mode: str,
+    movie_bias_weight: float,
+) -> str:
+    if scoring_mode == "hybrid_personalized_bias":
+        return (
+            f"{artifact_variant_id}__score_{scoring_mode}_"
+            f"{format_float_token(movie_bias_weight)}"
+        )
+    return f"{artifact_variant_id}__score_{scoring_mode}"
 
 
 def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
@@ -503,10 +536,10 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
     if evaluated.algorithm_id == BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID:
         config = evaluated.manifest.get("config", {})
         counts = evaluated.manifest.get("counts", {})
-        variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / evaluated.algorithm_id / evaluated.variant_id
+        runtime_config = getattr(evaluated.recommender, "_runtime_config")
         return {
             "buildTimeSeconds": counts.get("buildTimeSeconds"),
-            "modelArtifactSizeMb": None,
+            "modelArtifactSizeMb": counts.get("modelArtifactSizeMb"),
             "ratings": counts.get("ratings"),
             "users": counts.get("users"),
             "publicMovies": counts.get("publicMovies"),
@@ -527,7 +560,7 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             "shrinkage": None,
             "minCandidateNeighborCount": None,
             "candidateShrinkage": None,
-            "minPredictionScore": config.get("minPredictionScore"),
+            "minPredictionScore": runtime_config.min_prediction_score,
         }
 
     variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / evaluated.algorithm_id / evaluated.variant_id
@@ -1005,6 +1038,11 @@ def file_size_mb(path: Path) -> float:
     if not path.exists():
         return 0.0
     return round(path.stat().st_size / 1024 / 1024, 3)
+
+
+def format_float_token(value: float) -> str:
+    token = f"{value:.12g}"
+    return token.replace("-", "neg_").replace(".", "_")
 
 
 def mean(values: list[float] | list[int]) -> float:

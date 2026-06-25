@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     tmdb_bearer_token: str | None = None
     active_collaborative_algorithm: str = "popularity_baseline"
     active_collaborative_model_variant: str = "top_k_50_min_support_25"
+    biased_matrix_factorization_model_variant: str = (
+        "factors_128_epochs_100_lr_0_005_reg_0_02"
+    )
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

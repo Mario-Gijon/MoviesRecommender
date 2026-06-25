@@ -1,10 +1,23 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 
 ALGORITHM_ID = "biased_matrix_factorization"
 ALGORITHM_LABEL = "Biased Matrix Factorization"
 MODEL_VERSION = "1"
+BmfScoringMode = Literal[
+    "predicted_rating",
+    "personalized_lift",
+    "latent_affinity",
+    "hybrid_personalized_bias",
+]
+BMF_SCORING_MODES: tuple[BmfScoringMode, ...] = (
+    "predicted_rating",
+    "personalized_lift",
+    "latent_affinity",
+    "hybrid_personalized_bias",
+)
 
 
 @dataclass(frozen=True)
@@ -38,10 +51,12 @@ class BiasedMatrixFactorizationBuildConfig:
 @dataclass(frozen=True)
 class BiasedMatrixFactorizationRuntimeConfig:
     variant_id: str
-    session_inference_steps: int = 10
+    session_inference_steps: int = 25
     session_learning_rate: float = 0.01
     session_regularization: float = 0.05
     min_prediction_score: float = 3.0
+    scoring_mode: BmfScoringMode = "predicted_rating"
+    movie_bias_weight: float = 0.25
 
 
 @dataclass(frozen=True)
@@ -61,3 +76,12 @@ class BiasedMatrixFactorizationArtifacts:
 def _format_float_token(value: float) -> str:
     token = f"{value:.12g}"
     return token.replace("-", "neg_").replace(".", "_")
+
+
+@dataclass(frozen=True)
+class BmfRatingPrediction:
+    prediction_available: bool
+    predicted_rating_raw: float | None
+    predicted_rating_regularized: float | None
+    usable_rating_count: int
+    prediction_runtime_ms: float
