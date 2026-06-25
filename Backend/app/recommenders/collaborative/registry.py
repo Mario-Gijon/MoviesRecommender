@@ -5,6 +5,9 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.recommender impor
 from app.recommenders.collaborative.algorithms.popularity_baseline.recommender import (
     PopularityBaselineRecommender,
 )
+from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.recommender import (
+    UserKnnPearsonShrinkageRecommender,
+)
 from app.recommenders.collaborative.common.base import CollaborativeRecommender
 from app.recommenders.collaborative.common.errors import (
     CollaborativeAlgorithmNotAvailableError,
@@ -16,6 +19,7 @@ COLLABORATIVE_RECOMMENDER_REGISTRY: dict[str, CollaborativeRecommender] = {
     ItemKnnCosineRecommender.algorithm_id: ItemKnnCosineRecommender(
         model_variant_id=settings.active_collaborative_model_variant,
     ),
+    UserKnnPearsonShrinkageRecommender.algorithm_id: UserKnnPearsonShrinkageRecommender(),
 }
 
 
