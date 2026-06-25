@@ -32,3 +32,13 @@ class UserKnnPearsonShrinkageArtifacts:
     ratings_sqlite_path: Path
     user_stats_csv_path: Path
     manifest_path: Path
+
+
+@dataclass(frozen=True)
+class UserKnnRatingPrediction:
+    prediction_available: bool
+    predicted_rating_raw: float | None
+    predicted_rating_regularized: float | None
+    neighbor_count: int
+    candidate_confidence: float | None
+    prediction_runtime_ms: float

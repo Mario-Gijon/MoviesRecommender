@@ -10,6 +10,7 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.recommender i
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.models import (
     ALGORITHM_ID,
     ALGORITHM_LABEL,
+    UserKnnRatingPrediction,
     UserKnnPearsonShrinkageRuntimeConfig,
 )
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.storage import (
@@ -101,6 +102,16 @@ class UserKnnCandidateScore:
         )
 
 
+@dataclass
+class UserKnnPersonalizedState:
+    ignored_neutral_ratings: int
+    neighbor_similarities: list[NeighborSimilarity] = field(default_factory=list)
+    candidate_scores: dict[int, UserKnnCandidateScore] = field(default_factory=dict)
+    overlap_rating_rows: int = 0
+    public_candidate_rating_rows: int = 0
+    candidate_users_considered: int = 0
+
+
 class UserKnnPearsonShrinkageRecommender:
     algorithm_id = ALGORITHM_ID
     algorithm_label = ALGORITHM_LABEL
@@ -125,56 +136,14 @@ class UserKnnPearsonShrinkageRecommender:
         rated_movie_ids = {rating.movie_id for rating in request.ratings}
         profile_style = infer_collaborative_profile_style(request.ratings)
 
-        effective_ratings = _build_effective_ratings(
-            request=request,
-            active_rating_center=self._runtime_config.active_rating_center,
-        )
-        ignored_neutral_ratings = len(request.ratings) - len(effective_ratings)
-
         personalized_started_at = time.perf_counter()
-
-        neighbor_similarities: list[NeighborSimilarity] = []
-        candidate_scores: dict[int, UserKnnCandidateScore] = {}
-        overlap_rating_rows = 0
-        public_candidate_rating_rows = 0
-        candidate_users_considered = 0
-
-        if effective_ratings:
-            overlap_rows = _load_overlap_rows(
-                sqlite_path=self._artifacts.ratings_sqlite_path,
-                source_movie_ids=[
-                    movie_id
-                    for movie_id, _, _ in effective_ratings
-                ],
-            )
-            overlap_rating_rows = len(overlap_rows)
-
-            neighbor_accumulators = _build_neighbor_accumulators(
-                overlap_rows=overlap_rows,
-                effective_ratings=effective_ratings,
-            )
-            candidate_users_considered = len(neighbor_accumulators)
-
-            neighbor_similarities = _select_neighbors(
-                neighbor_accumulators=neighbor_accumulators,
-                config=self._runtime_config,
-            )
-
-            if neighbor_similarities:
-                public_candidate_rows = _load_public_candidate_rows(
-                    sqlite_path=self._artifacts.ratings_sqlite_path,
-                    neighbor_user_ids=[
-                        neighbor.user_id
-                        for neighbor in neighbor_similarities
-                    ],
-                )
-                public_candidate_rating_rows = len(public_candidate_rows)
-
-                candidate_scores = _build_candidate_scores(
-                    public_candidate_rows=public_candidate_rows,
-                    neighbor_similarities=neighbor_similarities,
-                    rated_movie_ids=rated_movie_ids,
-                )
+        personalized_state = self._build_personalized_state(request)
+        ignored_neutral_ratings = personalized_state.ignored_neutral_ratings
+        neighbor_similarities = personalized_state.neighbor_similarities
+        candidate_scores = personalized_state.candidate_scores
+        overlap_rating_rows = personalized_state.overlap_rating_rows
+        public_candidate_rating_rows = personalized_state.public_candidate_rating_rows
+        candidate_users_considered = personalized_state.candidate_users_considered
 
         ranked_candidates = []
         filtered_low_support_candidates = 0
@@ -329,6 +298,102 @@ class UserKnnPearsonShrinkageRecommender:
                     f"{self._artifacts.ratings_sqlite_path}"
                 ),
             )
+
+    def predict_rating_for_movie(
+        self,
+        request: CollaborativeRecommendationRequest,
+        movie_id: int,
+    ) -> UserKnnRatingPrediction:
+        started_at = time.perf_counter()
+        self._validate_artifacts()
+
+        candidate = self._build_personalized_state(request).candidate_scores.get(movie_id)
+        if candidate is None:
+            return UserKnnRatingPrediction(
+                prediction_available=False,
+                predicted_rating_raw=None,
+                predicted_rating_regularized=None,
+                neighbor_count=0,
+                candidate_confidence=None,
+                prediction_runtime_ms=round(_elapsed_ms(started_at), 6),
+            )
+
+        return UserKnnRatingPrediction(
+            prediction_available=True,
+            predicted_rating_raw=round(
+                candidate.predicted_rating(
+                    rating_center=self._runtime_config.active_rating_center,
+                ),
+                6,
+            ),
+            predicted_rating_regularized=round(
+                candidate.regularized_score(
+                    rating_center=self._runtime_config.active_rating_center,
+                    candidate_shrinkage=self._runtime_config.candidate_shrinkage,
+                ),
+                6,
+            ),
+            neighbor_count=candidate.neighbor_count,
+            candidate_confidence=round(
+                candidate.candidate_confidence(
+                    candidate_shrinkage=self._runtime_config.candidate_shrinkage,
+                ),
+                6,
+            ),
+            prediction_runtime_ms=round(_elapsed_ms(started_at), 6),
+        )
+
+    def _build_personalized_state(
+        self,
+        request: CollaborativeRecommendationRequest,
+    ) -> UserKnnPersonalizedState:
+        effective_ratings = _build_effective_ratings(
+            request=request,
+            active_rating_center=self._runtime_config.active_rating_center,
+        )
+
+        state = UserKnnPersonalizedState(
+            ignored_neutral_ratings=len(request.ratings) - len(effective_ratings),
+        )
+        if not effective_ratings:
+            return state
+
+        overlap_rows = _load_overlap_rows(
+            sqlite_path=self._artifacts.ratings_sqlite_path,
+            source_movie_ids=[
+                movie_id
+                for movie_id, _, _ in effective_ratings
+            ],
+        )
+        state.overlap_rating_rows = len(overlap_rows)
+
+        neighbor_accumulators = _build_neighbor_accumulators(
+            overlap_rows=overlap_rows,
+            effective_ratings=effective_ratings,
+        )
+        state.candidate_users_considered = len(neighbor_accumulators)
+        state.neighbor_similarities = _select_neighbors(
+            neighbor_accumulators=neighbor_accumulators,
+            config=self._runtime_config,
+        )
+
+        if not state.neighbor_similarities:
+            return state
+
+        public_candidate_rows = _load_public_candidate_rows(
+            sqlite_path=self._artifacts.ratings_sqlite_path,
+            neighbor_user_ids=[
+                neighbor.user_id
+                for neighbor in state.neighbor_similarities
+            ],
+        )
+        state.public_candidate_rating_rows = len(public_candidate_rows)
+        state.candidate_scores = _build_candidate_scores(
+            public_candidate_rows=public_candidate_rows,
+            neighbor_similarities=state.neighbor_similarities,
+            rated_movie_ids={rating.movie_id for rating in request.ratings},
+        )
+        return state
 
 
 def _build_effective_ratings(

@@ -18,8 +18,6 @@ ALLOWED_AUDIT_FILES = {
     "comparison_summary.json": "application/json",
     "variant_metrics.json": "application/json",
     "variant_metrics.csv": "text/csv",
-    "selected_variants.json": "application/json",
-    "selected_variants.csv": "text/csv",
     "evaluation_cases.json": "application/json",
 }
 
