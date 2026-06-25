@@ -145,8 +145,13 @@ def build_biased_matrix_factorization_model(
         }
         epoch_metrics.append(epoch_metric)
 
-        validation_improvement = best_validation_rmse - float(validation_rmse)
-        if validation_improvement > config.min_validation_improvement:
+        previous_best_validation_rmse = best_validation_rmse
+        is_absolute_best = float(validation_rmse) < best_validation_rmse
+        is_patience_improvement = (
+            previous_best_validation_rmse - float(validation_rmse)
+        ) > config.min_validation_improvement
+
+        if is_absolute_best:
             best_epoch = epoch
             best_validation_rmse = float(validation_rmse)
             best_validation_mae = float(validation_mae)
@@ -154,6 +159,8 @@ def build_biased_matrix_factorization_model(
             best_movie_biases = movie_biases.copy()
             best_user_factors = user_factors.copy()
             best_movie_factors = movie_factors.copy()
+
+        if is_patience_improvement:
             best_validation_improved_at_epoch = epoch
 
         print(
