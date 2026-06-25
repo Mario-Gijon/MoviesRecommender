@@ -27,6 +27,14 @@ from app.recommenders.collaborative import registry as collaborative_registry
 from app.recommenders.collaborative.algorithms.item_knn_cosine.recommender import (
     ItemKnnCosineRecommender,
 )
+from app.recommenders.collaborative.algorithms.biased_matrix_factorization.models import (
+    ALGORITHM_ID as BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID,
+    ALGORITHM_LABEL as BIASED_MATRIX_FACTORIZATION_ALGORITHM_LABEL,
+    BiasedMatrixFactorizationRuntimeConfig,
+)
+from app.recommenders.collaborative.algorithms.biased_matrix_factorization.recommender import (
+    BiasedMatrixFactorizationRecommender,
+)
 from app.recommenders.collaborative.algorithms.popularity_baseline.recommender import (
     PopularityBaselineRecommender,
 )
@@ -381,6 +389,47 @@ def load_evaluated_recommenders(
             )
         )
 
+    biased_mf_dir = (
+        COLLABORATIVE_RECOMMENDER_MODELS_DIR
+        / BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID
+    )
+    if biased_mf_dir.exists():
+        for variant_dir in sorted(biased_mf_dir.iterdir()):
+            if not variant_dir.is_dir():
+                continue
+
+            variant_id = variant_dir.name
+            if requested_variants and variant_id not in requested_variants:
+                continue
+
+            manifest_path = variant_dir / "model_manifest.json"
+            if not manifest_path.exists():
+                continue
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest.get("status") != "ready":
+                print(
+                    "Skipping biased_matrix_factorization variant",
+                    variant_id,
+                    "because manifest status is not ready:",
+                    manifest.get("status"),
+                )
+                continue
+
+            recommenders.append(
+                EvaluatedRecommender(
+                    algorithm_id=BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID,
+                    algorithm_label=BIASED_MATRIX_FACTORIZATION_ALGORITHM_LABEL,
+                    variant_id=variant_id,
+                    recommender=BiasedMatrixFactorizationRecommender(
+                        runtime_config=BiasedMatrixFactorizationRuntimeConfig(
+                            variant_id=variant_id
+                        )
+                    ),
+                    manifest=manifest,
+                )
+            )
+
     return recommenders
 
 
@@ -443,6 +492,36 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             "minCandidateNeighborCount": getattr(evaluated.recommender, "_runtime_config").min_candidate_neighbor_count,
             "candidateShrinkage": getattr(evaluated.recommender, "_runtime_config").candidate_shrinkage,
             "minPredictionScore": getattr(evaluated.recommender, "_runtime_config").min_prediction_score,
+        }
+
+    if evaluated.algorithm_id == BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID:
+        config = evaluated.manifest.get("config", {})
+        counts = evaluated.manifest.get("counts", {})
+        variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / evaluated.algorithm_id / evaluated.variant_id
+        return {
+            "buildTimeSeconds": counts.get("buildTimeSeconds"),
+            "modelArtifactSizeMb": None,
+            "ratings": counts.get("ratings"),
+            "users": counts.get("users"),
+            "publicMovies": counts.get("publicMovies"),
+            "supportMovies": counts.get("supportMovies"),
+            "modelMovies": counts.get("modelMovies"),
+            "neighborRows": None,
+            "rankingRows": None,
+            "topK": None,
+            "minSupport": None,
+            "neighborsCsvSizeMb": None,
+            "neighborsSqliteSizeMb": None,
+            "rankingCsvSizeMb": None,
+            "rankingSqliteSizeMb": None,
+            "ratingsSqliteSizeMb": None,
+            "userStatsCsvSizeMb": None,
+            "topNeighbors": None,
+            "minOverlap": None,
+            "shrinkage": None,
+            "minCandidateNeighborCount": None,
+            "candidateShrinkage": None,
+            "minPredictionScore": config.get("minPredictionScore"),
         }
 
     variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / evaluated.algorithm_id / evaluated.variant_id
