@@ -17,6 +17,12 @@ class BiasedMatrixFactorizationBuildConfig:
     random_seed: int
     overwrite: bool
     chunksize: int = 500_000
+    batch_size: int = 8192
+    init_std: float = 0.05
+    min_rating: float = 0.5
+    max_rating: float = 5.0
+    early_stopping_patience: int | None = None
+    min_validation_improvement: float = 0.0
 
     @property
     def variant_id(self) -> str:

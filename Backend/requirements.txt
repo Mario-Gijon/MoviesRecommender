@@ -9,3 +9,4 @@ stopwordsiso
 matplotlib
 seaborn
 plotly
+numba==0.65.1

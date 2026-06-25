@@ -407,12 +407,18 @@ def load_evaluated_recommenders(
                 continue
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if manifest.get("status") != "ready":
+            if not (
+                manifest.get("status") == "trained"
+                and manifest.get("runtimeStatus") == "ready"
+            ):
                 print(
                     "Skipping biased_matrix_factorization variant",
                     variant_id,
-                    "because manifest status is not ready:",
+                    "because it is not runtime-ready:",
+                    "status=",
                     manifest.get("status"),
+                    "runtimeStatus=",
+                    manifest.get("runtimeStatus"),
                 )
                 continue
 
