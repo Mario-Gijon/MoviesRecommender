@@ -19,15 +19,21 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.models import (
 
 def get_item_knn_cosine_artifacts(
     config: ItemKnnCosineBuildConfig,
+    artifact_root: Path | None = None,
 ) -> ItemKnnCosineArtifacts:
-    return get_item_knn_cosine_variant_artifacts(config.variant_id)
+    return get_item_knn_cosine_variant_artifacts(
+        config.variant_id,
+        artifact_root=artifact_root,
+    )
 
 
 def get_item_knn_cosine_variant_artifacts(
     variant_id: str,
+    artifact_root: Path | None = None,
 ) -> ItemKnnCosineArtifacts:
+    resolved_artifact_root = artifact_root or COLLABORATIVE_RECOMMENDER_MODELS_DIR
     variant_dir = (
-        COLLABORATIVE_RECOMMENDER_MODELS_DIR
+        resolved_artifact_root
         / ALGORITHM_ID
         / variant_id
     )
@@ -40,8 +46,14 @@ def get_item_knn_cosine_variant_artifacts(
     )
 
 
-def load_item_knn_cosine_manifest(variant_id: str) -> dict[str, Any]:
-    artifacts = get_item_knn_cosine_variant_artifacts(variant_id)
+def load_item_knn_cosine_manifest(
+    variant_id: str,
+    artifact_root: Path | None = None,
+) -> dict[str, Any]:
+    artifacts = get_item_knn_cosine_variant_artifacts(
+        variant_id,
+        artifact_root=artifact_root,
+    )
 
     if not artifacts.manifest_path.exists():
         raise RuntimeError(
@@ -54,8 +66,12 @@ def load_item_knn_cosine_manifest(variant_id: str) -> dict[str, Any]:
 
 def prepare_item_knn_cosine_artifacts(
     config: ItemKnnCosineBuildConfig,
+    artifact_root: Path | None = None,
 ) -> ItemKnnCosineArtifacts:
-    artifacts = get_item_knn_cosine_artifacts(config)
+    artifacts = get_item_knn_cosine_artifacts(
+        config,
+        artifact_root=artifact_root,
+    )
 
     if artifacts.variant_dir.exists():
         if not config.overwrite:

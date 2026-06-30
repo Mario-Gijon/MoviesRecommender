@@ -9,15 +9,14 @@ import pandas as pd
 from scipy import sparse
 from sklearn.preprocessing import normalize
 
-from app.project_paths.dataset_paths import (
-    OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
-    OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
-    OFFLINE_DATASET_MANIFEST_PATH,
-    OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
-)
+from app.project_paths.dataset_paths import OFFLINE_DATASET_MANIFEST_PATH
 from app.recommenders.collaborative.algorithms.item_knn_cosine.models import (
     ItemKnnCosineBuildConfig,
     ItemNeighbor,
+)
+from app.recommenders.collaborative.common.offline_context import (
+    CollaborativeOfflineContext,
+    get_default_collaborative_offline_context,
 )
 from app.recommenders.collaborative.algorithms.item_knn_cosine.storage import (
     ItemNeighborArtifactWriter,
@@ -27,24 +26,35 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.storage import (
 )
 
 
-def build_item_knn_cosine_model(config: ItemKnnCosineBuildConfig) -> None:
+def build_item_knn_cosine_model(
+    config: ItemKnnCosineBuildConfig,
+    *,
+    offline_context: CollaborativeOfflineContext | None = None,
+) -> None:
+    context = offline_context or get_default_collaborative_offline_context()
     _validate_config(config)
-    _validate_input_file(OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH)
-    _validate_input_file(OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH)
-    _validate_input_file(OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH)
+    _validate_input_file(context.ratings_csv_path)
+    _validate_input_file(context.collaborative_support_movies_csv_path)
+    _validate_input_file(context.public_movies_csv_path)
 
     started_at = time.perf_counter()
-    artifacts = prepare_item_knn_cosine_artifacts(config)
+    artifacts = prepare_item_knn_cosine_artifacts(
+        config,
+        artifact_root=context.collaborative_model_artifact_root,
+    )
     dataset_metadata = _load_dataset_metadata()
 
     print(f"Building ItemKNN Cosine variant: {config.variant_id}")
     print(f"Output directory: {artifacts.variant_dir}")
 
-    public_movie_ids = _load_public_movie_ids()
-    support_movie_ids = _load_support_movie_ids()
+    public_movie_ids = _load_public_movie_ids(context)
+    support_movie_ids = _load_support_movie_ids(context)
     model_movie_ids = _merge_movie_ids(public_movie_ids, support_movie_ids)
 
-    ratings = _load_collaborative_ratings(model_movie_ids)
+    ratings = _load_collaborative_ratings(
+        model_movie_ids,
+        context=context,
+    )
 
     rating_matrix, column_movie_ids, user_count = _build_user_item_matrix(
         ratings=ratings,
@@ -125,9 +135,11 @@ def _load_dataset_metadata() -> dict:
     return json.loads(OFFLINE_DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
-def _load_public_movie_ids() -> list[int]:
+def _load_public_movie_ids(
+    context: CollaborativeOfflineContext,
+) -> list[int]:
     public_movies = pd.read_csv(
-        OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
+        context.public_movies_csv_path,
         usecols=["movieId"],
         dtype={"movieId": np.int32},
     )
@@ -140,9 +152,11 @@ def _load_public_movie_ids() -> list[int]:
     return movie_ids
 
 
-def _load_support_movie_ids() -> list[int]:
+def _load_support_movie_ids(
+    context: CollaborativeOfflineContext,
+) -> list[int]:
     support_movies = pd.read_csv(
-        OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH,
+        context.collaborative_support_movies_csv_path,
         usecols=["movieId"],
         dtype={"movieId": np.int32},
     )
@@ -177,11 +191,15 @@ def _merge_movie_ids(
     return model_movie_ids
 
 
-def _load_collaborative_ratings(model_movie_ids: Sequence[int]) -> pd.DataFrame:
+def _load_collaborative_ratings(
+    model_movie_ids: Sequence[int],
+    *,
+    context: CollaborativeOfflineContext,
+) -> pd.DataFrame:
     model_movie_id_set = set(model_movie_ids)
 
     ratings = pd.read_csv(
-        OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
+        context.ratings_csv_path,
         usecols=["userId", "movieId", "rating"],
         dtype={
             "userId": np.int32,

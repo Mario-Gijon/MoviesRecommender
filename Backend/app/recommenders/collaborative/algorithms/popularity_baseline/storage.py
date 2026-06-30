@@ -18,8 +18,11 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.models import
 )
 
 
-def get_popularity_baseline_artifacts() -> PopularityBaselineArtifacts:
-    variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / ALGORITHM_ID / VARIANT_ID
+def get_popularity_baseline_artifacts(
+    artifact_root: Path | None = None,
+) -> PopularityBaselineArtifacts:
+    resolved_artifact_root = artifact_root or COLLABORATIVE_RECOMMENDER_MODELS_DIR
+    variant_dir = resolved_artifact_root / ALGORITHM_ID / VARIANT_ID
 
     return PopularityBaselineArtifacts(
         variant_dir=variant_dir,
@@ -31,8 +34,9 @@ def get_popularity_baseline_artifacts() -> PopularityBaselineArtifacts:
 
 def prepare_popularity_baseline_artifacts(
     config: PopularityBaselineBuildConfig,
+    artifact_root: Path | None = None,
 ) -> PopularityBaselineArtifacts:
-    artifacts = get_popularity_baseline_artifacts()
+    artifacts = get_popularity_baseline_artifacts(artifact_root=artifact_root)
 
     if artifacts.variant_dir.exists():
         if not config.overwrite:
@@ -128,8 +132,10 @@ def write_popularity_ranking(
         connection.close()
 
 
-def load_popularity_ranking() -> list[PopularityRankingEntry]:
-    artifacts = get_popularity_baseline_artifacts()
+def load_popularity_ranking(
+    artifact_root: Path | None = None,
+) -> list[PopularityRankingEntry]:
+    artifacts = get_popularity_baseline_artifacts(artifact_root=artifact_root)
 
     if not artifacts.ranking_sqlite_path.exists():
         raise RuntimeError(
@@ -162,8 +168,10 @@ def load_popularity_ranking() -> list[PopularityRankingEntry]:
     ]
 
 
-def load_popularity_baseline_manifest() -> dict[str, Any]:
-    artifacts = get_popularity_baseline_artifacts()
+def load_popularity_baseline_manifest(
+    artifact_root: Path | None = None,
+) -> dict[str, Any]:
+    artifacts = get_popularity_baseline_artifacts(artifact_root=artifact_root)
 
     if not artifacts.manifest_path.exists():
         raise RuntimeError(

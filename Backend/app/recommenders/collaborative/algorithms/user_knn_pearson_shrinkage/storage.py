@@ -15,8 +15,11 @@ from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.models
 )
 
 
-def get_user_knn_pearson_shrinkage_artifacts() -> UserKnnPearsonShrinkageArtifacts:
-    variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / ALGORITHM_ID / VARIANT_ID
+def get_user_knn_pearson_shrinkage_artifacts(
+    artifact_root: Path | None = None,
+) -> UserKnnPearsonShrinkageArtifacts:
+    resolved_artifact_root = artifact_root or COLLABORATIVE_RECOMMENDER_MODELS_DIR
+    variant_dir = resolved_artifact_root / ALGORITHM_ID / VARIANT_ID
 
     return UserKnnPearsonShrinkageArtifacts(
         variant_dir=variant_dir,
@@ -28,8 +31,11 @@ def get_user_knn_pearson_shrinkage_artifacts() -> UserKnnPearsonShrinkageArtifac
 
 def prepare_user_knn_pearson_shrinkage_artifacts(
     config: UserKnnPearsonShrinkageBuildConfig,
+    artifact_root: Path | None = None,
 ) -> UserKnnPearsonShrinkageArtifacts:
-    artifacts = get_user_knn_pearson_shrinkage_artifacts()
+    artifacts = get_user_knn_pearson_shrinkage_artifacts(
+        artifact_root=artifact_root,
+    )
 
     if artifacts.variant_dir.exists():
         if not config.overwrite:
@@ -44,8 +50,12 @@ def prepare_user_knn_pearson_shrinkage_artifacts(
     return artifacts
 
 
-def load_user_knn_pearson_shrinkage_manifest() -> dict[str, Any]:
-    artifacts = get_user_knn_pearson_shrinkage_artifacts()
+def load_user_knn_pearson_shrinkage_manifest(
+    artifact_root: Path | None = None,
+) -> dict[str, Any]:
+    artifacts = get_user_knn_pearson_shrinkage_artifacts(
+        artifact_root=artifact_root,
+    )
 
     if not artifacts.manifest_path.exists():
         raise RuntimeError(

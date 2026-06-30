@@ -6,9 +6,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.project_paths.dataset_paths import OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.models import (
     BiasedMatrixFactorizationBuildConfig,
+)
+from app.recommenders.collaborative.common.offline_context import (
+    CollaborativeOfflineContext,
+    get_default_collaborative_offline_context,
 )
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.storage import (
     file_size_mb,
@@ -23,17 +26,26 @@ from app.recommenders.collaborative.algorithms.biased_matrix_factorization.train
 
 def build_biased_matrix_factorization_model(
     config: BiasedMatrixFactorizationBuildConfig,
+    *,
+    offline_context: CollaborativeOfflineContext | None = None,
 ) -> None:
+    context = offline_context or get_default_collaborative_offline_context()
     _validate_config(config)
 
     started_at = time.perf_counter()
-    artifacts = prepare_biased_matrix_factorization_artifacts(config)
+    artifacts = prepare_biased_matrix_factorization_artifacts(
+        config,
+        artifact_root=context.collaborative_model_artifact_root,
+    )
 
     print("Building Biased Matrix Factorization model.")
     print(f"Variant: {config.variant_id}")
     print(f"Output directory: {artifacts.variant_dir}")
 
-    ratings_df = _load_ratings_dataframe(chunksize=config.chunksize)
+    ratings_df = _load_ratings_dataframe(
+        chunksize=config.chunksize,
+        ratings_csv_path=context.ratings_csv_path,
+    )
     indexed_ratings = _build_indexed_ratings(ratings_df)
 
     del ratings_df
@@ -312,12 +324,16 @@ def _validate_config(config: BiasedMatrixFactorizationBuildConfig) -> None:
         raise ValueError("min_validation_improvement must be greater than or equal to 0.")
 
 
-def _load_ratings_dataframe(*, chunksize: int) -> pd.DataFrame:
+def _load_ratings_dataframe(
+    *,
+    chunksize: int,
+    ratings_csv_path,
+) -> pd.DataFrame:
     chunks = []
 
     for chunk_index, chunk in enumerate(
         pd.read_csv(
-            OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
+            ratings_csv_path,
             usecols=["userId", "movieId", "rating"],
             dtype={
                 "userId": "int32",

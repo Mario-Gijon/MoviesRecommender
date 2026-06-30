@@ -6,6 +6,10 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.models import
     PopularityBaselineBuildConfig,
     PopularityRankingEntry,
 )
+from app.recommenders.collaborative.common.offline_context import (
+    CollaborativeOfflineContext,
+    get_default_collaborative_offline_context,
+)
 from app.recommenders.collaborative.algorithms.popularity_baseline.storage import (
     file_size_mb,
     prepare_popularity_baseline_artifacts,
@@ -14,9 +18,17 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.storage impor
 )
 
 
-def build_popularity_baseline_model(config: PopularityBaselineBuildConfig) -> None:
+def build_popularity_baseline_model(
+    config: PopularityBaselineBuildConfig,
+    *,
+    offline_context: CollaborativeOfflineContext | None = None,
+) -> None:
+    context = offline_context or get_default_collaborative_offline_context()
     started_at = time.perf_counter()
-    artifacts = prepare_popularity_baseline_artifacts(config)
+    artifacts = prepare_popularity_baseline_artifacts(
+        config,
+        artifact_root=context.collaborative_model_artifact_root,
+    )
 
     print("Building popularity baseline ranking.")
     print(f"Output directory: {artifacts.variant_dir}")

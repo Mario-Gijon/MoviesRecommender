@@ -4,9 +4,9 @@ import time
 
 import pandas as pd
 
-from app.project_paths.dataset_paths import (
-    OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
-    OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
+from app.recommenders.collaborative.common.offline_context import (
+    CollaborativeOfflineContext,
+    get_default_collaborative_offline_context,
 )
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.models import (
     UserKnnPearsonShrinkageBuildConfig,
@@ -20,17 +20,24 @@ from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.storag
 
 def build_user_knn_pearson_shrinkage_model(
     config: UserKnnPearsonShrinkageBuildConfig,
+    *,
+    offline_context: CollaborativeOfflineContext | None = None,
 ) -> None:
+    context = offline_context or get_default_collaborative_offline_context()
     started_at = time.perf_counter()
-    artifacts = prepare_user_knn_pearson_shrinkage_artifacts(config)
+    artifacts = prepare_user_knn_pearson_shrinkage_artifacts(
+        config,
+        artifact_root=context.collaborative_model_artifact_root,
+    )
 
     print("Building UserKNN Pearson Shrinkage runtime artifact.")
     print(f"Output directory: {artifacts.variant_dir}")
 
-    public_movie_ids = _load_public_movie_ids()
+    public_movie_ids = _load_public_movie_ids(context)
 
     user_stats = _build_user_stats(
         chunksize=config.chunksize,
+        ratings_csv_path=context.ratings_csv_path,
     )
     user_stats.to_csv(
         artifacts.user_stats_csv_path,
@@ -43,6 +50,7 @@ def build_user_knn_pearson_shrinkage_model(
         user_stats=user_stats,
         public_movie_ids=public_movie_ids,
         chunksize=config.chunksize,
+        ratings_csv_path=context.ratings_csv_path,
     )
 
     elapsed_seconds = round(time.perf_counter() - started_at, 3)
@@ -68,9 +76,11 @@ def build_user_knn_pearson_shrinkage_model(
     print(f"Elapsed seconds: {elapsed_seconds}")
 
 
-def _load_public_movie_ids() -> set[int]:
+def _load_public_movie_ids(
+    context: CollaborativeOfflineContext,
+) -> set[int]:
     public_movies = pd.read_csv(
-        OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
+        context.public_movies_csv_path,
         usecols=["movieId"],
         dtype={"movieId": "int32"},
     )
@@ -80,10 +90,17 @@ def _load_public_movie_ids() -> set[int]:
 def _build_user_stats(
     *,
     chunksize: int,
+    ratings_csv_path,
 ) -> pd.DataFrame:
     partial_stats = []
 
-    for chunk_index, chunk in enumerate(_read_ratings_chunks(chunksize=chunksize), start=1):
+    for chunk_index, chunk in enumerate(
+        _read_ratings_chunks(
+            chunksize=chunksize,
+            ratings_csv_path=ratings_csv_path,
+        ),
+        start=1,
+    ):
         chunk["ratingSquared"] = chunk["rating"] * chunk["rating"]
 
         grouped = (
@@ -148,6 +165,7 @@ def _build_ratings_sqlite(
     user_stats: pd.DataFrame,
     public_movie_ids: set[int],
     chunksize: int,
+    ratings_csv_path,
 ) -> dict:
     user_mean_by_id = user_stats.set_index("userId")["meanRating"]
 
@@ -162,7 +180,13 @@ def _build_ratings_sqlite(
         distinct_movies: set[int] = set()
         public_movies_with_ratings: set[int] = set()
 
-        for chunk_index, chunk in enumerate(_read_ratings_chunks(chunksize=chunksize), start=1):
+        for chunk_index, chunk in enumerate(
+            _read_ratings_chunks(
+                chunksize=chunksize,
+                ratings_csv_path=ratings_csv_path,
+            ),
+            start=1,
+        ):
             chunk["meanRating"] = chunk["userId"].map(user_mean_by_id)
             chunk = chunk.dropna(subset=["meanRating"]).copy()
 
@@ -213,9 +237,10 @@ def _build_ratings_sqlite(
 def _read_ratings_chunks(
     *,
     chunksize: int,
+    ratings_csv_path,
 ):
     return pd.read_csv(
-        OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
+        ratings_csv_path,
         usecols=["userId", "movieId", "rating"],
         dtype={
             "userId": "int32",

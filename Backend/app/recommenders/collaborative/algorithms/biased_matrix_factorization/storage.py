@@ -16,8 +16,10 @@ from app.recommenders.collaborative.algorithms.biased_matrix_factorization.model
 
 def get_biased_matrix_factorization_variant_artifacts(
     variant_id: str,
+    artifact_root: Path | None = None,
 ) -> BiasedMatrixFactorizationArtifacts:
-    variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / ALGORITHM_ID / variant_id
+    resolved_artifact_root = artifact_root or COLLABORATIVE_RECOMMENDER_MODELS_DIR
+    variant_dir = resolved_artifact_root / ALGORITHM_ID / variant_id
     return BiasedMatrixFactorizationArtifacts(
         variant_dir=variant_dir,
         movie_factors_path=variant_dir / "movie_factors.npy",
@@ -34,8 +36,12 @@ def get_biased_matrix_factorization_variant_artifacts(
 
 def prepare_biased_matrix_factorization_artifacts(
     config: BiasedMatrixFactorizationBuildConfig,
+    artifact_root: Path | None = None,
 ) -> BiasedMatrixFactorizationArtifacts:
-    artifacts = get_biased_matrix_factorization_variant_artifacts(config.variant_id)
+    artifacts = get_biased_matrix_factorization_variant_artifacts(
+        config.variant_id,
+        artifact_root=artifact_root,
+    )
 
     if artifacts.variant_dir.exists():
         if not config.overwrite:
@@ -50,8 +56,14 @@ def prepare_biased_matrix_factorization_artifacts(
     return artifacts
 
 
-def load_biased_matrix_factorization_manifest(variant_id: str) -> dict[str, Any]:
-    artifacts = get_biased_matrix_factorization_variant_artifacts(variant_id)
+def load_biased_matrix_factorization_manifest(
+    variant_id: str,
+    artifact_root: Path | None = None,
+) -> dict[str, Any]:
+    artifacts = get_biased_matrix_factorization_variant_artifacts(
+        variant_id,
+        artifact_root=artifact_root,
+    )
 
     if not artifacts.manifest_path.exists():
         raise RuntimeError(

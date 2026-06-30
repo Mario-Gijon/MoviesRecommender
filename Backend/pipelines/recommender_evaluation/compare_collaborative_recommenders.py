@@ -18,11 +18,6 @@ from fastapi.testclient import TestClient
 from app.catalog.catalog_repository import catalog_repository
 from app.core.config import settings
 from app.main import app
-from app.project_paths.dataset_paths import (
-    COLLABORATIVE_RECOMMENDER_MODELS_DIR,
-    OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
-    RECOMMENDER_AUDIT_DIR,
-)
 from app.recommenders.collaborative import registry as collaborative_registry
 from app.recommenders.collaborative.algorithms.item_knn_cosine.recommender import (
     ItemKnnCosineRecommender,
@@ -57,6 +52,10 @@ from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.storag
 from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationRequest,
     CollaborativeUserRating,
+)
+from app.recommenders.collaborative.common.offline_context import (
+    CollaborativeOfflineContext,
+    get_default_collaborative_offline_context,
 )
 
 
@@ -107,11 +106,12 @@ class EvaluatedRecommender:
 
 def main() -> None:
     args = parse_args()
+    offline_context = get_default_collaborative_offline_context()
     started_at = datetime.now(timezone.utc)
     evaluation_id = started_at.strftime("%Y%m%d_%H%M%S")
     run_id = "current"
 
-    output_dir = RECOMMENDER_AUDIT_DIR / "collaborative_comparison" / run_id
+    output_dir = offline_context.audit_output_root / "collaborative_comparison" / run_id
     prepare_output_dir(output_dir)
 
     public_catalog = catalog_repository.get_recommendation_candidates()
@@ -124,8 +124,12 @@ def main() -> None:
         min_positive_input=args.min_positive_input,
         holdout_count=args.holdout_count,
         seed=args.seed,
+        offline_context=offline_context,
     )
-    recommenders = load_evaluated_recommenders(requested_variants=args.variant)
+    recommenders = load_evaluated_recommenders(
+        requested_variants=args.variant,
+        offline_context=offline_context,
+    )
 
     rows: list[dict[str, Any]] = []
     api_client = TestClient(app)
@@ -160,7 +164,10 @@ def main() -> None:
                 "algorithmLabel": evaluated.algorithm_label,
                 "variantId": evaluated.variant_id,
                 **technical_details(evaluated),
-                **offline_metrics(evaluated),
+                **offline_metrics(
+                    evaluated,
+                    offline_context=offline_context,
+                ),
                 **runtime_and_quality_metrics,
                 **api_metrics,
             }
@@ -239,11 +246,15 @@ def build_evaluation_cases(
     min_positive_input: int,
     holdout_count: int,
     seed: int,
+    offline_context: CollaborativeOfflineContext,
 ) -> list[EvaluationCase]:
     if case_count <= 0:
         raise RuntimeError("--case-count must be greater than 0.")
 
-    ratings = load_public_ratings(public_movie_ids)
+    ratings = load_public_ratings(
+        public_movie_ids,
+        offline_context=offline_context,
+    )
     grouped = ratings.groupby("userId", sort=False)
     user_ids = [int(user_id) for user_id in grouped.groups.keys()]
 
@@ -308,10 +319,14 @@ def prepare_output_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=False)
 
 
-def load_public_ratings(public_movie_ids: set[int]) -> pd.DataFrame:
+def load_public_ratings(
+    public_movie_ids: set[int],
+    *,
+    offline_context: CollaborativeOfflineContext,
+) -> pd.DataFrame:
     chunks = []
     for chunk in pd.read_csv(
-        OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH,
+        offline_context.ratings_csv_path,
         usecols=["userId", "movieId", "rating"],
         dtype={"userId": "int32", "movieId": "int32", "rating": "float32"},
         chunksize=1_000_000,
@@ -342,6 +357,7 @@ def to_app_rating(rating: float) -> int:
 def load_evaluated_recommenders(
     *,
     requested_variants: list[str] | None,
+    offline_context: CollaborativeOfflineContext,
 ) -> list[EvaluatedRecommender]:
     recommenders = [
         EvaluatedRecommender(
@@ -349,11 +365,15 @@ def load_evaluated_recommenders(
             algorithm_label=PopularityBaselineRecommender.algorithm_label,
             variant_id="default",
             recommender=PopularityBaselineRecommender(),
-            manifest=load_popularity_baseline_manifest(),
+            manifest=load_popularity_baseline_manifest(
+                artifact_root=offline_context.collaborative_model_artifact_root,
+            ),
         )
     ]
 
-    item_knn_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / "item_knn_cosine"
+    item_knn_dir = (
+        offline_context.collaborative_model_artifact_root / "item_knn_cosine"
+    )
     if item_knn_dir.exists():
         for variant_dir in sorted(item_knn_dir.iterdir()):
             if not variant_dir.is_dir():
@@ -377,7 +397,9 @@ def load_evaluated_recommenders(
                 )
             )
 
-    user_knn_artifacts = get_user_knn_pearson_shrinkage_artifacts()
+    user_knn_artifacts = get_user_knn_pearson_shrinkage_artifacts(
+        artifact_root=offline_context.collaborative_model_artifact_root,
+    )
     if (
         user_knn_artifacts.manifest_path.exists()
         and user_knn_artifacts.ratings_sqlite_path.exists()
@@ -389,12 +411,14 @@ def load_evaluated_recommenders(
                 algorithm_label=USER_KNN_ALGORITHM_LABEL,
                 variant_id=user_knn_artifacts.variant_dir.name,
                 recommender=UserKnnPearsonShrinkageRecommender(),
-                manifest=load_user_knn_pearson_shrinkage_manifest(),
+                manifest=load_user_knn_pearson_shrinkage_manifest(
+                    artifact_root=offline_context.collaborative_model_artifact_root,
+                ),
             )
         )
 
     biased_mf_dir = (
-        COLLABORATIVE_RECOMMENDER_MODELS_DIR
+        offline_context.collaborative_model_artifact_root
         / BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID
     )
     if biased_mf_dir.exists():
@@ -474,12 +498,18 @@ def _build_bmf_runtime_variant_id(
     return f"{artifact_variant_id}__score_{scoring_mode}"
 
 
-def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
+def offline_metrics(
+    evaluated: EvaluatedRecommender,
+    *,
+    offline_context: CollaborativeOfflineContext,
+) -> dict[str, Any]:
     counts = evaluated.manifest.get("counts", {})
     parameters = evaluated.manifest.get("parameters", {})
 
     if evaluated.algorithm_id == "popularity_baseline":
-        artifacts = get_popularity_baseline_artifacts()
+        artifacts = get_popularity_baseline_artifacts(
+            artifact_root=offline_context.collaborative_model_artifact_root,
+        )
         ranking_csv_size_mb = file_size_mb(artifacts.ranking_csv_path)
         ranking_sqlite_size_mb = file_size_mb(artifacts.ranking_sqlite_path)
         return {
@@ -565,7 +595,11 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             "minPredictionScore": runtime_config.min_prediction_score,
         }
 
-    variant_dir = COLLABORATIVE_RECOMMENDER_MODELS_DIR / evaluated.algorithm_id / evaluated.variant_id
+    variant_dir = (
+        offline_context.collaborative_model_artifact_root
+        / evaluated.algorithm_id
+        / evaluated.variant_id
+    )
     neighbors_csv_size_mb = file_size_mb(variant_dir / "neighbors.csv")
     neighbors_sqlite_size_mb = file_size_mb(variant_dir / "neighbors.sqlite")
     return {
