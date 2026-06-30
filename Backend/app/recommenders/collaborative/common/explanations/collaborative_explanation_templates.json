@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "description": "Backend template bank for collaborative recommendation explanations.",
+  "selection": {
+    "deterministic": true,
+    "recommended_seed_parts": [
+      "templateSessionId",
+      "algorithmId",
+      "variantId",
+      "movieId",
+      "rank",
+      "explanationType",
+      "evidenceStrength",
+      "evidenceMovieIds"
+    ]
+  },
+  "groups": {
+    "item_knn_similar_movies": {
+      "strong": [
+        {
+          "id": "item_knn_strong_001",
+          "text": "Como te gustaron {movies}, esta pelicula tiene bastante sentido en tu lista.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_002",
+          "text": "Esta no sale al azar: varias pelis que te gustaron apuntan hacia ella, como {movies}.",
+          "requires": ["movies"]
+        }
+      ],
+      "medium": [
+        {
+          "id": "item_knn_medium_001",
+          "text": "Esta pelicula encaja con algunas pelis que has valorado bien, como {movies}.",
+          "requires": ["movies"]
+        }
+      ]
+    },
+    "user_knn_similar_profiles": [
+      {
+        "id": "user_knn_strong_001",
+        "text": "Perfiles con gustos parecidos al tuyo tambien disfrutaron esta pelicula.",
+        "requires": [],
+        "strength": "strong"
+      },
+      {
+        "id": "user_knn_medium_001",
+        "text": "Esta recomendacion encaja con valoraciones de personas que se parecen bastante a tu perfil.",
+        "requires": [],
+        "strength": "medium"
+      }
+    ],
+    "bmf_profile_pattern": {
+      "strong": [
+        {
+          "id": "bmf_strong_001",
+          "text": "Esta pelicula encaja bastante con el patron que dejan tus valoraciones.",
+          "requires": []
+        }
+      ],
+      "medium": [
+        {
+          "id": "bmf_medium_001",
+          "text": "Esta pelicula encaja con algunas señales de tus valoraciones.",
+          "requires": []
+        }
+      ]
+    },
+    "popularity_general": {
+      "medium": [
+        {
+          "id": "popularity_medium_001",
+          "text": "Como aun sabemos poco de tus gustos, esta recomendacion se apoya en peliculas que suelen funcionar bien.",
+          "requires": []
+        }
+      ]
+    },
+    "fallback_low_evidence": {
+      "fallback": [
+        {
+          "id": "low_evidence_fallback_001",
+          "text": "Todavia tenemos pocas pistas sobre tus gustos, pero esta pelicula puede ser una buena candidata.",
+          "requires": []
+        }
+      ]
+    }
+  }
+}
