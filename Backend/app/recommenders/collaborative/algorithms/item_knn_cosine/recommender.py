@@ -179,15 +179,18 @@ class ItemKnnCosineRecommender:
 
         profile_style = infer_collaborative_profile_style(request.ratings)
 
-        recommendations = [
-            _build_recommended_movie(
-                candidate=candidate,
-                rank=rank,
-                variant_id=self._model_variant_id,
-                template_session_id=request.template_session_id,
+        used_evidence_movie_counts: dict[int, int] = {}
+        recommendations: list[CollaborativeRecommendedMovie] = []
+        for rank, candidate in enumerate(ranked_candidates[: request.limit], start=1):
+            recommendations.append(
+                _build_recommended_movie(
+                    candidate=candidate,
+                    rank=rank,
+                    variant_id=self._model_variant_id,
+                    template_session_id=request.template_session_id,
+                    used_evidence_movie_counts=used_evidence_movie_counts,
+                )
             )
-            for rank, candidate in enumerate(ranked_candidates[: request.limit], start=1)
-        ]
 
         personalized_runtime_ms = _elapsed_ms(personalized_started_at)
         personalized_recommendations = len(recommendations)
@@ -354,12 +357,14 @@ def _build_recommended_movie(
     rank: int,
     variant_id: str,
     template_session_id: str | None,
+    used_evidence_movie_counts: dict[int, int],
 ) -> CollaborativeRecommendedMovie:
     rendered_explanation = build_item_knn_explanation(
         candidate_movie_id=candidate.movie_id,
         rank=rank,
         variant_id=variant_id,
         template_session_id=template_session_id,
+        used_evidence_movie_counts=used_evidence_movie_counts,
         contributions=[
             ItemKnnExplanationContribution(
                 source_movie_id=contribution.source_movie_id,
@@ -369,21 +374,37 @@ def _build_recommended_movie(
             for contribution in candidate.contributions
         ],
     )
+    visible_evidence_movie_ids = [
+        int(movie.movieId)
+        for movie in rendered_explanation.structured_explanation.evidenceMovies
+    ]
+    for movie_id in visible_evidence_movie_ids:
+        used_evidence_movie_counts[movie_id] = (
+            used_evidence_movie_counts.get(movie_id, 0) + 1
+        )
+
     algorithm_details = _build_algorithm_details(candidate)
     algorithm_details.update(
         {
             "explanationType": rendered_explanation.structured_explanation.explanationType,
             "explanationTemplateId": rendered_explanation.structured_explanation.templateId,
-            "explanationEvidenceMovieIds": [
-                movie.movieId
-                for movie in rendered_explanation.structured_explanation.evidenceMovies
-            ],
+            "explanationEvidenceMovieIds": visible_evidence_movie_ids,
             "explanationEvidenceMovieTitles": [
                 movie.title
                 for movie in rendered_explanation.structured_explanation.evidenceMovies
             ],
             "explanationFidelity": rendered_explanation.structured_explanation.fidelity,
             "explanationSource": rendered_explanation.structured_explanation.explanationSource,
+            "explanationEvidenceSelectionMode": (
+                rendered_explanation.structured_explanation.debug.get(
+                    "evidenceSelectionMode"
+                )
+            ),
+            "explanationEvidenceUsageCountsBefore": (
+                rendered_explanation.structured_explanation.debug.get(
+                    "evidenceUsageCountsBefore"
+                )
+            ),
         }
     )
 

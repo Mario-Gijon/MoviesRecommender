@@ -7,11 +7,11 @@ from app.recommenders.collaborative.algorithms.item_knn_cosine.explanation impor
 
 def main() -> None:
     candidates = catalog_repository.get_recommendation_candidates()
-    if len(candidates) < 8:
-        raise RuntimeError("Need at least 8 public catalog movies for ItemKNN explanation smoke.")
+    if len(candidates) < 10:
+        raise RuntimeError("Need at least 10 public catalog movies for ItemKNN explanation smoke.")
 
     source_movies = candidates[:6]
-    candidate_movies = candidates[6:8]
+    candidate_movies = candidates[6:10]
     contributions = [
         ItemKnnExplanationContribution(
             source_movie_id=int(source_movies[0]["movieId"]),
@@ -45,6 +45,7 @@ def main() -> None:
         ),
     ]
 
+    used_evidence_movie_counts: dict[int, int] = {}
     for rank, candidate_movie in enumerate(candidate_movies, start=1):
         rendered = build_item_knn_explanation(
             candidate_movie_id=int(candidate_movie["movieId"]),
@@ -52,7 +53,16 @@ def main() -> None:
             variant_id="smoke_variant",
             template_session_id="item-knn-smoke",
             contributions=contributions,
+            used_evidence_movie_counts=used_evidence_movie_counts,
         )
+        visible_evidence_movie_ids = list(
+            rendered.structured_explanation.debug.get("visibleEvidenceMovieIds", [])
+        )
+        for movie_id in visible_evidence_movie_ids:
+            used_evidence_movie_counts[int(movie_id)] = (
+                used_evidence_movie_counts.get(int(movie_id), 0) + 1
+            )
+
         print("candidateMovieId:", candidate_movie["movieId"])
         print(
             "candidateTitle:",
@@ -63,12 +73,17 @@ def main() -> None:
         print("templateId:", rendered.structured_explanation.templateId)
         print(
             "visibleEvidenceMovieIds:",
-            rendered.structured_explanation.debug.get("visibleEvidenceMovieIds"),
+            visible_evidence_movie_ids,
         )
         print(
             "fullEvidenceCandidateMovieIds:",
             rendered.structured_explanation.debug.get("fullEvidenceCandidateMovieIds"),
         )
+        print(
+            "evidenceUsageCountsBefore:",
+            rendered.structured_explanation.debug.get("evidenceUsageCountsBefore"),
+        )
+        print("usedEvidenceMovieCountsAfter:", used_evidence_movie_counts)
         print()
 
 

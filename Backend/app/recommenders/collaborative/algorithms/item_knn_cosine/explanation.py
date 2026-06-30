@@ -38,14 +38,20 @@ def build_item_knn_explanation(
     variant_id: str,
     template_session_id: str | None,
     contributions: list[ItemKnnExplanationContribution],
+    used_evidence_movie_counts: dict[int, int] | None = None,
 ) -> ItemKnnRenderedExplanation:
     full_evidence_pool = _build_evidence_pool(contributions)
+    evidence_usage_counts_before = {
+        movie.movieId: int(used_evidence_movie_counts.get(movie.movieId, 0))
+        for movie in full_evidence_pool
+    } if used_evidence_movie_counts is not None else {}
     visible_evidence_movies = _select_visible_evidence_movies(
         candidate_movie_id=candidate_movie_id,
         rank=rank,
         variant_id=variant_id,
         template_session_id=template_session_id,
         evidence_pool=full_evidence_pool,
+        used_evidence_movie_counts=used_evidence_movie_counts,
     )
     evidence_strength = _infer_evidence_strength(visible_evidence_movies)
     candidate_title = _resolve_public_movie_title(candidate_movie_id)
@@ -79,7 +85,8 @@ def build_item_knn_explanation(
             "visibleEvidenceMovieIds": [
                 movie.movieId for movie in visible_evidence_movies
             ],
-            "evidenceSelectionMode": "diverse_real_positive_evidence",
+            "evidenceSelectionMode": "list_level_diverse_real_positive_evidence",
+            "evidenceUsageCountsBefore": evidence_usage_counts_before,
             "positiveContributionCount": sum(
                 1
                 for contribution in contributions
@@ -146,35 +153,78 @@ def _select_visible_evidence_movies(
     variant_id: str,
     template_session_id: str | None,
     evidence_pool: list[EvidenceMovie],
+    used_evidence_movie_counts: dict[int, int] | None,
 ) -> list[EvidenceMovie]:
     if len(evidence_pool) <= VISIBLE_EVIDENCE_LIMIT:
         return list(evidence_pool)
 
-    anchor_movie = evidence_pool[0]
-    remaining_pool = evidence_pool[1:]
-    remaining_needed = VISIBLE_EVIDENCE_LIMIT - 1
-
-    ordered_remaining = sorted(
-        remaining_pool,
-        key=lambda movie: _stable_diversity_key(
+    top_pool = evidence_pool[: min(3, len(evidence_pool))]
+    anchor_movie = min(
+        top_pool,
+        key=lambda movie: _movie_selection_key(
+            movie=movie,
             candidate_movie_id=candidate_movie_id,
             rank=rank,
             variant_id=variant_id,
             template_session_id=template_session_id,
-            source_movie_id=movie.movieId,
+            used_evidence_movie_counts=used_evidence_movie_counts,
+            anchor_movie_id=movie.movieId,
+        ),
+    )
+
+    remaining_pool = [
+        movie
+        for movie in evidence_pool
+        if movie.movieId != anchor_movie.movieId
+    ]
+    remaining_needed = VISIBLE_EVIDENCE_LIMIT - 1
+    ordered_remaining = sorted(
+        remaining_pool,
+        key=lambda movie: _movie_selection_key(
+            movie=movie,
+            candidate_movie_id=candidate_movie_id,
+            rank=rank,
+            variant_id=variant_id,
+            template_session_id=template_session_id,
+            used_evidence_movie_counts=used_evidence_movie_counts,
             anchor_movie_id=anchor_movie.movieId,
         ),
     )
     selected_movies = [anchor_movie, *ordered_remaining[:remaining_needed]]
     selected_movie_ids = {movie.movieId for movie in selected_movies}
 
-    # Preserve deterministic but contribution-respecting order in visible text:
-    # strongest evidence first, then the rest in original contribution order.
     return [
         movie
         for movie in evidence_pool
         if movie.movieId in selected_movie_ids
     ][:VISIBLE_EVIDENCE_LIMIT]
+
+
+def _movie_selection_key(
+    *,
+    movie: EvidenceMovie,
+    candidate_movie_id: int,
+    rank: int,
+    variant_id: str,
+    template_session_id: str | None,
+    used_evidence_movie_counts: dict[int, int] | None,
+    anchor_movie_id: int,
+) -> tuple[int, str]:
+    usage_count = 0
+    if used_evidence_movie_counts is not None:
+        usage_count = int(used_evidence_movie_counts.get(movie.movieId, 0))
+
+    return (
+        usage_count,
+        _stable_diversity_key(
+            candidate_movie_id=candidate_movie_id,
+            rank=rank,
+            variant_id=variant_id,
+            template_session_id=template_session_id,
+            source_movie_id=movie.movieId,
+            anchor_movie_id=anchor_movie_id,
+        ),
+    )
 
 
 def _infer_evidence_strength(evidence_movies: list[EvidenceMovie]) -> str:
