@@ -13,6 +13,9 @@ from pipelines.recommender_evaluation.collaborative_audit_cases import (
     write_split_metadata_json,
     write_train_ratings_csv,
 )
+from pipelines.recommender_evaluation.generate_collaborative_audit_dashboard import (
+    generate_dashboard,
+)
 
 
 MODE_CHOICES = ["model", "stand", "production", "all"]
@@ -44,6 +47,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     rebuild_models = _resolve_rebuild_models(args)
+    dashboard_root = (
+        RECOMMENDER_AUDIT_DIR
+        / "collaborative_comparison"
+        / "current"
+    )
 
     if args.mode in ("stand", "all"):
         run_leakage_free_mode(
@@ -61,6 +69,8 @@ def main() -> None:
 
     if args.mode in ("production", "all"):
         run_production_mode(args)
+
+    generate_dashboard(root_dir=dashboard_root)
 
 
 def run_leakage_free_mode(
