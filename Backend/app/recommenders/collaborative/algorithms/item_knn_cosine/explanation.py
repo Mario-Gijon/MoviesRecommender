@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 from app.catalog.catalog_repository import catalog_repository
@@ -26,6 +27,10 @@ class ItemKnnRenderedExplanation:
     structured_explanation: CollaborativeExplanation
 
 
+EVIDENCE_POOL_LIMIT = 6
+VISIBLE_EVIDENCE_LIMIT = 3
+
+
 def build_item_knn_explanation(
     *,
     candidate_movie_id: int,
@@ -34,8 +39,15 @@ def build_item_knn_explanation(
     template_session_id: str | None,
     contributions: list[ItemKnnExplanationContribution],
 ) -> ItemKnnRenderedExplanation:
-    evidence_movies = _select_evidence_movies(contributions)
-    evidence_strength = _infer_evidence_strength(evidence_movies)
+    full_evidence_pool = _build_evidence_pool(contributions)
+    visible_evidence_movies = _select_visible_evidence_movies(
+        candidate_movie_id=candidate_movie_id,
+        rank=rank,
+        variant_id=variant_id,
+        template_session_id=template_session_id,
+        evidence_pool=full_evidence_pool,
+    )
+    evidence_strength = _infer_evidence_strength(visible_evidence_movies)
     candidate_title = _resolve_public_movie_title(candidate_movie_id)
 
     structured_explanation = render_collaborative_explanation(
@@ -44,20 +56,30 @@ def build_item_knn_explanation(
         variant_id=variant_id,
         movie_id=candidate_movie_id,
         rank=rank,
-        evidence_movies=evidence_movies,
+        evidence_movies=visible_evidence_movies,
         evidence_strength=evidence_strength,
         candidate_title=candidate_title,
         template_session_id=template_session_id,
         explanation_source="item_knn_contribution_evidence",
-        fidelity="high" if evidence_movies else "medium",
+        fidelity="high" if visible_evidence_movies else "medium",
         limitations=(
             []
-            if evidence_movies
+            if visible_evidence_movies
             else ["Pocas pistas directas de peliculas concretas en esta recomendacion."]
         ),
         debug={
-            "evidenceMovieIds": [movie.movieId for movie in evidence_movies],
-            "evidenceMovieTitles": [movie.title for movie in evidence_movies],
+            "evidenceMovieIds": [movie.movieId for movie in visible_evidence_movies],
+            "evidenceMovieTitles": [movie.title for movie in visible_evidence_movies],
+            "fullEvidenceCandidateMovieIds": [
+                movie.movieId for movie in full_evidence_pool
+            ],
+            "fullEvidenceCandidateMovieTitles": [
+                movie.title for movie in full_evidence_pool
+            ],
+            "visibleEvidenceMovieIds": [
+                movie.movieId for movie in visible_evidence_movies
+            ],
+            "evidenceSelectionMode": "diverse_real_positive_evidence",
             "positiveContributionCount": sum(
                 1
                 for contribution in contributions
@@ -78,14 +100,14 @@ def build_item_knn_explanation(
     )
 
 
-def _select_evidence_movies(
+def _build_evidence_pool(
     contributions: list[ItemKnnExplanationContribution],
 ) -> list[EvidenceMovie]:
     positive_contributions = sorted(
         [
             contribution
             for contribution in contributions
-            if contribution.contribution > 0
+            if contribution.contribution > 0 and contribution.source_rating >= 4
         ],
         key=lambda contribution: contribution.contribution,
         reverse=True,
@@ -111,10 +133,48 @@ def _select_evidence_movies(
         )
         seen_movie_ids.add(contribution.source_movie_id)
 
-        if len(evidence_movies) >= 3:
+        if len(evidence_movies) >= EVIDENCE_POOL_LIMIT:
             break
 
     return evidence_movies
+
+
+def _select_visible_evidence_movies(
+    *,
+    candidate_movie_id: int,
+    rank: int,
+    variant_id: str,
+    template_session_id: str | None,
+    evidence_pool: list[EvidenceMovie],
+) -> list[EvidenceMovie]:
+    if len(evidence_pool) <= VISIBLE_EVIDENCE_LIMIT:
+        return list(evidence_pool)
+
+    anchor_movie = evidence_pool[0]
+    remaining_pool = evidence_pool[1:]
+    remaining_needed = VISIBLE_EVIDENCE_LIMIT - 1
+
+    ordered_remaining = sorted(
+        remaining_pool,
+        key=lambda movie: _stable_diversity_key(
+            candidate_movie_id=candidate_movie_id,
+            rank=rank,
+            variant_id=variant_id,
+            template_session_id=template_session_id,
+            source_movie_id=movie.movieId,
+            anchor_movie_id=anchor_movie.movieId,
+        ),
+    )
+    selected_movies = [anchor_movie, *ordered_remaining[:remaining_needed]]
+    selected_movie_ids = {movie.movieId for movie in selected_movies}
+
+    # Preserve deterministic but contribution-respecting order in visible text:
+    # strongest evidence first, then the rest in original contribution order.
+    return [
+        movie
+        for movie in evidence_pool
+        if movie.movieId in selected_movie_ids
+    ][:VISIBLE_EVIDENCE_LIMIT]
 
 
 def _infer_evidence_strength(evidence_movies: list[EvidenceMovie]) -> str:
@@ -123,6 +183,28 @@ def _infer_evidence_strength(evidence_movies: list[EvidenceMovie]) -> str:
     if len(evidence_movies) == 1:
         return "medium"
     return "weak"
+
+
+def _stable_diversity_key(
+    *,
+    candidate_movie_id: int,
+    rank: int,
+    variant_id: str,
+    template_session_id: str | None,
+    source_movie_id: int,
+    anchor_movie_id: int,
+) -> str:
+    payload = "|".join(
+        [
+            template_session_id or "",
+            str(candidate_movie_id),
+            str(rank),
+            variant_id,
+            str(anchor_movie_id),
+            str(source_movie_id),
+        ]
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _resolve_public_movie_title(movie_id: int) -> str | None:
