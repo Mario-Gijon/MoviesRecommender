@@ -45,6 +45,7 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.storage impor
 )
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.models import (
     ALGORITHM_ID as USER_KNN_ALGORITHM_ID,
+    ALGORITHM_LABEL as USER_KNN_ALGORITHM_LABEL,
 )
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.recommender import (
     UserKnnPearsonShrinkageRecommender,
@@ -158,6 +159,7 @@ def main() -> None:
                 "algorithmId": evaluated.algorithm_id,
                 "algorithmLabel": evaluated.algorithm_label,
                 "variantId": evaluated.variant_id,
+                **technical_details(evaluated),
                 **offline_metrics(evaluated),
                 **runtime_and_quality_metrics,
                 **api_metrics,
@@ -384,7 +386,7 @@ def load_evaluated_recommenders(
         recommenders.append(
             EvaluatedRecommender(
                 algorithm_id=USER_KNN_ALGORITHM_ID,
-                algorithm_label="UserKNN Pearson Shrinkage",
+                algorithm_label=USER_KNN_ALGORITHM_LABEL,
                 variant_id=user_knn_artifacts.variant_dir.name,
                 recommender=UserKnnPearsonShrinkageRecommender(),
                 manifest=load_user_knn_pearson_shrinkage_manifest(),
@@ -590,6 +592,54 @@ def offline_metrics(evaluated: EvaluatedRecommender) -> dict[str, Any]:
         "minCandidateNeighborCount": None,
         "candidateShrinkage": None,
         "minPredictionScore": None,
+    }
+
+
+def technical_details(evaluated: EvaluatedRecommender) -> dict[str, Any]:
+    runtime_design = evaluated.manifest.get("runtimeDesign", {})
+    parameters = evaluated.manifest.get("parameters", {})
+
+    if evaluated.algorithm_id == USER_KNN_ALGORITHM_ID:
+        return {
+            "neighborSearch": "on_demand_user_neighbors",
+            "similarity": "mean_centered_pearson_with_shrinkage",
+            "candidateScoring": "regularized_mean_centered_prediction",
+            "candidatePolicy": "public_movies_only",
+        }
+
+    if evaluated.algorithm_id == "item_knn_cosine":
+        return {
+            "neighborSearch": "precomputed_item_neighbors",
+            "similarity": parameters.get("similarity"),
+            "candidateScoring": "similarity_weighted_positive_signal",
+            "candidatePolicy": "public_movies_only",
+        }
+
+    if evaluated.algorithm_id == "popularity_baseline":
+        return {
+            "neighborSearch": None,
+            "similarity": None,
+            "candidateScoring": parameters.get("rankingSignal"),
+            "candidatePolicy": "public_movies_only",
+        }
+
+    if evaluated.algorithm_id == BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID:
+        return {
+            "neighborSearch": None,
+            "similarity": None,
+            "candidateScoring": runtime_design.get("predictionFormula"),
+            "candidatePolicy": runtime_design.get("candidatePolicy"),
+        }
+
+    return {
+        "neighborSearch": runtime_design.get("neighborSearch"),
+        "similarity": (
+            runtime_design.get("similarity")
+            if runtime_design.get("similarity") is not None
+            else parameters.get("similarity")
+        ),
+        "candidateScoring": runtime_design.get("candidateScoring"),
+        "candidatePolicy": runtime_design.get("candidatePolicy"),
     }
 
 
@@ -1222,6 +1272,14 @@ SECTION_COLUMNS = {
         "minCandidateNeighborCount",
         "candidateShrinkage",
         "minPredictionScore",
+    ],
+    "Technical design": [
+        "algorithmId",
+        "variantId",
+        "neighborSearch",
+        "similarity",
+        "candidateScoring",
+        "candidatePolicy",
     ],
 }
 
