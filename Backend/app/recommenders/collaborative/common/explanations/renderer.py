@@ -29,6 +29,7 @@ def render_collaborative_explanation(
     movie_id: int | None,
     rank: int | None,
     evidence_movies: list[EvidenceMovie] | None = None,
+    shared_evidence_movies: list[EvidenceMovie] | None = None,
     evidence_profiles: list[EvidenceProfile] | None = None,
     evidence_strength: CollaborativeExplanationStrength = "medium",
     candidate_title: str | None = None,
@@ -41,7 +42,13 @@ def render_collaborative_explanation(
     template_bank = load_collaborative_template_bank()
     usage = CollaborativeExplanationTemplateUsage()
     normalized_evidence_movies = list(evidence_movies or [])
+    normalized_shared_evidence_movies = list(shared_evidence_movies or [])
     normalized_evidence_profiles = list(evidence_profiles or [])
+    selection_evidence_movies = (
+        normalized_evidence_movies
+        if normalized_evidence_movies
+        else normalized_shared_evidence_movies
+    )
     selection_input = CollaborativeTemplateSelectionInput(
         templateSessionId=template_session_id,
         algorithmId=algorithm_id,
@@ -50,11 +57,14 @@ def render_collaborative_explanation(
         rank=rank,
         explanationType=explanation_type,
         evidenceStrength=evidence_strength,
-        evidenceMovieIds=[movie.movieId for movie in normalized_evidence_movies],
+        evidenceMovieIds=[movie.movieId for movie in selection_evidence_movies],
     )
     available_values = {
         "movies": format_evidence_movies(normalized_evidence_movies),
-        "sharedMovies": format_shared_movies(normalized_evidence_profiles),
+        "sharedMovies": (
+            format_evidence_movies(normalized_shared_evidence_movies)
+            or format_shared_movies(normalized_evidence_profiles)
+        ),
         "profiles": format_profiles(normalized_evidence_profiles),
         "candidateTitle": cleanup_rendered_text(candidate_title or ""),
     }
@@ -74,7 +84,7 @@ def render_collaborative_explanation(
     else:
         explanation_text = _ultimate_fallback_text(
             candidate_title=candidate_title,
-            evidence_movies=normalized_evidence_movies,
+            evidence_movies=selection_evidence_movies,
         )
         template_id = None
 
@@ -84,7 +94,7 @@ def render_collaborative_explanation(
         explanationSource=explanation_source,
         fidelity=fidelity,
         evidenceStrength=evidence_strength,
-        evidenceMovies=normalized_evidence_movies,
+        evidenceMovies=selection_evidence_movies,
         evidenceProfiles=normalized_evidence_profiles,
         templateId=template_id,
         limitations=list(limitations or []),

@@ -7,6 +7,10 @@ from pathlib import Path
 from app.recommenders.collaborative.algorithms.popularity_baseline.recommender import (
     PopularityBaselineRecommender,
 )
+from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.explanation import (
+    UserKnnExplanationContribution,
+    build_user_knn_explanation,
+)
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.models import (
     ALGORITHM_ID,
     ALGORITHM_LABEL,
@@ -22,7 +26,6 @@ from app.recommenders.collaborative.common.explanations.profile_style import (
     infer_collaborative_profile_style,
 )
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationExplanation,
     CollaborativeRecommendationRequest,
     CollaborativeRecommendationResult,
     CollaborativeRecommendedMovie,
@@ -50,6 +53,7 @@ class NeighborSimilarity:
 
 @dataclass(frozen=True)
 class UserKnnCandidateContribution:
+    neighbor_user_id: int
     neighbor_rank: int
     similarity: float
     neighbor_rating: float
@@ -110,6 +114,9 @@ class UserKnnPersonalizedState:
     overlap_rating_rows: int = 0
     public_candidate_rating_rows: int = 0
     candidate_users_considered: int = 0
+    shared_positive_movie_ids_by_neighbor_user_id: dict[int, list[int]] = field(
+        default_factory=dict
+    )
 
 
 class UserKnnPearsonShrinkageRecommender:
@@ -192,24 +199,13 @@ class UserKnnPearsonShrinkageRecommender:
         )
 
         recommendations = [
-            CollaborativeRecommendedMovie(
-                movie_id=candidate.movie_id,
+            _build_recommended_movie(
+                candidate=candidate,
                 rank=rank,
-                score=round(
-                    candidate.regularized_score(
-                        rating_center=self._runtime_config.active_rating_center,
-                        candidate_shrinkage=self._runtime_config.candidate_shrinkage,
-                    ),
-                    6,
-                ),
-                explanation=_build_explanation(
-                    candidate=candidate,
-                    profile_style=profile_style,
-                    config=self._runtime_config,
-                ),
-                algorithm_details=_build_algorithm_details(
-                    candidate=candidate,
-                    config=self._runtime_config,
+                request=request,
+                config=self._runtime_config,
+                shared_positive_movie_ids_by_neighbor_user_id=(
+                    personalized_state.shared_positive_movie_ids_by_neighbor_user_id
                 ),
             )
             for rank, candidate in enumerate(
@@ -388,6 +384,16 @@ class UserKnnPearsonShrinkageRecommender:
         state.neighbor_similarities = _select_neighbors(
             neighbor_accumulators=neighbor_accumulators,
             config=self._runtime_config,
+        )
+        state.shared_positive_movie_ids_by_neighbor_user_id = (
+            _build_shared_positive_movie_ids_by_neighbor_user_id(
+                overlap_rows=overlap_rows,
+                request=request,
+                neighbor_user_ids={
+                    neighbor.user_id
+                    for neighbor in state.neighbor_similarities
+                },
+            )
         )
 
         if not state.neighbor_similarities:
@@ -614,6 +620,7 @@ def _build_candidate_scores(
 
         candidate_score.contributions.append(
             UserKnnCandidateContribution(
+                neighbor_user_id=int(user_id),
                 neighbor_rank=neighbor.rank,
                 similarity=similarity,
                 neighbor_rating=float(rating),
@@ -625,41 +632,97 @@ def _build_candidate_scores(
     return candidate_scores
 
 
-def _build_explanation(
+def _build_shared_positive_movie_ids_by_neighbor_user_id(
+    *,
+    overlap_rows: list[tuple[int, int, float]],
+    request: CollaborativeRecommendationRequest,
+    neighbor_user_ids: set[int],
+) -> dict[int, list[int]]:
+    positive_active_movie_ids = {
+        rating.movie_id
+        for rating in request.ratings
+        if rating.rating >= 4
+    }
+    shared_movie_ids_by_neighbor: dict[int, list[int]] = {}
+
+    for user_id, movie_id, _ in overlap_rows:
+        resolved_user_id = int(user_id)
+        resolved_movie_id = int(movie_id)
+        if resolved_user_id not in neighbor_user_ids:
+            continue
+        if resolved_movie_id not in positive_active_movie_ids:
+            continue
+
+        shared_movie_ids = shared_movie_ids_by_neighbor.setdefault(
+            resolved_user_id,
+            [],
+        )
+        if resolved_movie_id not in shared_movie_ids:
+            shared_movie_ids.append(resolved_movie_id)
+
+    return shared_movie_ids_by_neighbor
+
+
+def _build_recommended_movie(
     *,
     candidate: UserKnnCandidateScore,
-    profile_style: str,
+    rank: int,
+    request: CollaborativeRecommendationRequest,
     config: UserKnnPearsonShrinkageRuntimeConfig,
-) -> CollaborativeRecommendationExplanation:
-    if profile_style == "family":
-        headline = "Usuarios con gustos parecidos también la valoraron bien."
-    elif profile_style == "teen":
-        headline = "Encaja con patrones de valoración de usuarios parecidos."
-    else:
-        headline = "La recomendamos por coincidencias con usuarios de perfil similar."
+    shared_positive_movie_ids_by_neighbor_user_id: dict[int, list[int]],
+) -> CollaborativeRecommendedMovie:
+    rendered_explanation = build_user_knn_explanation(
+        candidate_movie_id=candidate.movie_id,
+        rank=rank,
+        variant_id=config.variant_id,
+        template_session_id=request.template_session_id,
+        contributions=[
+            UserKnnExplanationContribution(
+                neighbor_user_id=contribution.neighbor_user_id,
+                neighbor_rank=contribution.neighbor_rank,
+                contribution=contribution.contribution,
+            )
+            for contribution in candidate.contributions
+            if contribution.contribution > 0
+        ],
+        shared_positive_movie_ids_by_neighbor_user_id=(
+            shared_positive_movie_ids_by_neighbor_user_id
+        ),
+    )
+    algorithm_details = _build_algorithm_details(
+        candidate=candidate,
+        config=config,
+    )
+    algorithm_details.update(
+        {
+            "explanationType": rendered_explanation.structured_explanation.explanationType,
+            "explanationTemplateId": rendered_explanation.structured_explanation.templateId,
+            "explanationEvidenceMovieIds": [
+                movie.movieId
+                for movie in rendered_explanation.structured_explanation.evidenceMovies
+            ],
+            "explanationEvidenceMovieTitles": [
+                movie.title
+                for movie in rendered_explanation.structured_explanation.evidenceMovies
+            ],
+            "explanationFidelity": rendered_explanation.structured_explanation.fidelity,
+            "explanationSource": rendered_explanation.structured_explanation.explanationSource,
+            "explanationEvidenceStrength": rendered_explanation.structured_explanation.evidenceStrength,
+        }
+    )
 
-    return CollaborativeRecommendationExplanation(
-        headline=headline,
-        reasons=[
-            (
-                "Se ha calculado a partir de usuarios anónimos que coincidían "
-                "con tus valoraciones en varias películas."
+    return CollaborativeRecommendedMovie(
+        movie_id=candidate.movie_id,
+        rank=rank,
+        score=round(
+            candidate.regularized_score(
+                rating_center=config.active_rating_center,
+                candidate_shrinkage=config.candidate_shrinkage,
             ),
-            (
-                f"La predicción base es de "
-                f"{candidate.predicted_rating(rating_center=config.active_rating_center):.2f} "
-                "sobre 5 antes de regularizar por soporte."
-            ),
-            (
-                f"El score usado para ordenar es "
-                f"{candidate.regularized_score(rating_center=config.active_rating_center, candidate_shrinkage=config.candidate_shrinkage):.2f} "
-                f"sobre 5, apoyado por {candidate.neighbor_count} valoraciones "
-                "de vecinos seleccionados."
-            ),
-        ],
-        evidence=[
-            "UserKNN con ratings centrados por usuario, Pearson, shrinkage y regularización por soporte de candidata.",
-        ],
+            6,
+        ),
+        explanation=rendered_explanation.response_explanation,
+        algorithm_details=algorithm_details,
     )
 
 
