@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=MODE_CHOICES, required=True)
     parser.add_argument("--rebuild-models", action="store_true")
     parser.add_argument("--skip-rebuild-models", action="store_true")
+    parser.add_argument("--force-regenerate-split", action="store_true")
     parser.add_argument("--skip-bmf", action="store_true")
     parser.add_argument("--case-count", type=int, default=100)
     parser.add_argument("--limit", type=int, default=10)
@@ -88,15 +90,31 @@ def run_leakage_free_mode(
     split_dir = mode_root / "split"
     models_dir = mode_root / "models"
     metrics_dir = mode_root / "metrics"
+    force_regenerate_split = bool(args.force_regenerate_split)
 
-    split_dir.mkdir(parents=True, exist_ok=True)
-    models_dir.mkdir(parents=True, exist_ok=True)
+    print(
+        f"Preparing {mode_name}: "
+        f"case_count={args.case_count}, "
+        f"seed={args.seed}, "
+        f"force_regenerate_split={force_regenerate_split}, "
+        f"rebuild_models={rebuild_models}"
+    )
 
     evaluation_cases_path = split_dir / "evaluation_cases.json"
     split_metadata_path = split_dir / "split_metadata.json"
     train_ratings_path = split_dir / "train_ratings.csv"
 
-    if not _split_files_exist(
+    if force_regenerate_split:
+        print(f"Regenerating leakage-free split for {mode_name}: {split_dir}")
+        _recreate_directory(split_dir)
+        _clear_directory_if_exists(metrics_dir)
+        if rebuild_models:
+            _clear_directory_if_exists(models_dir)
+    else:
+        split_dir.mkdir(parents=True, exist_ok=True)
+        models_dir.mkdir(parents=True, exist_ok=True)
+
+    if force_regenerate_split or not _split_files_exist(
         evaluation_cases_path=evaluation_cases_path,
         split_metadata_path=split_metadata_path,
         train_ratings_path=train_ratings_path,
@@ -116,14 +134,23 @@ def run_leakage_free_mode(
                 )
             )
         )
+        split_dir.mkdir(parents=True, exist_ok=True)
         write_evaluation_cases_json(evaluation_cases_path, result.evaluation_cases)
         write_split_metadata_json(split_metadata_path, result.metadata)
         write_train_ratings_csv(train_ratings_path, result.train_ratings)
-        print(f"Generated leakage-free split for {mode_name}: {split_dir}")
+        print(
+            f"Generated leakage-free split for {mode_name}: {split_dir} "
+            f"(case_count={args.case_count}, seed={args.seed})"
+        )
     else:
-        print(f"Reusing existing leakage-free split for {mode_name}: {split_dir}")
+        print(
+            f"Reusing existing leakage-free split for {mode_name}: {split_dir} "
+            f"(requested_case_count={args.case_count}, seed={args.seed})"
+        )
 
     if rebuild_models:
+        models_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Rebuilding audit models for {mode_name}: {models_dir}")
         run_build_models(
             args=args,
             ratings_path=train_ratings_path,
@@ -149,6 +176,12 @@ def run_leakage_free_mode(
 
 
 def run_production_mode(args: argparse.Namespace) -> None:
+    if args.force_regenerate_split:
+        print(
+            "Ignoring --force-regenerate-split for production_diagnostic because "
+            "production mode does not use leakage-free split artifacts."
+        )
+
     output_dir = (
         RECOMMENDER_AUDIT_DIR
         / "collaborative_comparison"
@@ -298,11 +331,31 @@ def _resolve_rebuild_models(args: argparse.Namespace) -> bool:
         raise RuntimeError(
             "--rebuild-models and --skip-rebuild-models cannot be used together."
         )
+    if args.force_regenerate_split and args.skip_rebuild_models:
+        raise RuntimeError(
+            "--force-regenerate-split cannot be used with --skip-rebuild-models. "
+            "A regenerated split requires rebuilding leakage-free audit models."
+        )
+    if args.force_regenerate_split and not args.rebuild_models:
+        raise RuntimeError(
+            "--force-regenerate-split requires --rebuild-models so audit artifacts "
+            "match the new train_ratings.csv."
+        )
     if args.rebuild_models:
         return True
     if args.skip_rebuild_models:
         return False
     return False
+
+
+def _clear_directory_if_exists(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+
+
+def _recreate_directory(path: Path) -> None:
+    _clear_directory_if_exists(path)
+    path.mkdir(parents=True, exist_ok=True)
 
 
 def _run_subprocess(*, command: list[str], description: str) -> None:
