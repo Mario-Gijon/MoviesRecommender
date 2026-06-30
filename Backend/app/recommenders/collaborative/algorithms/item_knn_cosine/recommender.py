@@ -1,6 +1,7 @@
 import sqlite3
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from app.catalog.catalog_repository import catalog_repository
 from app.recommenders.collaborative.algorithms.item_knn_cosine.models import (
@@ -56,11 +57,22 @@ class ItemKnnCosineRecommender:
     algorithm_id = ALGORITHM_ID
     algorithm_label = ALGORITHM_LABEL
 
-    def __init__(self, *, model_variant_id: str) -> None:
+    def __init__(
+        self,
+        *,
+        model_variant_id: str,
+        artifact_root: Path | None = None,
+    ) -> None:
         self._model_variant_id = model_variant_id
-        self._artifacts = get_item_knn_cosine_variant_artifacts(model_variant_id)
+        self._artifact_root = artifact_root
+        self._artifacts = get_item_knn_cosine_variant_artifacts(
+            model_variant_id,
+            artifact_root=artifact_root,
+        )
         self._manifest = self._load_manifest()
-        self._fallback_recommender = PopularityBaselineRecommender()
+        self._fallback_recommender = PopularityBaselineRecommender(
+            artifact_root=artifact_root
+        )
         self._public_movie_ids = frozenset(
             int(movie["movieId"])
             for movie in catalog_repository.get_recommendation_candidates()
@@ -249,7 +261,10 @@ class ItemKnnCosineRecommender:
 
     def _load_manifest(self) -> dict:
         try:
-            return load_item_knn_cosine_manifest(self._model_variant_id)
+            return load_item_knn_cosine_manifest(
+                self._model_variant_id,
+                artifact_root=self._artifact_root,
+            )
         except RuntimeError as exc:
             raise CollaborativeModelArtifactError(
                 code="item_knn_cosine_manifest_missing",

@@ -1,6 +1,7 @@
 import json
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -61,13 +62,18 @@ class BiasedMatrixFactorizationRecommender:
         self,
         *,
         runtime_config: BiasedMatrixFactorizationRuntimeConfig,
+        artifact_root: Path | None = None,
     ) -> None:
         self._runtime_config = runtime_config
+        self._artifact_root = artifact_root
         self._artifacts = get_biased_matrix_factorization_variant_artifacts(
-            runtime_config.variant_id
+            runtime_config.variant_id,
+            artifact_root=artifact_root,
         )
         self._runtime_artifacts: BmfRuntimeArtifacts | None = None
-        self._fallback_recommender = PopularityBaselineRecommender()
+        self._fallback_recommender = PopularityBaselineRecommender(
+            artifact_root=artifact_root
+        )
 
     def recommend(
         self,
@@ -366,7 +372,8 @@ class BiasedMatrixFactorizationRecommender:
     def _load_manifest(self) -> dict[str, Any]:
         try:
             return load_biased_matrix_factorization_manifest(
-                self._runtime_config.variant_id
+                self._runtime_config.variant_id,
+                artifact_root=self._artifact_root,
             )
         except RuntimeError as exc:
             raise CollaborativeModelArtifactError(

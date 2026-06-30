@@ -55,6 +55,7 @@ from app.recommenders.collaborative.common.models import (
 )
 from app.recommenders.collaborative.common.offline_context import (
     CollaborativeOfflineContext,
+    build_collaborative_offline_context,
     get_default_collaborative_offline_context,
 )
 
@@ -106,25 +107,41 @@ class EvaluatedRecommender:
 
 def main() -> None:
     args = parse_args()
-    offline_context = get_default_collaborative_offline_context()
+    default_offline_context = get_default_collaborative_offline_context()
+    offline_context = build_collaborative_offline_context(
+        collaborative_model_artifact_root=args.artifact_root,
+        audit_output_root=(
+            args.output_dir.parent
+            if args.output_dir is not None
+            else default_offline_context.audit_output_root
+        ),
+    )
     started_at = datetime.now(timezone.utc)
     evaluation_id = started_at.strftime("%Y%m%d_%H%M%S")
     run_id = "current"
 
-    output_dir = offline_context.audit_output_root / "collaborative_comparison" / run_id
+    output_dir = (
+        args.output_dir
+        if args.output_dir is not None
+        else offline_context.audit_output_root / "collaborative_comparison" / run_id
+    )
     prepare_output_dir(output_dir)
 
     public_catalog = catalog_repository.get_recommendation_candidates()
     public_movie_ids = {int(movie["movieId"]) for movie in public_catalog}
     public_movies_by_id = {int(movie["movieId"]): movie for movie in public_catalog}
 
-    evaluation_cases = build_evaluation_cases(
-        public_movie_ids=public_movie_ids,
-        case_count=args.case_count,
-        min_positive_input=args.min_positive_input,
-        holdout_count=args.holdout_count,
-        seed=args.seed,
-        offline_context=offline_context,
+    evaluation_cases = (
+        load_evaluation_cases_from_json(args.evaluation_cases_path)
+        if args.evaluation_cases_path is not None
+        else build_evaluation_cases(
+            public_movie_ids=public_movie_ids,
+            case_count=args.case_count,
+            min_positive_input=args.min_positive_input,
+            holdout_count=args.holdout_count,
+            seed=args.seed,
+            offline_context=offline_context,
+        )
     )
     recommenders = load_evaluated_recommenders(
         requested_variants=args.variant,
@@ -236,6 +253,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--holdout-count", type=int, default=1)
     parser.add_argument("--variant", action="append", default=None)
     parser.add_argument("--skip-api", action="store_true")
+    parser.add_argument("--evaluation-cases-path", type=Path, default=None)
+    parser.add_argument("--artifact-root", type=Path, default=None)
+    parser.add_argument("--output-dir", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -319,6 +339,50 @@ def prepare_output_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=False)
 
 
+def load_evaluation_cases_from_json(path: Path) -> list[EvaluationCase]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise RuntimeError(
+            f"Evaluation cases JSON must contain a list of cases: {path}"
+        )
+
+    cases: list[EvaluationCase] = []
+    for item in payload:
+        ratings_payload = item.get("ratings", [])
+        holdout_ratings_payload = item.get("holdoutRatings", [])
+        holdout_movie_ids_payload = item.get("holdoutMovieIds", [])
+
+        cases.append(
+            EvaluationCase(
+                case_id=str(item["caseId"]),
+                user_id=int(item["userId"]),
+                ratings=[
+                    CollaborativeUserRating(
+                        movie_id=int(rating["movieId"]),
+                        rating=int(rating["rating"]),
+                    )
+                    for rating in ratings_payload
+                ],
+                holdout_movie_ids=[
+                    int(movie_id)
+                    for movie_id in holdout_movie_ids_payload
+                ],
+                holdout_ratings=[
+                    EvaluationHoldoutRating(
+                        movie_id=int(rating["movieId"]),
+                        rating=float(rating["rating"]),
+                    )
+                    for rating in holdout_ratings_payload
+                ],
+            )
+        )
+
+    if not cases:
+        raise RuntimeError(f"No evaluation cases were found in: {path}")
+
+    return cases
+
+
 def load_public_ratings(
     public_movie_ids: set[int],
     *,
@@ -359,17 +423,34 @@ def load_evaluated_recommenders(
     requested_variants: list[str] | None,
     offline_context: CollaborativeOfflineContext,
 ) -> list[EvaluatedRecommender]:
-    recommenders = [
-        EvaluatedRecommender(
-            algorithm_id=PopularityBaselineRecommender.algorithm_id,
-            algorithm_label=PopularityBaselineRecommender.algorithm_label,
-            variant_id="default",
-            recommender=PopularityBaselineRecommender(),
-            manifest=load_popularity_baseline_manifest(
-                artifact_root=offline_context.collaborative_model_artifact_root,
-            ),
+    recommenders: list[EvaluatedRecommender] = []
+
+    popularity_artifacts = get_popularity_baseline_artifacts(
+        artifact_root=offline_context.collaborative_model_artifact_root,
+    )
+    if (
+        popularity_artifacts.manifest_path.exists()
+        and popularity_artifacts.ranking_sqlite_path.exists()
+        and (not requested_variants or "default" in requested_variants)
+    ):
+        recommenders.append(
+            EvaluatedRecommender(
+                algorithm_id=PopularityBaselineRecommender.algorithm_id,
+                algorithm_label=PopularityBaselineRecommender.algorithm_label,
+                variant_id="default",
+                recommender=PopularityBaselineRecommender(
+                    artifact_root=offline_context.collaborative_model_artifact_root,
+                ),
+                manifest=load_popularity_baseline_manifest(
+                    artifact_root=offline_context.collaborative_model_artifact_root,
+                ),
+            )
         )
-    ]
+    elif offline_context.collaborative_model_artifact_root != get_default_collaborative_offline_context().collaborative_model_artifact_root:
+        print(
+            "Skipping popularity_baseline variant default because custom artifact root does not contain a ready artifact:",
+            popularity_artifacts.variant_dir,
+        )
 
     item_knn_dir = (
         offline_context.collaborative_model_artifact_root / "item_knn_cosine"
@@ -392,7 +473,10 @@ def load_evaluated_recommenders(
                     algorithm_id="item_knn_cosine",
                     algorithm_label="ItemKNN Cosine",
                     variant_id=variant_id,
-                    recommender=ItemKnnCosineRecommender(model_variant_id=variant_id),
+                    recommender=ItemKnnCosineRecommender(
+                        model_variant_id=variant_id,
+                        artifact_root=offline_context.collaborative_model_artifact_root,
+                    ),
                     manifest=json.loads(manifest_path.read_text(encoding="utf-8")),
                 )
             )
@@ -410,7 +494,9 @@ def load_evaluated_recommenders(
                 algorithm_id=USER_KNN_ALGORITHM_ID,
                 algorithm_label=USER_KNN_ALGORITHM_LABEL,
                 variant_id=user_knn_artifacts.variant_dir.name,
-                recommender=UserKnnPearsonShrinkageRecommender(),
+                recommender=UserKnnPearsonShrinkageRecommender(
+                    artifact_root=offline_context.collaborative_model_artifact_root,
+                ),
                 manifest=load_user_knn_pearson_shrinkage_manifest(
                     artifact_root=offline_context.collaborative_model_artifact_root,
                 ),
@@ -470,7 +556,8 @@ def load_evaluated_recommenders(
                                 variant_id=variant_id,
                                 scoring_mode=scoring_mode,
                                 movie_bias_weight=movie_bias_weight,
-                            )
+                            ),
+                            artifact_root=offline_context.collaborative_model_artifact_root,
                         ),
                         manifest=manifest,
                         artifact_variant_id=variant_id,

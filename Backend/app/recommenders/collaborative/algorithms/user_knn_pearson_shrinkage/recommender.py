@@ -120,11 +120,17 @@ class UserKnnPearsonShrinkageRecommender:
         self,
         *,
         runtime_config: UserKnnPearsonShrinkageRuntimeConfig | None = None,
+        artifact_root: Path | None = None,
     ) -> None:
         self._runtime_config = runtime_config or UserKnnPearsonShrinkageRuntimeConfig()
-        self._artifacts = get_user_knn_pearson_shrinkage_artifacts()
+        self._artifact_root = artifact_root
+        self._artifacts = get_user_knn_pearson_shrinkage_artifacts(
+            artifact_root=artifact_root
+        )
         self._manifest = self._load_manifest()
-        self._fallback_recommender = PopularityBaselineRecommender()
+        self._fallback_recommender = PopularityBaselineRecommender(
+            artifact_root=artifact_root
+        )
 
     def recommend(
         self,
@@ -282,7 +288,9 @@ class UserKnnPearsonShrinkageRecommender:
 
     def _load_manifest(self) -> dict:
         try:
-            return load_user_knn_pearson_shrinkage_manifest()
+            return load_user_knn_pearson_shrinkage_manifest(
+                artifact_root=self._artifact_root
+            )
         except RuntimeError as exc:
             raise CollaborativeModelArtifactError(
                 code="user_knn_pearson_shrinkage_manifest_missing",

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.recommenders.collaborative.algorithms.popularity_baseline.models import (
     ALGORITHM_ID,
     ALGORITHM_LABEL,
@@ -21,7 +23,8 @@ class PopularityBaselineRecommender:
     algorithm_id = ALGORITHM_ID
     algorithm_label = ALGORITHM_LABEL
 
-    def __init__(self) -> None:
+    def __init__(self, *, artifact_root: Path | None = None) -> None:
+        self._artifact_root = artifact_root
         self._ranking: list[PopularityRankingEntry] | None = None
         self._manifest: dict | None = None
 
@@ -111,7 +114,9 @@ class PopularityBaselineRecommender:
     def _load_ranking(self) -> list[PopularityRankingEntry]:
         if self._ranking is None:
             try:
-                self._ranking = load_popularity_ranking()
+                self._ranking = load_popularity_ranking(
+                    artifact_root=self._artifact_root
+                )
             except RuntimeError as exc:
                 raise CollaborativeModelArtifactError(
                     code="popularity_baseline_ranking_missing",
@@ -123,7 +128,9 @@ class PopularityBaselineRecommender:
     def _load_manifest(self) -> dict:
         if self._manifest is None:
             try:
-                self._manifest = load_popularity_baseline_manifest()
+                self._manifest = load_popularity_baseline_manifest(
+                    artifact_root=self._artifact_root
+                )
             except RuntimeError as exc:
                 raise CollaborativeModelArtifactError(
                     code="popularity_baseline_manifest_missing",
