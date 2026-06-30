@@ -16,6 +16,7 @@ from app.recommenders.collaborative.common.offline_context import (
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.storage import (
     file_size_mb,
     prepare_biased_matrix_factorization_artifacts,
+    resolve_biased_matrix_factorization_runtime_status,
     write_model_manifest,
 )
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.training_core import (
@@ -281,19 +282,25 @@ def build_biased_matrix_factorization_model(
         "finalValidationRmse": final_epoch_metrics["validationRmse"],
         "finalValidationMae": final_epoch_metrics["validationMae"],
     }
+    runtime_status, runtime_status_reason = (
+        resolve_biased_matrix_factorization_runtime_status(artifacts)
+    )
 
     write_model_manifest(
         artifacts=artifacts,
         config=config,
         status="trained",
-        runtime_status="not_implemented",
+        runtime_status=runtime_status,
+        runtime_status_reason=runtime_status_reason,
         counts=counts,
         training_metrics=training_metrics_summary,
     )
 
     print("Biased Matrix Factorization training completed.")
     print(f"Status: trained")
-    print(f"Runtime status: not_implemented")
+    print(f"Runtime status: {runtime_status}")
+    if runtime_status_reason is not None:
+        print(f"Runtime status reason: {runtime_status_reason}")
     print(f"Best epoch: {best_checkpoint_epoch}")
     print(f"Best validation RMSE: {best_validation_rmse:.6f}")
     print(f"Best validation MAE: {best_validation_mae:.6f}")

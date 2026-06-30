@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pandas as pd
+
 from app.project_paths.dataset_paths import COLLABORATIVE_RECOMMENDER_MODELS_DIR
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.models import (
     ALGORITHM_ID,
@@ -11,6 +14,13 @@ from app.recommenders.collaborative.algorithms.biased_matrix_factorization.model
     MODEL_VERSION,
     BiasedMatrixFactorizationArtifacts,
     BiasedMatrixFactorizationBuildConfig,
+)
+
+
+RUNTIME_REQUIRED_GLOBAL_STATS_KEYS = (
+    "globalMean",
+    "ratingMin",
+    "ratingMax",
 )
 
 
@@ -80,6 +90,7 @@ def write_model_manifest(
     config: BiasedMatrixFactorizationBuildConfig,
     status: str,
     runtime_status: str,
+    runtime_status_reason: str | None,
     counts: dict[str, Any],
     training_metrics: dict[str, Any],
 ) -> None:
@@ -91,6 +102,7 @@ def write_model_manifest(
         "builtAt": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "runtimeStatus": runtime_status,
+        "runtimeStatusReason": runtime_status_reason,
         "config": {
             "factorCount": config.factor_count,
             "epochs": config.epochs,
@@ -136,3 +148,98 @@ def file_size_mb(path: Path) -> float:
         return 0.0
 
     return round(path.stat().st_size / 1024 / 1024, 3)
+
+
+def resolve_biased_matrix_factorization_runtime_status(
+    artifacts: BiasedMatrixFactorizationArtifacts,
+) -> tuple[str, str | None]:
+    try:
+        validate_biased_matrix_factorization_runtime_artifacts(artifacts)
+    except RuntimeError as exc:
+        return "artifact_validation_failed", str(exc)
+
+    return "ready", None
+
+
+def validate_biased_matrix_factorization_runtime_artifacts(
+    artifacts: BiasedMatrixFactorizationArtifacts,
+) -> None:
+    required_paths = [
+        artifacts.movie_factors_path,
+        artifacts.movie_biases_path,
+        artifacts.movie_index_path,
+        artifacts.global_stats_path,
+        artifacts.training_metrics_path,
+    ]
+
+    for path in required_paths:
+        if not path.exists():
+            raise RuntimeError(
+                "Missing required Biased Matrix Factorization runtime artifact: "
+                f"{path}"
+            )
+
+    movie_factors = np.load(artifacts.movie_factors_path)
+    movie_index_df = pd.read_csv(
+        artifacts.movie_index_path,
+        usecols=["movieId", "movieIndex"],
+    ).sort_values("movieIndex")
+    movie_biases_df = pd.read_csv(
+        artifacts.movie_biases_path,
+        usecols=["movieIndex", "movieBias"],
+    ).sort_values("movieIndex")
+    global_stats = json.loads(artifacts.global_stats_path.read_text(encoding="utf-8"))
+    json.loads(artifacts.training_metrics_path.read_text(encoding="utf-8"))
+
+    _validate_runtime_shapes(
+        movie_factors=movie_factors,
+        movie_index_df=movie_index_df,
+        movie_biases_df=movie_biases_df,
+    )
+
+    missing_keys = [
+        key
+        for key in RUNTIME_REQUIRED_GLOBAL_STATS_KEYS
+        if key not in global_stats
+    ]
+    if missing_keys:
+        raise RuntimeError(
+            "Biased Matrix Factorization global stats are missing required keys: "
+            + ", ".join(missing_keys)
+        )
+
+
+def _validate_runtime_shapes(
+    *,
+    movie_factors: np.ndarray,
+    movie_index_df: pd.DataFrame,
+    movie_biases_df: pd.DataFrame,
+) -> None:
+    movie_count = len(movie_index_df)
+
+    if movie_factors.ndim != 2:
+        raise RuntimeError("movie_factors.npy must be a 2D array.")
+
+    if movie_factors.shape[0] != movie_count:
+        raise RuntimeError(
+            "movie_factors.npy row count does not match movie_index.csv rows."
+        )
+
+    if len(movie_biases_df) != movie_count:
+        raise RuntimeError(
+            "movie_biases.csv row count does not match movie_index.csv rows."
+        )
+
+    expected_indices = np.arange(movie_count, dtype=np.int32)
+    movie_indices = movie_index_df["movieIndex"].to_numpy(dtype=np.int32, copy=True)
+    bias_indices = movie_biases_df["movieIndex"].to_numpy(dtype=np.int32, copy=True)
+
+    if not np.array_equal(movie_indices, expected_indices):
+        raise RuntimeError(
+            "movie_index.csv must be contiguous from 0 to movie_count - 1."
+        )
+
+    if not np.array_equal(bias_indices, expected_indices):
+        raise RuntimeError(
+            "movie_biases.csv must be aligned to contiguous movieIndex values."
+        )
