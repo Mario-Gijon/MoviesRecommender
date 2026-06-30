@@ -130,6 +130,11 @@ def run_leakage_free_mode(
         evaluation_cases_path=evaluation_cases_path,
         artifact_root=models_dir,
         output_dir=metrics_dir,
+        candidate_universe=(
+            "public_plus_support"
+            if mode_name == "model_evaluation"
+            else "public_only"
+        ),
     )
 
 
@@ -144,6 +149,7 @@ def run_production_mode(args: argparse.Namespace) -> None:
     run_compare(
         args=args,
         output_dir=output_dir,
+        candidate_universe="public_only",
     )
 
 
@@ -223,6 +229,7 @@ def run_compare(
     output_dir: Path,
     evaluation_cases_path: Path | None = None,
     artifact_root: Path | None = None,
+    candidate_universe: str = "public_only",
 ) -> None:
     command = [
         sys.executable,
@@ -237,6 +244,8 @@ def run_compare(
         str(args.runtime_repeats),
         "--api-repeats",
         str(args.api_repeats),
+        "--candidate-universe",
+        candidate_universe,
     ]
 
     if args.skip_api:

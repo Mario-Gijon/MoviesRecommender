@@ -111,10 +111,10 @@ def infer_session_profile(
     )
 
 
-def score_public_candidates(
+def score_candidate_movies(
     *,
-    public_movie_ids: np.ndarray,
-    public_movie_indices: np.ndarray,
+    candidate_movie_ids: np.ndarray,
+    candidate_movie_indices: np.ndarray,
     rated_movie_ids: set[int],
     movie_factors: np.ndarray,
     movie_biases: np.ndarray,
@@ -142,24 +142,26 @@ def score_public_candidates(
             filtered_low_score_candidates=0,
         )
 
-    if public_movie_ids.shape[0] != public_movie_indices.shape[0]:
-        raise ValueError("public_movie_ids and public_movie_indices must have same length.")
+    if candidate_movie_ids.shape[0] != candidate_movie_indices.shape[0]:
+        raise ValueError(
+            "candidate_movie_ids and candidate_movie_indices must have same length."
+        )
 
-    if public_movie_indices.shape[0] == 0:
+    if candidate_movie_indices.shape[0] == 0:
         return BmfScoringResult(
             candidates=[],
             raw_candidate_count=0,
             filtered_low_score_candidates=0,
         )
 
-    public_movie_factors = movie_factors[public_movie_indices]
-    public_movie_biases = movie_biases[public_movie_indices]
+    candidate_movie_factors = movie_factors[candidate_movie_indices]
+    candidate_movie_biases = movie_biases[candidate_movie_indices]
 
     raw_predictions = (
         global_mean
         + session_profile.session_bias
-        + public_movie_biases
-        + public_movie_factors @ session_profile.session_factors
+        + candidate_movie_biases
+        + candidate_movie_factors @ session_profile.session_factors
     )
     clipped_predictions = np.clip(raw_predictions, rating_min, rating_max)
 
@@ -167,7 +169,7 @@ def score_public_candidates(
     raw_candidate_count = 0
     filtered_low_score_candidates = 0
 
-    for position, movie_id_value in enumerate(public_movie_ids):
+    for position, movie_id_value in enumerate(candidate_movie_ids):
         movie_id = int(movie_id_value)
         if movie_id in rated_movie_ids:
             continue
@@ -180,7 +182,7 @@ def score_public_candidates(
             filtered_low_score_candidates += 1
             continue
 
-        movie_index = int(public_movie_indices[position])
+        movie_index = int(candidate_movie_indices[position])
         movie_factor = movie_factors[movie_index]
         latent_affinity = float(np.dot(session_profile.session_factors, movie_factor))
         movie_bias = float(movie_biases[movie_index])

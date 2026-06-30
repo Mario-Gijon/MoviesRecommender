@@ -23,10 +23,20 @@ class PopularityBaselineRecommender:
     algorithm_id = ALGORITHM_ID
     algorithm_label = ALGORITHM_LABEL
 
-    def __init__(self, *, artifact_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        artifact_root: Path | None = None,
+        candidate_movie_ids: set[int] | None = None,
+        candidate_policy: str = "public_movies_only",
+    ) -> None:
         self._artifact_root = artifact_root
         self._ranking: list[PopularityRankingEntry] | None = None
         self._manifest: dict | None = None
+        self._candidate_movie_ids = (
+            frozenset(candidate_movie_ids) if candidate_movie_ids is not None else None
+        )
+        self._candidate_policy = candidate_policy
 
     def recommend(
         self,
@@ -56,6 +66,7 @@ class PopularityBaselineRecommender:
                 details={
                     "rankingSignal": "weighted_rating_popularity",
                     "rankingSource": "precomputed_popularity_ranking",
+                    "candidatePolicy": self._candidate_policy,
                     "excludedRatedMovies": len(rated_movie_ids),
                 },
             ),
@@ -78,6 +89,12 @@ class PopularityBaselineRecommender:
         recommendations: list[CollaborativeRecommendedMovie] = []
 
         for entry in self._load_ranking():
+            if (
+                self._candidate_movie_ids is not None
+                and entry.movie_id not in self._candidate_movie_ids
+            ):
+                continue
+
             if entry.movie_id in rated_movie_ids:
                 continue
 

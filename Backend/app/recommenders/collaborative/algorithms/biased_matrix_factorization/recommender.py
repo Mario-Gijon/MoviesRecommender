@@ -18,7 +18,7 @@ from app.recommenders.collaborative.algorithms.biased_matrix_factorization.runti
     BmfCandidatePrediction,
     build_usable_ratings,
     infer_session_profile,
-    score_public_candidates,
+    score_candidate_movies,
 )
 from app.recommenders.collaborative.algorithms.biased_matrix_factorization.storage import (
     get_biased_matrix_factorization_variant_artifacts,
@@ -48,10 +48,10 @@ class BmfRuntimeArtifacts:
     movie_index_to_id: dict[int, int]
     movie_factors: np.ndarray
     movie_biases: np.ndarray
-    public_movie_ids: np.ndarray
-    public_movie_indices: np.ndarray
-    public_movie_count: int
-    missing_public_candidates_from_model: int
+    candidate_movie_ids: np.ndarray
+    candidate_movie_indices: np.ndarray
+    candidate_movie_count: int
+    missing_candidate_movies_from_model: int
 
 
 class BiasedMatrixFactorizationRecommender:
@@ -63,16 +63,22 @@ class BiasedMatrixFactorizationRecommender:
         *,
         runtime_config: BiasedMatrixFactorizationRuntimeConfig,
         artifact_root: Path | None = None,
+        candidate_movie_ids: set[int] | None = None,
+        candidate_policy: str = "public_movies_only",
     ) -> None:
         self._runtime_config = runtime_config
         self._artifact_root = artifact_root
+        self._candidate_movie_ids = candidate_movie_ids
+        self._candidate_policy = candidate_policy
         self._artifacts = get_biased_matrix_factorization_variant_artifacts(
             runtime_config.variant_id,
             artifact_root=artifact_root,
         )
         self._runtime_artifacts: BmfRuntimeArtifacts | None = None
         self._fallback_recommender = PopularityBaselineRecommender(
-            artifact_root=artifact_root
+            artifact_root=artifact_root,
+            candidate_movie_ids=candidate_movie_ids,
+            candidate_policy=candidate_policy,
         )
 
     def recommend(
@@ -108,9 +114,9 @@ class BiasedMatrixFactorizationRecommender:
                 session_regularization=self._runtime_config.session_regularization,
             )
 
-            scoring_result = score_public_candidates(
-                public_movie_ids=runtime_artifacts.public_movie_ids,
-                public_movie_indices=runtime_artifacts.public_movie_indices,
+            scoring_result = score_candidate_movies(
+                candidate_movie_ids=runtime_artifacts.candidate_movie_ids,
+                candidate_movie_indices=runtime_artifacts.candidate_movie_indices,
                 rated_movie_ids=rated_movie_ids,
                 movie_factors=runtime_artifacts.movie_factors,
                 movie_biases=runtime_artifacts.movie_biases,
@@ -179,7 +185,7 @@ class BiasedMatrixFactorizationRecommender:
                 timing_ms=round(total_runtime_ms, 6),
                 details={
                     "modelVariant": self._runtime_config.variant_id,
-                    "candidatePolicy": "public_movies_only",
+                    "candidatePolicy": self._candidate_policy,
                     "ratingMode": "raw_explicit_ratings",
                     "modelType": "biased_matrix_factorization",
                     "sessionInference": "fold_in_temporary_user_profile",
@@ -197,12 +203,12 @@ class BiasedMatrixFactorizationRecommender:
                     "movieBiasWeight": self._runtime_config.movie_bias_weight,
                     "usableRatings": len(usable_ratings),
                     "ignoredUnknownRatedMovies": ignored_unknown_rated_movies,
-                    "publicCandidates": runtime_artifacts.public_movie_count,
+                    "publicCandidates": runtime_artifacts.candidate_movie_count,
                     "modelPublicCandidates": int(
-                        runtime_artifacts.public_movie_ids.shape[0]
+                        runtime_artifacts.candidate_movie_ids.shape[0]
                     ),
                     "missingPublicCandidatesFromModel": (
-                        runtime_artifacts.missing_public_candidates_from_model
+                        runtime_artifacts.missing_candidate_movies_from_model
                     ),
                     "rawCandidateCount": raw_candidate_count,
                     "filteredLowScoreCandidates": filtered_low_score_candidates,
@@ -348,8 +354,11 @@ class BiasedMatrixFactorizationRecommender:
             self._artifacts.global_stats_path.read_text(encoding="utf-8")
         )
 
-        public_movie_ids, public_movie_indices, public_movie_count, missing_public = (
-            _build_public_movie_arrays(movie_id_to_index=movie_id_to_index)
+        candidate_movie_ids, candidate_movie_indices, candidate_movie_count, missing_candidate_movies = (
+            _build_candidate_movie_arrays(
+                movie_id_to_index=movie_id_to_index,
+                candidate_movie_ids=self._candidate_movie_ids,
+            )
         )
 
         self._runtime_artifacts = BmfRuntimeArtifacts(
@@ -362,10 +371,10 @@ class BiasedMatrixFactorizationRecommender:
             movie_index_to_id=movie_index_to_id,
             movie_factors=np.ascontiguousarray(movie_factors),
             movie_biases=np.ascontiguousarray(movie_biases),
-            public_movie_ids=public_movie_ids,
-            public_movie_indices=public_movie_indices,
-            public_movie_count=public_movie_count,
-            missing_public_candidates_from_model=missing_public,
+            candidate_movie_ids=candidate_movie_ids,
+            candidate_movie_indices=candidate_movie_indices,
+            candidate_movie_count=candidate_movie_count,
+            missing_candidate_movies_from_model=missing_candidate_movies,
         )
         return self._runtime_artifacts
 
@@ -411,32 +420,40 @@ def _build_ratings_by_movie_id(
     return ratings_by_movie_id
 
 
-def _build_public_movie_arrays(
+def _build_candidate_movie_arrays(
     *,
     movie_id_to_index: dict[int, int],
+    candidate_movie_ids: set[int] | None,
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
-    public_movie_ids: list[int] = []
-    public_movie_indices: list[int] = []
-    public_movie_count = 0
-    missing_public_candidates_from_model = 0
+    resolved_candidate_movie_ids = (
+        sorted(candidate_movie_ids)
+        if candidate_movie_ids is not None
+        else [
+            int(movie["movieId"])
+            for movie in catalog_repository.get_recommendation_candidates()
+        ]
+    )
+    candidate_movie_id_values: list[int] = []
+    candidate_movie_index_values: list[int] = []
+    candidate_movie_count = 0
+    missing_candidate_movies_from_model = 0
 
-    for movie in catalog_repository.get_recommendation_candidates():
-        public_movie_count += 1
-        movie_id = int(movie["movieId"])
+    for movie_id in resolved_candidate_movie_ids:
+        candidate_movie_count += 1
         movie_index = movie_id_to_index.get(movie_id)
 
         if movie_index is None:
-            missing_public_candidates_from_model += 1
+            missing_candidate_movies_from_model += 1
             continue
 
-        public_movie_ids.append(movie_id)
-        public_movie_indices.append(movie_index)
+        candidate_movie_id_values.append(movie_id)
+        candidate_movie_index_values.append(movie_index)
 
     return (
-        np.asarray(public_movie_ids, dtype=np.int32),
-        np.asarray(public_movie_indices, dtype=np.int32),
-        public_movie_count,
-        missing_public_candidates_from_model,
+        np.asarray(candidate_movie_id_values, dtype=np.int32),
+        np.asarray(candidate_movie_index_values, dtype=np.int32),
+        candidate_movie_count,
+        missing_candidate_movies_from_model,
     )
 
 

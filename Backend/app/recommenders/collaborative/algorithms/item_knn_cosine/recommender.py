@@ -62,6 +62,8 @@ class ItemKnnCosineRecommender:
         *,
         model_variant_id: str,
         artifact_root: Path | None = None,
+        candidate_movie_ids: set[int] | None = None,
+        candidate_policy: str = "public_movies_only",
     ) -> None:
         self._model_variant_id = model_variant_id
         self._artifact_root = artifact_root
@@ -71,12 +73,19 @@ class ItemKnnCosineRecommender:
         )
         self._manifest = self._load_manifest()
         self._fallback_recommender = PopularityBaselineRecommender(
-            artifact_root=artifact_root
+            artifact_root=artifact_root,
+            candidate_movie_ids=candidate_movie_ids,
+            candidate_policy=candidate_policy,
         )
-        self._public_movie_ids = frozenset(
-            int(movie["movieId"])
-            for movie in catalog_repository.get_recommendation_candidates()
+        self._candidate_movie_ids = frozenset(
+            candidate_movie_ids
+            if candidate_movie_ids is not None
+            else (
+                int(movie["movieId"])
+                for movie in catalog_repository.get_recommendation_candidates()
+            )
         )
+        self._candidate_policy = candidate_policy
 
     def recommend(
         self,
@@ -86,7 +95,7 @@ class ItemKnnCosineRecommender:
         self._validate_artifacts()
 
         rated_movie_ids = {rating.movie_id for rating in request.ratings}
-        public_movie_ids = self._public_movie_ids
+        candidate_movie_ids = self._candidate_movie_ids
 
         candidate_scores: dict[int, CandidateScore] = {}
         discarded_non_public_candidates = 0
@@ -134,7 +143,7 @@ class ItemKnnCosineRecommender:
                     discarded_rated_candidates += 1
                     continue
 
-                if neighbor_movie_id not in public_movie_ids:
+                if neighbor_movie_id not in candidate_movie_ids:
                     discarded_non_public_candidates += 1
                     continue
 
@@ -233,7 +242,7 @@ class ItemKnnCosineRecommender:
                 timing_ms=round(total_runtime_ms, 6),
                 details={
                     "modelVariant": self._model_variant_id,
-                    "candidatePolicy": "public_movies_only",
+                    "candidatePolicy": self._candidate_policy,
                     "similarity": "cosine",
                     "ratingMode": "raw_explicit_ratings",
                     "neighborQueryMode": "batched_source_movie_ids",

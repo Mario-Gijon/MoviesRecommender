@@ -121,15 +121,20 @@ class UserKnnPearsonShrinkageRecommender:
         *,
         runtime_config: UserKnnPearsonShrinkageRuntimeConfig | None = None,
         artifact_root: Path | None = None,
+        candidate_policy: str = "public_movies_only",
+        use_all_artifact_candidates: bool = False,
     ) -> None:
         self._runtime_config = runtime_config or UserKnnPearsonShrinkageRuntimeConfig()
         self._artifact_root = artifact_root
+        self._candidate_policy = candidate_policy
+        self._use_all_artifact_candidates = use_all_artifact_candidates
         self._artifacts = get_user_knn_pearson_shrinkage_artifacts(
             artifact_root=artifact_root
         )
         self._manifest = self._load_manifest()
         self._fallback_recommender = PopularityBaselineRecommender(
-            artifact_root=artifact_root
+            artifact_root=artifact_root,
+            candidate_policy=candidate_policy,
         )
 
     def recommend(
@@ -247,7 +252,7 @@ class UserKnnPearsonShrinkageRecommender:
                 timing_ms=round(total_runtime_ms, 6),
                 details={
                     "modelVariant": self._runtime_config.variant_id,
-                    "candidatePolicy": "public_movies_only",
+                    "candidatePolicy": self._candidate_policy,
                     "neighborSearch": "on_demand_user_neighbors",
                     "similarity": "mean_centered_pearson_with_shrinkage",
                     "candidateScoring": "regularized_mean_centered_prediction",
@@ -388,12 +393,13 @@ class UserKnnPearsonShrinkageRecommender:
         if not state.neighbor_similarities:
             return state
 
-        public_candidate_rows = _load_public_candidate_rows(
+        public_candidate_rows = _load_candidate_rows(
             sqlite_path=self._artifacts.ratings_sqlite_path,
             neighbor_user_ids=[
                 neighbor.user_id
                 for neighbor in state.neighbor_similarities
             ],
+            use_all_artifact_candidates=self._use_all_artifact_candidates,
         )
         state.public_candidate_rating_rows = len(public_candidate_rows)
         state.candidate_scores = _build_candidate_scores(
@@ -538,10 +544,11 @@ def _select_neighbors(
     ]
 
 
-def _load_public_candidate_rows(
+def _load_candidate_rows(
     *,
     sqlite_path: Path,
     neighbor_user_ids: list[int],
+    use_all_artifact_candidates: bool,
 ) -> list[tuple[int, int, float, float]]:
     rows: list[tuple[int, int, float, float]] = []
 
@@ -558,8 +565,8 @@ def _load_public_candidate_rows(
                     f"""
                     SELECT user_id, movie_id, rating, centered_rating
                     FROM user_ratings
-                    WHERE is_public_candidate = 1
-                      AND user_id IN ({placeholders})
+                    WHERE user_id IN ({placeholders})
+                    {"AND is_public_candidate = 1" if not use_all_artifact_candidates else ""}
                     """,
                     chunk,
                 ).fetchall()

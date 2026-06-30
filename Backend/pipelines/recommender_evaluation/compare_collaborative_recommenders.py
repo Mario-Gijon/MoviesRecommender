@@ -49,6 +49,12 @@ from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.storag
     get_user_knn_pearson_shrinkage_artifacts,
     load_user_knn_pearson_shrinkage_manifest,
 )
+from app.recommenders.collaborative.common.candidate_universe import (
+    CandidateUniverseMode,
+    candidate_policy_label,
+    load_candidate_movie_ids,
+    load_public_movie_ids,
+)
 from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationRequest,
     CollaborativeUserRating,
@@ -73,6 +79,8 @@ class EvaluationCase:
     ratings: list[CollaborativeUserRating]
     holdout_movie_ids: list[int]
     holdout_ratings: list[EvaluationHoldoutRating]
+    audit_mode: str | None = None
+    candidate_universe: CandidateUniverseMode | None = None
 
     def to_request(self, *, limit: int) -> CollaborativeRecommendationRequest:
         return CollaborativeRecommendationRequest(
@@ -115,6 +123,7 @@ def main() -> None:
             if args.output_dir is not None
             else default_offline_context.audit_output_root
         ),
+        candidate_universe_name=args.candidate_universe,
     )
     started_at = datetime.now(timezone.utc)
     evaluation_id = started_at.strftime("%Y%m%d_%H%M%S")
@@ -128,24 +137,31 @@ def main() -> None:
     prepare_output_dir(output_dir)
 
     public_catalog = catalog_repository.get_recommendation_candidates()
-    public_movie_ids = {int(movie["movieId"]) for movie in public_catalog}
+    public_movie_ids = load_public_movie_ids(offline_context)
+    candidate_movie_ids = load_candidate_movie_ids(
+        candidate_universe=args.candidate_universe,
+        offline_context=offline_context,
+    )
     public_movies_by_id = {int(movie["movieId"]): movie for movie in public_catalog}
 
     evaluation_cases = (
         load_evaluation_cases_from_json(args.evaluation_cases_path)
         if args.evaluation_cases_path is not None
         else build_evaluation_cases(
-            public_movie_ids=public_movie_ids,
+            candidate_movie_ids=candidate_movie_ids,
             case_count=args.case_count,
             min_positive_input=args.min_positive_input,
             holdout_count=args.holdout_count,
             seed=args.seed,
+            candidate_universe=args.candidate_universe,
             offline_context=offline_context,
         )
     )
     recommenders = load_evaluated_recommenders(
         requested_variants=args.variant,
         offline_context=offline_context,
+        candidate_universe=args.candidate_universe,
+        candidate_movie_ids=candidate_movie_ids,
     )
 
     rows: list[dict[str, Any]] = []
@@ -157,6 +173,7 @@ def main() -> None:
         runtime_and_quality_metrics = benchmark_runtime_and_quality(
             evaluated=evaluated,
             cases=evaluation_cases,
+            candidate_movie_ids=candidate_movie_ids,
             public_movie_ids=public_movie_ids,
             public_movies_by_id=public_movies_by_id,
             limit=args.limit,
@@ -204,6 +221,11 @@ def main() -> None:
         "evaluationId": evaluation_id,
         "startedAt": started_at.isoformat(),
         "caseCount": len(evaluation_cases),
+        "candidateUniverse": args.candidate_universe,
+        "candidateMovieCount": len(candidate_movie_ids),
+        "recommendationConstraint": candidate_policy_label(args.candidate_universe),
+        "leakageFree": infer_leakage_free(evaluation_cases),
+        "caseAuditMode": infer_case_audit_mode(evaluation_cases),
         "limit": args.limit,
         "runtimeRepeats": args.runtime_repeats,
         "apiRepeats": args.api_repeats,
@@ -256,23 +278,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evaluation-cases-path", type=Path, default=None)
     parser.add_argument("--artifact-root", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument(
+        "--candidate-universe",
+        choices=["public_only", "public_plus_support"],
+        default="public_only",
+    )
     return parser.parse_args()
 
 
 def build_evaluation_cases(
     *,
-    public_movie_ids: set[int],
+    candidate_movie_ids: set[int],
     case_count: int,
     min_positive_input: int,
     holdout_count: int,
     seed: int,
+    candidate_universe: CandidateUniverseMode,
     offline_context: CollaborativeOfflineContext,
 ) -> list[EvaluationCase]:
     if case_count <= 0:
         raise RuntimeError("--case-count must be greater than 0.")
 
-    ratings = load_public_ratings(
-        public_movie_ids,
+    ratings = load_candidate_ratings(
+        candidate_movie_ids,
         offline_context=offline_context,
     )
     grouped = ratings.groupby("userId", sort=False)
@@ -321,6 +349,7 @@ def build_evaluation_cases(
                 ratings=ratings_input,
                 holdout_movie_ids=[item.movie_id for item in holdout_ratings],
                 holdout_ratings=holdout_ratings,
+                candidate_universe=candidate_universe,
             )
         )
         if len(cases) >= case_count:
@@ -374,6 +403,16 @@ def load_evaluation_cases_from_json(path: Path) -> list[EvaluationCase]:
                     )
                     for rating in holdout_ratings_payload
                 ],
+                audit_mode=(
+                    str(item["auditMode"])
+                    if item.get("auditMode") is not None
+                    else None
+                ),
+                candidate_universe=(
+                    str(item["candidateUniverse"])
+                    if item.get("candidateUniverse") is not None
+                    else None
+                ),
             )
         )
 
@@ -383,8 +422,8 @@ def load_evaluation_cases_from_json(path: Path) -> list[EvaluationCase]:
     return cases
 
 
-def load_public_ratings(
-    public_movie_ids: set[int],
+def load_candidate_ratings(
+    candidate_movie_ids: set[int],
     *,
     offline_context: CollaborativeOfflineContext,
 ) -> pd.DataFrame:
@@ -395,12 +434,12 @@ def load_public_ratings(
         dtype={"userId": "int32", "movieId": "int32", "rating": "float32"},
         chunksize=1_000_000,
     ):
-        filtered = chunk[chunk["movieId"].isin(public_movie_ids)]
+        filtered = chunk[chunk["movieId"].isin(candidate_movie_ids)]
         if not filtered.empty:
             chunks.append(filtered)
 
     if not chunks:
-        raise RuntimeError("No public movie ratings found for evaluation.")
+        raise RuntimeError("No candidate-universe ratings found for evaluation.")
 
     ratings = pd.concat(chunks, ignore_index=True)
     return ratings.drop_duplicates(subset=["userId", "movieId"], keep="last")
@@ -422,8 +461,16 @@ def load_evaluated_recommenders(
     *,
     requested_variants: list[str] | None,
     offline_context: CollaborativeOfflineContext,
+    candidate_universe: CandidateUniverseMode,
+    candidate_movie_ids: set[int],
 ) -> list[EvaluatedRecommender]:
     recommenders: list[EvaluatedRecommender] = []
+    policy_label = candidate_policy_label(candidate_universe)
+    popularity_policy = (
+        "public_movies_only_artifact_limited"
+        if candidate_universe == "public_plus_support"
+        else policy_label
+    )
 
     popularity_artifacts = get_popularity_baseline_artifacts(
         artifact_root=offline_context.collaborative_model_artifact_root,
@@ -440,6 +487,8 @@ def load_evaluated_recommenders(
                 variant_id="default",
                 recommender=PopularityBaselineRecommender(
                     artifact_root=offline_context.collaborative_model_artifact_root,
+                    candidate_movie_ids=candidate_movie_ids,
+                    candidate_policy=popularity_policy,
                 ),
                 manifest=load_popularity_baseline_manifest(
                     artifact_root=offline_context.collaborative_model_artifact_root,
@@ -476,6 +525,8 @@ def load_evaluated_recommenders(
                     recommender=ItemKnnCosineRecommender(
                         model_variant_id=variant_id,
                         artifact_root=offline_context.collaborative_model_artifact_root,
+                        candidate_movie_ids=candidate_movie_ids,
+                        candidate_policy=policy_label,
                     ),
                     manifest=json.loads(manifest_path.read_text(encoding="utf-8")),
                 )
@@ -496,6 +547,10 @@ def load_evaluated_recommenders(
                 variant_id=user_knn_artifacts.variant_dir.name,
                 recommender=UserKnnPearsonShrinkageRecommender(
                     artifact_root=offline_context.collaborative_model_artifact_root,
+                    candidate_policy=policy_label,
+                    use_all_artifact_candidates=(
+                        candidate_universe == "public_plus_support"
+                    ),
                 ),
                 manifest=load_user_knn_pearson_shrinkage_manifest(
                     artifact_root=offline_context.collaborative_model_artifact_root,
@@ -558,6 +613,8 @@ def load_evaluated_recommenders(
                                 movie_bias_weight=movie_bias_weight,
                             ),
                             artifact_root=offline_context.collaborative_model_artifact_root,
+                            candidate_movie_ids=candidate_movie_ids,
+                            candidate_policy=policy_label,
                         ),
                         manifest=manifest,
                         artifact_variant_id=variant_id,
@@ -719,13 +776,18 @@ def offline_metrics(
 def technical_details(evaluated: EvaluatedRecommender) -> dict[str, Any]:
     runtime_design = evaluated.manifest.get("runtimeDesign", {})
     parameters = evaluated.manifest.get("parameters", {})
+    configured_candidate_policy = getattr(
+        evaluated.recommender,
+        "_candidate_policy",
+        runtime_design.get("candidatePolicy"),
+    )
 
     if evaluated.algorithm_id == USER_KNN_ALGORITHM_ID:
         return {
             "neighborSearch": "on_demand_user_neighbors",
             "similarity": "mean_centered_pearson_with_shrinkage",
             "candidateScoring": "regularized_mean_centered_prediction",
-            "candidatePolicy": "public_movies_only",
+            "candidatePolicy": configured_candidate_policy,
         }
 
     if evaluated.algorithm_id == "item_knn_cosine":
@@ -733,7 +795,7 @@ def technical_details(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             "neighborSearch": "precomputed_item_neighbors",
             "similarity": parameters.get("similarity"),
             "candidateScoring": "similarity_weighted_positive_signal",
-            "candidatePolicy": "public_movies_only",
+            "candidatePolicy": configured_candidate_policy,
         }
 
     if evaluated.algorithm_id == "popularity_baseline":
@@ -741,7 +803,7 @@ def technical_details(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             "neighborSearch": None,
             "similarity": None,
             "candidateScoring": parameters.get("rankingSignal"),
-            "candidatePolicy": "public_movies_only",
+            "candidatePolicy": configured_candidate_policy,
         }
 
     if evaluated.algorithm_id == BIASED_MATRIX_FACTORIZATION_ALGORITHM_ID:
@@ -749,7 +811,7 @@ def technical_details(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             "neighborSearch": None,
             "similarity": None,
             "candidateScoring": runtime_design.get("predictionFormula"),
-            "candidatePolicy": runtime_design.get("candidatePolicy"),
+            "candidatePolicy": configured_candidate_policy,
         }
 
     return {
@@ -760,7 +822,7 @@ def technical_details(evaluated: EvaluatedRecommender) -> dict[str, Any]:
             else parameters.get("similarity")
         ),
         "candidateScoring": runtime_design.get("candidateScoring"),
-        "candidatePolicy": runtime_design.get("candidatePolicy"),
+        "candidatePolicy": configured_candidate_policy,
     }
 
 
@@ -768,6 +830,7 @@ def benchmark_runtime_and_quality(
     *,
     evaluated: EvaluatedRecommender,
     cases: list[EvaluationCase],
+    candidate_movie_ids: set[int],
     public_movie_ids: set[int],
     public_movies_by_id: dict[int, dict[str, Any]],
     limit: int,
@@ -782,7 +845,7 @@ def benchmark_runtime_and_quality(
     fallback_recommendations_added: list[int] = []
 
     quality_accumulator = QualityAccumulator(
-        public_movie_count=len(public_movie_ids),
+        candidate_movie_count=len(candidate_movie_ids),
         limit=limit,
         public_movies_by_id=public_movies_by_id,
     )
@@ -807,6 +870,7 @@ def benchmark_runtime_and_quality(
             quality_accumulator.add_case(
                 case=case,
                 recommended_movie_ids=recommended_ids,
+                candidate_movie_ids=candidate_movie_ids,
                 public_movie_ids=public_movie_ids,
             )
             if hasattr(evaluated.recommender, "predict_rating_for_movie"):
@@ -922,11 +986,11 @@ class QualityAccumulator:
     def __init__(
         self,
         *,
-        public_movie_count: int,
+        candidate_movie_count: int,
         limit: int,
         public_movies_by_id: dict[int, dict[str, Any]],
     ) -> None:
-        self.public_movie_count = public_movie_count
+        self.candidate_movie_count = candidate_movie_count
         self.limit = limit
         self.public_movies_by_id = public_movies_by_id
         self.case_count = 0
@@ -942,6 +1006,7 @@ class QualityAccumulator:
         self.map_at_10_values: list[float] = []
         self.unique_recommended_movie_ids: set[int] = set()
         self.recommended_movie_ids_all: list[int] = []
+        self.out_of_candidate_universe_recommendation_count = 0
         self.non_public_recommendation_count = 0
         self.already_rated_recommendation_count = 0
         self.total_recommendation_count = 0
@@ -958,6 +1023,7 @@ class QualityAccumulator:
         *,
         case: EvaluationCase,
         recommended_movie_ids: list[int],
+        candidate_movie_ids: set[int],
         public_movie_ids: set[int],
     ) -> None:
         self.case_count += 1
@@ -967,6 +1033,11 @@ class QualityAccumulator:
         holdout_ids = set(case.holdout_movie_ids)
         input_movie_ids = {rating.movie_id for rating in case.ratings}
         self.total_recommendation_count += len(recommended_movie_ids)
+        self.out_of_candidate_universe_recommendation_count += sum(
+            1
+            for movie_id in recommended_movie_ids
+            if movie_id not in candidate_movie_ids
+        )
         self.non_public_recommendation_count += sum(
             1 for movie_id in recommended_movie_ids if movie_id not in public_movie_ids
         )
@@ -1012,7 +1083,10 @@ class QualityAccumulator:
             )
 
     def metrics(self, *, evaluated: EvaluatedRecommender) -> dict[str, Any]:
-        coverage_pct = pct(len(self.unique_recommended_movie_ids), self.public_movie_count)
+        coverage_pct = pct(
+            len(self.unique_recommended_movie_ids),
+            self.candidate_movie_count,
+        )
         catalog_stats = summarize_catalog_fields(
             recommended_movie_ids=self.recommended_movie_ids_all,
             public_movies_by_id=self.public_movies_by_id,
@@ -1036,6 +1110,13 @@ class QualityAccumulator:
             "mapAt10": round_float(mean(self.map_at_10_values)),
             "catalogCoveragePct": coverage_pct,
             "uniqueRecommendedMovies": len(self.unique_recommended_movie_ids),
+            "outOfCandidateUniverseRecommendationCount": (
+                self.out_of_candidate_universe_recommendation_count
+            ),
+            "outOfCandidateUniverseRecommendationPct": pct(
+                self.out_of_candidate_universe_recommendation_count,
+                self.total_recommendation_count,
+            ),
             "nonPublicRecommendationCount": self.non_public_recommendation_count,
             "nonPublicRecommendationPct": pct(
                 self.non_public_recommendation_count,
@@ -1319,9 +1400,11 @@ SECTION_COLUMNS = {
         "avgRecommendedTmdbPopularity",
         "medianRecommendedTmdbPopularity",
     ],
-    "Public catalog safety": [
+    "Candidate universe safety": [
         "algorithmId",
         "variantId",
+        "outOfCandidateUniverseRecommendationCount",
+        "outOfCandidateUniverseRecommendationPct",
         "nonPublicRecommendationCount",
         "nonPublicRecommendationPct",
         "alreadyRatedRecommendationCount",
@@ -1419,6 +1502,11 @@ def write_markdown_report(*, path: Path, summary: dict[str, Any], rows: list[dic
                 "evaluationId": summary["evaluationId"],
                 "startedAt": summary["startedAt"],
                 "caseCount": summary["caseCount"],
+                "candidateUniverse": summary["candidateUniverse"],
+                "candidateMovieCount": summary["candidateMovieCount"],
+                "recommendationConstraint": summary["recommendationConstraint"],
+                "leakageFree": summary["leakageFree"],
+                "caseAuditMode": summary["caseAuditMode"],
                 "limit": summary["limit"],
                 "runtimeRepeats": summary["runtimeRepeats"],
                 "apiRepeats": summary["apiRepeats"],
@@ -1579,6 +1667,8 @@ def write_html_report(*, path: Path, summary: dict[str, Any], rows: list[dict[st
     {html_metric_card("Run ID", summary["runId"])}
     {html_metric_card("Started at", summary["startedAt"])}
     {html_metric_card("Cases", summary["caseCount"])}
+    {html_metric_card("Candidate universe", summary["candidateUniverse"])}
+    {html_metric_card("Leakage free", summary["leakageFree"])}
     {html_metric_card("Limit", summary["limit"])}
     {html_metric_card("Runtime repeats", summary["runtimeRepeats"])}
     {html_metric_card("API repeats", summary["apiRepeats"])}
@@ -1604,6 +1694,8 @@ def serialize_evaluation_cases(cases: list[EvaluationCase]) -> list[dict[str, An
         {
             "caseId": case.case_id,
             "userId": case.user_id,
+            "auditMode": case.audit_mode,
+            "candidateUniverse": case.candidate_universe,
             "ratings": [
                 {"movieId": rating.movie_id, "rating": rating.rating}
                 for rating in case.ratings
@@ -1616,6 +1708,26 @@ def serialize_evaluation_cases(cases: list[EvaluationCase]) -> list[dict[str, An
         }
         for case in cases
     ]
+
+
+def infer_case_audit_mode(cases: list[EvaluationCase]) -> str | None:
+    audit_modes = {
+        case.audit_mode
+        for case in cases
+        if case.audit_mode is not None
+    }
+    if len(audit_modes) == 1:
+        return next(iter(audit_modes))
+    return None
+
+
+def infer_leakage_free(cases: list[EvaluationCase]) -> bool | None:
+    audit_mode = infer_case_audit_mode(cases)
+    if audit_mode in {"stand_simulation", "model_evaluation"}:
+        return True
+    if audit_mode is None:
+        return None
+    return False
 
 
 def markdown_key_value_table(values: dict[str, Any]) -> str:
