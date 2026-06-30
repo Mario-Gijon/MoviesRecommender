@@ -4,6 +4,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.catalog.catalog_repository import catalog_repository
+from app.recommenders.collaborative.algorithms.item_knn_cosine.explanation import (
+    ItemKnnExplanationContribution,
+    build_item_knn_explanation,
+)
 from app.recommenders.collaborative.algorithms.item_knn_cosine.models import (
     ALGORITHM_ID,
     ALGORITHM_LABEL,
@@ -16,10 +20,6 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.recommender i
     PopularityBaselineRecommender,
 )
 from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
-from app.recommenders.collaborative.common.explanations.explanations import (
-    CollaborativeExplanationContribution,
-    build_collaborative_explanation,
-)
 from app.recommenders.collaborative.common.explanations.profile_style import (
     infer_collaborative_profile_style,
 )
@@ -180,32 +180,13 @@ class ItemKnnCosineRecommender:
         profile_style = infer_collaborative_profile_style(request.ratings)
 
         recommendations = [
-            CollaborativeRecommendedMovie(
-                movie_id=candidate.movie_id,
+            _build_recommended_movie(
+                candidate=candidate,
                 rank=rank,
-                score=round(candidate.score, 6),
-                explanation=build_collaborative_explanation(
-                    candidate_movie_id=candidate.movie_id,
-                    rank=rank,
-                    profile_style=profile_style,
-                    template_session_id=request.template_session_id,
-                    contributions=[
-                        CollaborativeExplanationContribution(
-                            source_movie_id=contribution.source_movie_id,
-                            source_rating=contribution.source_rating,
-                            rating_weight=contribution.rating_weight,
-                            similarity=contribution.similarity,
-                            support=contribution.support,
-                            contribution=contribution.contribution,
-                        )
-                        for contribution in candidate.contributions
-                    ],
-                ),
-                algorithm_details=_build_algorithm_details(candidate),
+                variant_id=self._model_variant_id,
+                template_session_id=request.template_session_id,
             )
-            for rank, candidate in enumerate(
-                ranked_candidates[: request.limit], start=1
-            )
+            for rank, candidate in enumerate(ranked_candidates[: request.limit], start=1)
         ]
 
         personalized_runtime_ms = _elapsed_ms(personalized_started_at)
@@ -365,6 +346,54 @@ def _build_algorithm_details(candidate: CandidateScore) -> dict:
             for contribution in top_contributions
         ],
     }
+
+
+def _build_recommended_movie(
+    *,
+    candidate: CandidateScore,
+    rank: int,
+    variant_id: str,
+    template_session_id: str | None,
+) -> CollaborativeRecommendedMovie:
+    rendered_explanation = build_item_knn_explanation(
+        candidate_movie_id=candidate.movie_id,
+        rank=rank,
+        variant_id=variant_id,
+        template_session_id=template_session_id,
+        contributions=[
+            ItemKnnExplanationContribution(
+                source_movie_id=contribution.source_movie_id,
+                source_rating=contribution.source_rating,
+                contribution=contribution.contribution,
+            )
+            for contribution in candidate.contributions
+        ],
+    )
+    algorithm_details = _build_algorithm_details(candidate)
+    algorithm_details.update(
+        {
+            "explanationType": rendered_explanation.structured_explanation.explanationType,
+            "explanationTemplateId": rendered_explanation.structured_explanation.templateId,
+            "explanationEvidenceMovieIds": [
+                movie.movieId
+                for movie in rendered_explanation.structured_explanation.evidenceMovies
+            ],
+            "explanationEvidenceMovieTitles": [
+                movie.title
+                for movie in rendered_explanation.structured_explanation.evidenceMovies
+            ],
+            "explanationFidelity": rendered_explanation.structured_explanation.fidelity,
+            "explanationSource": rendered_explanation.structured_explanation.explanationSource,
+        }
+    )
+
+    return CollaborativeRecommendedMovie(
+        movie_id=candidate.movie_id,
+        rank=rank,
+        score=round(candidate.score, 6),
+        explanation=rendered_explanation.response_explanation,
+        algorithm_details=algorithm_details,
+    )
 
 
 def _elapsed_ms(started_at: float) -> float:

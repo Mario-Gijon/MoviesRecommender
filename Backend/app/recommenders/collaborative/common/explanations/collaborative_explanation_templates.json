@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Backend template bank for collaborative recommendation explanations.",
+  "description": "Backend template bank for collaborative recommendation explanations. These templates generate natural Spanish explanations from real collaborative evidence. They must not invent genres, themes, actors or plot details.",
   "selection": {
     "deterministic": true,
     "recommended_seed_parts": [
@@ -19,67 +19,427 @@
       "strong": [
         {
           "id": "item_knn_strong_001",
-          "text": "Como te gustaron {movies}, esta pelicula tiene bastante sentido en tu lista.",
+          "text": "Como te gustaron {movies}, esta película tiene bastante sentido en tu lista.",
           "requires": ["movies"]
         },
         {
           "id": "item_knn_strong_002",
           "text": "Esta no sale al azar: varias pelis que te gustaron apuntan hacia ella, como {movies}.",
           "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_003",
+          "text": "Si disfrutaste con {movies}, esta puede ser una buena candidata.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_004",
+          "text": "Va por una línea parecida a {movies}, que ya encajaron bastante con tus gustos.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_005",
+          "text": "Tus valoraciones en {movies} han ayudado a que esta película aparezca arriba.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_006",
+          "text": "Esta recomendación se apoya en pelis que te gustaron, sobre todo {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_007",
+          "text": "Puede encajarte porque conecta bastante con películas de tu perfil como {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_008",
+          "text": "Como marcaste bien {movies}, esta película ha ganado fuerza en tu lista.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_009",
+          "text": "Tiene sentido recomendarla porque varias pelis que valoraste bien llevan hacia ella, como {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_010",
+          "text": "Esta va bastante cerca de algunas pelis que te gustaron, como {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_011",
+          "text": "No es una elección cualquiera: viene muy conectada con {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_strong_012",
+          "text": "Como {movies} funcionaron bien en tu perfil, esta película puede ser una buena siguiente opción.",
+          "requires": ["movies"]
         }
       ],
       "medium": [
         {
           "id": "item_knn_medium_001",
-          "text": "Esta pelicula encaja con algunas pelis que has valorado bien, como {movies}.",
+          "text": "Esta película encaja con algunas pelis que has valorado bien, como {movies}.",
           "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_medium_002",
+          "text": "Hay varias pistas en tus valoraciones que apuntan hacia esta película, especialmente {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_medium_003",
+          "text": "Puede ir contigo porque se acerca a algunas películas de tu perfil, como {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_medium_004",
+          "text": "Esta recomendación toma como referencia pelis que marcaste bien, como {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_medium_005",
+          "text": "No está tan lejos de lo que has ido eligiendo: conecta con {movies}.",
+          "requires": ["movies"]
+        },
+        {
+          "id": "item_knn_medium_006",
+          "text": "Puede ser una opción razonable porque comparte camino con {movies}.",
+          "requires": ["movies"]
+        }
+      ],
+      "weak": [
+        {
+          "id": "item_knn_weak_001",
+          "text": "Todavía tenemos pocas pistas, pero esta película conecta con algunas de tus valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "item_knn_weak_002",
+          "text": "Esta recomendación usa señales pequeñas de tu perfil, así que puede ser una opción para probar.",
+          "requires": []
+        },
+        {
+          "id": "item_knn_weak_003",
+          "text": "Aún falta conocer mejor tus gustos, pero esta película no aparece sin motivo.",
+          "requires": []
+        }
+      ],
+      "fallback": [
+        {
+          "id": "item_knn_fallback_001",
+          "text": "Como todavía tenemos poca información sobre tus gustos, esta recomendación se apoya en películas que suelen funcionar bien.",
+          "requires": []
+        },
+        {
+          "id": "item_knn_fallback_002",
+          "text": "Aún estamos aprendiendo tus gustos, así que esta es una candidata bastante segura para empezar.",
+          "requires": []
         }
       ]
     },
-    "user_knn_similar_profiles": [
-      {
-        "id": "user_knn_strong_001",
-        "text": "Perfiles con gustos parecidos al tuyo tambien disfrutaron esta pelicula.",
-        "requires": [],
-        "strength": "strong"
-      },
-      {
-        "id": "user_knn_medium_001",
-        "text": "Esta recomendacion encaja con valoraciones de personas que se parecen bastante a tu perfil.",
-        "requires": [],
-        "strength": "medium"
-      }
-    ],
+    "user_knn_similar_profiles": {
+      "strong": [
+        {
+          "id": "user_knn_strong_001",
+          "text": "Perfiles con gustos parecidos al tuyo también disfrutaron esta película. Coincidían contigo en pelis como {sharedMovies}.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_002",
+          "text": "Esta película aparece porque otros perfiles que también conectaban con {sharedMovies} la valoraron bien.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_003",
+          "text": "Un grupo de perfiles parecidos al tuyo coincidía contigo en {sharedMovies}, y esta película también les gustó.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_004",
+          "text": "La recomendación viene de perfiles que se parecen al tuyo por películas como {sharedMovies}.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_005",
+          "text": "Hay una pista clara: perfiles que coincidían contigo en {sharedMovies} también disfrutaron esta película.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_006",
+          "text": "Esta no aparece al azar: perfiles cercanos al tuyo compartían gustos en {sharedMovies} y también la valoraron bien.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_007",
+          "text": "Otros perfiles con gustos parecidos al tuyo también la eligieron, y la conexión viene sobre todo por {sharedMovies}.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_008",
+          "text": "Puede encajarte porque perfiles que pensaban parecido a ti en {sharedMovies} también la tuvieron muy en cuenta.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_009",
+          "text": "Esta película ganó fuerza porque perfiles parecidos al tuyo coincidían contigo en {sharedMovies}.",
+          "requires": ["sharedMovies"]
+        },
+        {
+          "id": "user_knn_strong_010",
+          "text": "Parece buena candidata porque otros perfiles con gustos parecidos también conectaban con {sharedMovies}.",
+          "requires": ["sharedMovies"]
+        }
+      ],
+      "medium": [
+        {
+          "id": "user_knn_medium_001",
+          "text": "Esta película aparece porque algunos perfiles con gustos parecidos al tuyo la valoraron bien.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_medium_002",
+          "text": "Hay perfiles que se parecen bastante a tus gustos y que también disfrutaron esta película.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_medium_003",
+          "text": "La recomendación tiene sentido porque varios perfiles cercanos al tuyo apuntan hacia ella.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_medium_004",
+          "text": "Esta película ha entrado en la lista gracias a señales de perfiles parecidos al tuyo.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_medium_005",
+          "text": "No tenemos una coincidencia perfecta, pero sí bastantes pistas de perfiles similares.",
+          "requires": []
+        }
+      ],
+      "weak": [
+        {
+          "id": "user_knn_weak_001",
+          "text": "Todavía tenemos pocas pistas sobre tus gustos, pero algunos perfiles parecidos apuntan hacia esta película.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_weak_002",
+          "text": "Esta recomendación usa una señal pequeña de perfiles parecidos. Con más valoraciones podríamos afinarla mejor.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_weak_003",
+          "text": "Hay algunas coincidencias con perfiles parecidos, aunque todavía necesitamos más pistas de tus gustos.",
+          "requires": []
+        }
+      ],
+      "fallback": [
+        {
+          "id": "user_knn_fallback_001",
+          "text": "Como aún sabemos poco de tus gustos, esta recomendación se apoya en películas que suelen funcionar bien.",
+          "requires": []
+        },
+        {
+          "id": "user_knn_fallback_002",
+          "text": "Aún faltan pistas claras de perfiles parecidos, así que esta película aparece como una opción bastante segura.",
+          "requires": []
+        }
+      ]
+    },
     "bmf_profile_pattern": {
       "strong": [
         {
           "id": "bmf_strong_001",
-          "text": "Esta pelicula encaja bastante con el patron que dejan tus valoraciones.",
+          "text": "Esta película encaja bastante con el patrón que dejan tus valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "bmf_strong_002",
+          "text": "Tus valoraciones dibujan un estilo de gustos en el que esta película encaja bastante bien.",
+          "requires": []
+        },
+        {
+          "id": "bmf_strong_003",
+          "text": "El modelo ha visto que esta película va bastante en la línea de lo que has ido marcando.",
+          "requires": []
+        },
+        {
+          "id": "bmf_strong_004",
+          "text": "Esta recomendación sale porque tus valoraciones apuntan a un patrón donde esta película tiene sentido.",
+          "requires": []
+        },
+        {
+          "id": "bmf_strong_005",
+          "text": "Por cómo has valorado otras pelis, esta parece una candidata bastante clara para tu perfil.",
+          "requires": []
+        },
+        {
+          "id": "bmf_strong_006",
+          "text": "Esta película encaja con una parte bastante marcada de tus gustos.",
           "requires": []
         }
       ],
       "medium": [
         {
           "id": "bmf_medium_001",
-          "text": "Esta pelicula encaja con algunas señales de tus valoraciones.",
+          "text": "Esta película encaja con algunas señales de tus valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "bmf_medium_002",
+          "text": "El modelo encuentra varias pistas en tu perfil que hacen que esta película tenga sentido.",
+          "requires": []
+        },
+        {
+          "id": "bmf_medium_003",
+          "text": "Puede encajarte porque sigue un patrón parecido al que aparece en tus valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "bmf_medium_004",
+          "text": "No depende de una sola película: aparece por el conjunto de pistas que dejan tus valoraciones.",
+          "requires": []
+        },
+        {
+          "id": "bmf_medium_005",
+          "text": "Esta recomendación viene de cómo se combinan varias señales de tu perfil.",
+          "requires": []
+        }
+      ],
+      "weak": [
+        {
+          "id": "bmf_weak_001",
+          "text": "Tu perfil de valoraciones apunta en parte hacia esta película.",
+          "requires": []
+        },
+        {
+          "id": "bmf_weak_002",
+          "text": "Hay algunas señales en tus valoraciones que hacen que esta película pueda encajar.",
+          "requires": []
+        },
+        {
+          "id": "bmf_weak_003",
+          "text": "Todavía falta conocer mejor tus gustos, pero esta película tiene algunas pistas a favor.",
+          "requires": []
+        }
+      ],
+      "fallback": [
+        {
+          "id": "bmf_fallback_001",
+          "text": "Aún estamos aprendiendo tus gustos, así que esta recomendación es una candidata para seguir afinando.",
           "requires": []
         }
       ]
     },
     "popularity_general": {
+      "strong": [
+        {
+          "id": "popularity_strong_001",
+          "text": "Esta película aparece porque suele gustar bastante y puede ser una buena opción para probar.",
+          "requires": []
+        },
+        {
+          "id": "popularity_strong_002",
+          "text": "Es una recomendación bastante segura porque muchas valoraciones la ponen en buen lugar.",
+          "requires": []
+        },
+        {
+          "id": "popularity_strong_003",
+          "text": "Esta película suele funcionar bien con muchos perfiles, por eso aparece en la lista.",
+          "requires": []
+        },
+        {
+          "id": "popularity_strong_004",
+          "text": "Puede ser una buena candidata general porque ha gustado bastante en el catálogo.",
+          "requires": []
+        }
+      ],
       "medium": [
         {
           "id": "popularity_medium_001",
-          "text": "Como aun sabemos poco de tus gustos, esta recomendacion se apoya en peliculas que suelen funcionar bien.",
+          "text": "Como aún sabemos poco de tus gustos, esta recomendación se apoya en películas que suelen funcionar bien.",
+          "requires": []
+        },
+        {
+          "id": "popularity_medium_002",
+          "text": "Esta es una opción general para cuando todavía faltan pistas más claras sobre tus gustos.",
+          "requires": []
+        },
+        {
+          "id": "popularity_medium_003",
+          "text": "A falta de más valoraciones tuyas, esta película aparece por ser una candidata bastante fiable.",
+          "requires": []
+        },
+        {
+          "id": "popularity_medium_004",
+          "text": "Todavía estamos conociendo tus gustos, así que esta recomendación tira de una opción que suele gustar.",
+          "requires": []
+        }
+      ],
+      "weak": [
+        {
+          "id": "popularity_weak_001",
+          "text": "Esta recomendación es más general: puede servirnos para empezar a conocer mejor tus gustos.",
+          "requires": []
+        },
+        {
+          "id": "popularity_weak_002",
+          "text": "Aún tenemos poca información, así que esta película aparece como una opción de inicio.",
+          "requires": []
+        }
+      ],
+      "fallback": [
+        {
+          "id": "popularity_fallback_001",
+          "text": "Todavía tenemos poca información sobre tus gustos, así que esta recomendación se apoya en películas que suelen funcionar bien.",
           "requires": []
         }
       ]
     },
     "fallback_low_evidence": {
+      "strong": [],
+      "medium": [
+        {
+          "id": "low_evidence_medium_001",
+          "text": "Esta película puede ser una buena candidata mientras seguimos aprendiendo tus gustos.",
+          "requires": []
+        },
+        {
+          "id": "low_evidence_medium_002",
+          "text": "Aún faltan algunas pistas, pero esta recomendación puede ayudarnos a afinar tu perfil.",
+          "requires": []
+        }
+      ],
+      "weak": [
+        {
+          "id": "low_evidence_weak_001",
+          "text": "Todavía tenemos pocas pistas sobre tus gustos, pero esta película puede ser una buena candidata.",
+          "requires": []
+        },
+        {
+          "id": "low_evidence_weak_002",
+          "text": "Aún estamos conociendo tus preferencias, así que esta recomendación es una opción para probar.",
+          "requires": []
+        },
+        {
+          "id": "low_evidence_weak_003",
+          "text": "Con más valoraciones podremos explicarlo mejor, pero esta película tiene algunas señales a favor.",
+          "requires": []
+        }
+      ],
       "fallback": [
         {
           "id": "low_evidence_fallback_001",
-          "text": "Todavia tenemos pocas pistas sobre tus gustos, pero esta pelicula puede ser una buena candidata.",
+          "text": "Como aún sabemos poco de tus gustos, esta recomendación se apoya en películas que suelen funcionar bien.",
+          "requires": []
+        },
+        {
+          "id": "low_evidence_fallback_002",
+          "text": "Necesitamos alguna pista más sobre tus gustos, así que esta película aparece como una opción bastante segura.",
           "requires": []
         }
       ]
