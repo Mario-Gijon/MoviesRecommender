@@ -46,7 +46,7 @@ SUMMARY_FIELDS = [
     "runtimeRepeats",
 ]
 
-TABLE_COLUMNS = [
+RANKING_COLUMNS = [
     "algorithmId",
     "algorithmLabel",
     "variantId",
@@ -58,11 +58,89 @@ TABLE_COLUMNS = [
     "mapAt10",
     "catalogCoveragePct",
     "fallbackUsedPct",
-    "avgTotalRuntimeMs",
     "predictionCoveragePct",
     "maeRegularized",
     "rmseRegularized",
 ]
+
+RUNTIME_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "avgRuntimeMs",
+    "p50RuntimeMs",
+    "p95RuntimeMs",
+    "p99RuntimeMs",
+    "maxRuntimeMs",
+    "avgPersonalizedRuntimeMs",
+    "avgFallbackRuntimeMs",
+    "avgTotalRuntimeMs",
+]
+
+API_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "avgApiMs",
+    "p50ApiMs",
+    "p95ApiMs",
+    "p99ApiMs",
+    "maxApiMs",
+    "avgResponseSizeKb",
+    "statusCodeErrorCount",
+]
+
+BUILD_ARTIFACT_COLUMNS = [
+    "algorithmId",
+    "variantId",
+    "buildTimeSeconds",
+    "modelArtifactSizeMb",
+    "neighborsSqliteSizeMb",
+    "rankingSqliteSizeMb",
+    "neighborRows",
+    "rankingRows",
+    "ratings",
+    "users",
+    "movies",
+    "publicMovies",
+    "supportMovies",
+]
+
+MS_COLUMNS = {
+    "avgRuntimeMs",
+    "p50RuntimeMs",
+    "p95RuntimeMs",
+    "p99RuntimeMs",
+    "maxRuntimeMs",
+    "avgPersonalizedRuntimeMs",
+    "avgFallbackRuntimeMs",
+    "avgTotalRuntimeMs",
+    "avgApiMs",
+    "p50ApiMs",
+    "p95ApiMs",
+    "p99ApiMs",
+    "maxApiMs",
+}
+
+SIX_DECIMAL_COLUMNS = {
+    "maeRegularized",
+    "rmseRegularized",
+}
+
+THREE_DECIMAL_COLUMNS = {
+    "hitRateAt10",
+    "recallAt10",
+    "precisionAt10",
+    "ndcgAt10",
+    "mrrAt10",
+    "mapAt10",
+    "catalogCoveragePct",
+    "fallbackUsedPct",
+    "predictionCoveragePct",
+    "avgResponseSizeKb",
+    "buildTimeSeconds",
+    "modelArtifactSizeMb",
+    "neighborsSqliteSizeMb",
+    "rankingSqliteSizeMb",
+}
 
 
 @dataclass(frozen=True)
@@ -272,6 +350,17 @@ def build_dashboard_html(*, root_dir: Path, modes: list[ModeDashboardData]) -> s
       border-radius: 16px;
       background: rgba(8, 17, 31, 0.48);
     }}
+    .section-block {{
+      margin-top: 20px;
+    }}
+    .section-block h3 {{
+      margin: 0 0 8px;
+      font-size: 18px;
+    }}
+    .section-note {{
+      margin-bottom: 10px;
+      font-size: 13px;
+    }}
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -357,11 +446,7 @@ def build_mode_section(*, mode: ModeDashboardData, is_active: bool) -> str:
         if mode.summary is not None
         else ""
     )
-    table = (
-        html_rows_table(mode.rows or [], TABLE_COLUMNS)
-        if mode.rows is not None
-        else ""
-    )
+    tables = build_mode_tables(mode.rows) if mode.rows is not None else ""
     return f"""
     <section class="{classes}" data-mode="{escape(mode.mode_id)}">
       <h2>{escape(mode.label)}</h2>
@@ -369,7 +454,7 @@ def build_mode_section(*, mode: ModeDashboardData, is_active: bool) -> str:
       {warning}
       <div class="links">{links}</div>
       {metadata_grid}
-      {table}
+      {tables}
     </section>
     """
 
@@ -401,12 +486,45 @@ def metric_card(label: str, value: object) -> str:
     )
 
 
+def build_mode_tables(rows: list[dict[str, Any]]) -> str:
+    sections = [
+        ("Ranking quality", "", RANKING_COLUMNS),
+        (
+            "Runtime",
+            "Runtime is the recommender execution time inside the backend and now includes any explanation generation performed inside recommend().",
+            RUNTIME_COLUMNS,
+        ),
+        (
+            "API",
+            "API time is only available when the audit is run without --skip-api.",
+            API_COLUMNS,
+        ),
+        ("Build and artifacts", "", BUILD_ARTIFACT_COLUMNS),
+    ]
+    return "".join(
+        build_table_section(title=title, note=note, rows=rows, columns=columns)
+        for title, note, columns in sections
+    )
+
+
+def build_table_section(*, title: str, note: str, rows: list[dict[str, Any]], columns: list[str]) -> str:
+    note_html = f'<p class="section-note">{escape(note)}</p>' if note else ""
+    table = html_rows_table(rows, columns)
+    return (
+        '<div class="section-block">'
+        f"<h3>{escape(title)}</h3>"
+        f"{note_html}"
+        f"{table}"
+        "</div>"
+    )
+
+
 def html_rows_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
     header = "".join(f"<th>{escape(column)}</th>" for column in columns)
     body_rows = []
     for row in rows:
         cells = "".join(
-            f"<td>{escape(format_value(row.get(column)))}</td>"
+            f"<td>{escape(format_column_value(column, row.get(column)))}</td>"
             for column in columns
         )
         body_rows.append(f"<tr>{cells}</tr>")
@@ -416,10 +534,34 @@ def html_rows_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
 
 def format_value(value: object) -> str:
     if value is None:
-        return "null"
+        return "—"
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, float):
+        return format_float(value, decimals=3)
     return str(value)
+
+
+def format_column_value(column: str, value: object) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if column in MS_COLUMNS:
+            return f"{format_float(value, decimals=3)} ms"
+        if column in SIX_DECIMAL_COLUMNS:
+            return format_float(value, decimals=6)
+        if column in THREE_DECIMAL_COLUMNS:
+            return format_float(value, decimals=3)
+        return format_float(value, decimals=3)
+    return str(value)
+
+
+def format_float(value: float, *, decimals: int) -> str:
+    return f"{value:.{decimals}f}"
 
 
 if __name__ == "__main__":
