@@ -7,15 +7,10 @@ from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
 from app.schemas.error_schemas import ErrorResponse, RecommendationError
+from app.schemas.request_id_schemas import is_valid_request_id
 
 
-RECOMMENDATION_PATHS = frozenset(
-    {
-        "/recommendations",
-        "/recommendations/content-based",
-        "/recommendations/collaborative",
-    }
-)
+CANONICAL_RECOMMENDATION_PATH = "/recommendations"
 
 
 class RecommendationHttpError(RuntimeError):
@@ -40,8 +35,8 @@ def generate_request_id() -> str:
     return f"rec-{uuid4()}"
 
 
-def resolve_request_id(value: str | None) -> str:
-    return value if value is not None else generate_request_id()
+def resolve_request_id(value: object | None) -> str:
+    return value if is_valid_request_id(value) else generate_request_id()
 
 
 async def recommendation_http_error_handler(
@@ -61,7 +56,7 @@ async def recommendation_validation_error_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> Response:
-    if request.url.path not in RECOMMENDATION_PATHS:
+    if request.url.path != CANONICAL_RECOMMENDATION_PATH:
         return await request_validation_exception_handler(request, exc)
 
     request_id = _request_id_from_validation_body(exc.body)
@@ -78,7 +73,7 @@ async def recommendation_validation_error_handler(
 def _request_id_from_validation_body(body: object) -> str:
     if isinstance(body, dict):
         request_id = body.get("requestId")
-        if isinstance(request_id, str):
+        if is_valid_request_id(request_id):
             return request_id
     return generate_request_id()
 

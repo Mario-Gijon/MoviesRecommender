@@ -22,6 +22,7 @@ def recommend_movies(
         algorithm=request.algorithm,
     )
     _validate_request(request)
+    adapter.validate(request)
     recommendations = adapter.recommend(request)
     return UnifiedRecommendationResult(
         strategy=request.strategy,
@@ -66,12 +67,6 @@ def _resolve_adapter(*, strategy: str, algorithm: str) -> RecommendationAdapter:
 
 
 def _validate_request(request: UnifiedRecommendationRequest) -> None:
-    if not request.ratings:
-        raise RecommendationServiceError(
-            code="empty_ratings",
-            message="At least one rating is required.",
-            details={"received": 0},
-        )
     if type(request.limit) is not int or not MIN_LIMIT <= request.limit <= MAX_LIMIT:
         raise RecommendationServiceError(
             code="invalid_limit",

@@ -40,7 +40,10 @@ def recommend_content_based_movies(
 ) -> ContentRecommendationResponse:
     content_index = load_content_index()
     validated_ratings = _validate_request(request, content_index=content_index)
-    user_ratings = [UserMovieRating(movieId=item.movieId, rating=int(item.rating)) for item in validated_ratings]
+    user_ratings = [
+        UserMovieRating(movieId=item.movieId, rating=float(item.rating))
+        for item in validated_ratings
+    ]
     non_neutral_rating_count = sum(1 for item in user_ratings if item.rating != NEUTRAL_RATING)
 
     if non_neutral_rating_count < MINIMUM_REQUIRED_NON_NEUTRAL_RATINGS:
@@ -146,13 +149,18 @@ def _validate_request(
                 message=f"Rating for movieId {item.movieId} must be numeric between 1 and 5.",
             )
         numeric_rating = float(item.rating)
-        if numeric_rating < MIN_RATING or numeric_rating > MAX_RATING or not numeric_rating.is_integer():
+        if not MIN_RATING <= numeric_rating <= MAX_RATING:
             raise ContentRecommendationDomainError(
                 code="invalid_rating_value",
-                message=f"Rating for movieId {item.movieId} must be an integer between 1 and 5.",
+                message=f"Rating for movieId {item.movieId} must be between 1 and 5.",
             )
         seen_movie_ids.add(item.movieId)
-        validated.append(TemporaryMovieRating(movieId=item.movieId, rating=int(numeric_rating)))
+        validated.append(
+            TemporaryMovieRating(
+                movieId=item.movieId,
+                rating=numeric_rating,
+            )
+        )
     return validated
 
 

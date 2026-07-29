@@ -137,7 +137,7 @@ def build_user_profile_summary(
     )
 
 
-def rating_to_weight(rating: int) -> float:
+def rating_to_weight(rating: float) -> float:
     return (rating - NEUTRAL_RATING) / 2.0
 
 
@@ -235,9 +235,11 @@ def _validate_ratings(
             raise RuntimeError(f"Duplicate movieId in ratings: {item.movieId}")
         if item.movieId not in content_index.movieIdToRowIndex:
             raise RuntimeError(f"movieId {item.movieId} does not exist in the public content index.")
-        if not isinstance(item.rating, int):
-            raise RuntimeError(f"Rating for movieId {item.movieId} must be an integer from 1 to 5.")
-        if item.rating < MIN_RATING or item.rating > MAX_RATING:
+        if not isinstance(item.rating, (int, float)):
+            raise RuntimeError(
+                f"Rating for movieId {item.movieId} must be numeric from 1 to 5."
+            )
+        if not MIN_RATING <= item.rating <= MAX_RATING:
             raise RuntimeError(f"Rating for movieId {item.movieId} must be between 1 and 5.")
         seen_movie_ids.add(item.movieId)
         validated.append(item)

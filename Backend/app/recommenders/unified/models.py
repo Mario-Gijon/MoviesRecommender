@@ -50,6 +50,11 @@ class RecommendationServiceError(RuntimeError):
 
 
 class RecommendationAdapter(Protocol):
+    def validate(
+        self,
+        request: UnifiedRecommendationRequest,
+    ) -> None: ...
+
     def recommend(
         self,
         request: UnifiedRecommendationRequest,

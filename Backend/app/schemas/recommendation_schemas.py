@@ -3,9 +3,15 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.catalog_schemas import PublicMovieRecord
+from app.schemas.request_id_schemas import RequestId
 
 
 RecommendationStrategy = Literal["content", "collaborative"]
+LegacyRecommendationStrategy = Literal[
+    "content_based",
+    "collaborative",
+    "hybrid",
+]
 
 StrictMovieId = Annotated[int, Field(strict=True, ge=1)]
 StrictRating = Annotated[int, Field(strict=True, ge=1, le=5)]
@@ -22,7 +28,7 @@ class RecommendationRatingInput(RecommendationContractModel):
 
 
 class RecommendationRequest(RecommendationContractModel):
-    requestId: str | None = Field(default=None, min_length=1)
+    requestId: RequestId | None = None
     strategy: str = Field(min_length=1)
     algorithm: str = Field(min_length=1)
     ratings: list[RecommendationRatingInput]
@@ -48,8 +54,20 @@ class RecommendationMeta(RecommendationContractModel):
 
 
 class RecommendationResponse(RecommendationContractModel):
-    requestId: str = Field(min_length=1)
+    requestId: RequestId
     strategy: RecommendationStrategy
     algorithm: str
     recommendations: list[RecommendationItemResponse]
     meta: RecommendationMeta
+
+
+class RecommenderDetails(BaseModel):
+    strategy: LegacyRecommendationStrategy
+    algorithmId: str
+    algorithmLabel: str
+    modelVersion: str | None = None
+    isPersonalized: bool
+    isExplainable: bool
+    timingMs: float | None = None
+    status: str
+    details: dict[str, object] = Field(default_factory=dict)

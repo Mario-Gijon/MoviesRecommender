@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from app.schemas.request_id_schemas import RequestId
+
 
 class RecommendationError(BaseModel):
     code: str
@@ -8,5 +10,10 @@ class RecommendationError(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    requestId: str
+    requestId: RequestId
     error: RecommendationError
+
+
+class LegacyErrorResponse(BaseModel):
+    code: str
+    message: str

@@ -2,30 +2,32 @@ import logging
 
 from fastapi import APIRouter
 
+from app.api.recommendation_compatibility import (
+    recommend_collaborative_compatibility,
+    recommend_content_based_compatibility,
+)
 from app.api.recommendation_errors import (
     RecommendationHttpError,
     resolve_request_id,
 )
 from app.catalog.catalog_repository import catalog_repository
-from app.core.config import settings
 from app.recommenders.unified.models import (
     RecommendationRating,
     RecommendationServiceError,
     UnifiedRecommendationRequest,
     UnifiedRecommendationResult,
 )
-from app.recommenders.unified.registry import (
-    COLLABORATIVE_INTERNAL_TO_PUBLIC_ALGORITHM,
-)
 from app.recommenders.unified.service import recommend_movies
 from app.schemas.catalog_schemas import PublicMovieRecord
 from app.schemas.collaborative_recommendation_schemas import (
     CollaborativeRecommendationRequest,
+    CollaborativeRecommendationResponse,
 )
 from app.schemas.content_recommendation_schemas import (
     ContentBasedRecommendationRequest,
+    ContentBasedRecommendationResponse,
 )
-from app.schemas.error_schemas import ErrorResponse
+from app.schemas.error_schemas import ErrorResponse, LegacyErrorResponse
 from app.schemas.recommendation_schemas import (
     RecommendationExplanation,
     RecommendationItemResponse,
@@ -38,17 +40,18 @@ from app.schemas.recommendation_schemas import (
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["recommendations"])
 
-ERROR_RESPONSES = {
+CANONICAL_ERROR_RESPONSES = {
     400: {"model": ErrorResponse},
     422: {"model": ErrorResponse},
     500: {"model": ErrorResponse},
+    503: {"model": ErrorResponse},
 }
 
 
 @router.post(
     "/recommendations",
     response_model=RecommendationResponse,
-    responses=ERROR_RESPONSES,
+    responses=CANONICAL_ERROR_RESPONSES,
 )
 def create_recommendations(
     payload: RecommendationRequest,
@@ -74,68 +77,33 @@ def create_recommendations(
 
 @router.post(
     "/recommendations/content-based",
-    response_model=RecommendationResponse,
-    responses=ERROR_RESPONSES,
+    response_model=ContentBasedRecommendationResponse,
+    responses={
+        400: {"model": LegacyErrorResponse},
+        500: {"model": LegacyErrorResponse},
+    },
     deprecated=True,
 )
 def create_content_based_recommendations(
     payload: ContentBasedRecommendationRequest,
-) -> RecommendationResponse:
-    request = UnifiedRecommendationRequest(
-        strategy="content",
-        algorithm="tfidf",
-        ratings=[
-            RecommendationRating(
-                movie_id=item.movieId,
-                rating=item.rating,
-            )
-            for item in payload.ratings
-        ],
-        limit=payload.limit,
-    )
-    return _execute_recommendation(
-        request=request,
-        request_id=resolve_request_id(payload.requestId),
-    )
+) -> ContentBasedRecommendationResponse:
+    return recommend_content_based_compatibility(payload)
 
 
 @router.post(
     "/recommendations/collaborative",
-    response_model=RecommendationResponse,
-    responses=ERROR_RESPONSES,
+    response_model=CollaborativeRecommendationResponse,
+    responses={
+        400: {"model": LegacyErrorResponse},
+        500: {"model": LegacyErrorResponse},
+        503: {"model": LegacyErrorResponse},
+    },
     deprecated=True,
 )
 def create_collaborative_recommendations(
     payload: CollaborativeRecommendationRequest,
-) -> RecommendationResponse:
-    public_algorithm = COLLABORATIVE_INTERNAL_TO_PUBLIC_ALGORITHM.get(
-        settings.active_collaborative_algorithm
-    )
-    if public_algorithm is None:
-        request_id = resolve_request_id(payload.requestId)
-        raise RecommendationHttpError(
-            request_id=request_id,
-            code="internal_recommendation_error",
-            message="Unexpected internal recommendation error.",
-            status_code=500,
-        )
-
-    request = UnifiedRecommendationRequest(
-        strategy="collaborative",
-        algorithm=public_algorithm,
-        ratings=[
-            RecommendationRating(
-                movie_id=item.movieId,
-                rating=item.rating,
-            )
-            for item in payload.ratings
-        ],
-        limit=payload.limit,
-    )
-    return _execute_recommendation(
-        request=request,
-        request_id=resolve_request_id(payload.requestId),
-    )
+) -> CollaborativeRecommendationResponse:
+    return recommend_collaborative_compatibility(payload)
 
 
 def _execute_recommendation(

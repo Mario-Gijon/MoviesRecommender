@@ -8,7 +8,7 @@ from scipy.sparse import csr_matrix
 @dataclass(frozen=True)
 class UserMovieRating:
     movieId: int
-    rating: int
+    rating: float
 
 
 @dataclass(frozen=True)

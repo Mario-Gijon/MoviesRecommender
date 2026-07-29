@@ -2,6 +2,8 @@ from types import MappingProxyType
 from typing import Mapping
 
 from app.recommenders.collaborative.common.errors import (
+    CollaborativeAlgorithmNotAvailableError,
+    CollaborativeModelArtifactError,
     CollaborativeRecommendationError,
 )
 from app.recommenders.collaborative.common.models import (
@@ -36,6 +38,12 @@ COLLABORATIVE_STRATEGY = "collaborative"
 
 
 class ContentTfidfAdapter:
+    def validate(
+        self,
+        request: UnifiedRecommendationRequest,
+    ) -> None:
+        return None
+
     def recommend(
         self,
         request: UnifiedRecommendationRequest,
@@ -73,9 +81,30 @@ class ContentTfidfAdapter:
 
 
 class CollaborativeAdapter:
-    def __init__(self, *, internal_algorithm_id: str, score_scale: str) -> None:
+    def __init__(
+        self,
+        *,
+        internal_algorithm_id: str,
+        score_scale: str,
+        requires_ratings: bool,
+    ) -> None:
         self._internal_algorithm_id = internal_algorithm_id
         self._score_scale = score_scale
+        self._requires_ratings = requires_ratings
+
+    def validate(
+        self,
+        request: UnifiedRecommendationRequest,
+    ) -> None:
+        if self._requires_ratings and not request.ratings:
+            raise RecommendationServiceError(
+                code="insufficient_ratings",
+                message="There are not enough ratings to run this recommender.",
+                details={
+                    "minimumRequired": 1,
+                    "received": 0,
+                },
+            )
 
     def recommend(
         self,
@@ -96,11 +125,7 @@ class CollaborativeAdapter:
                 algorithm_id=self._internal_algorithm_id,
             )
         except CollaborativeRecommendationError as exc:
-            raise RecommendationServiceError(
-                code="internal_recommendation_error",
-                message="Unexpected internal recommendation error.",
-                status_code=500,
-            ) from exc
+            raise _translate_collaborative_error(exc) from exc
 
         return [
             UnifiedRecommendedMovie(
@@ -126,42 +151,46 @@ class CollaborativeAdapter:
         return _percentage_from_five_star_score(item.score)
 
 
-_REGISTRY: dict[tuple[str, str], RecommendationAdapter] = {
-    (CONTENT_STRATEGY, "tfidf"): ContentTfidfAdapter(),
-    (
-        COLLABORATIVE_STRATEGY,
-        "popularity",
-    ): CollaborativeAdapter(
-        internal_algorithm_id="popularity_baseline",
-        score_scale="five_star",
-    ),
-    (
-        COLLABORATIVE_STRATEGY,
-        "item_knn",
-    ): CollaborativeAdapter(
-        internal_algorithm_id="item_knn_cosine",
-        score_scale="preference",
-    ),
-    (
-        COLLABORATIVE_STRATEGY,
-        "user_knn",
-    ): CollaborativeAdapter(
-        internal_algorithm_id="user_knn_pearson_shrinkage",
-        score_scale="five_star",
-    ),
-    (
-        COLLABORATIVE_STRATEGY,
-        "biased",
-    ): CollaborativeAdapter(
-        internal_algorithm_id="biased_matrix_factorization",
-        score_scale="five_star",
-    ),
-}
-
 RECOMMENDER_REGISTRY: Mapping[
     tuple[str, str],
     RecommendationAdapter,
-] = MappingProxyType(_REGISTRY)
+] = MappingProxyType(
+    {
+        (CONTENT_STRATEGY, "tfidf"): ContentTfidfAdapter(),
+        (
+            COLLABORATIVE_STRATEGY,
+            "popularity",
+        ): CollaborativeAdapter(
+            internal_algorithm_id="popularity_baseline",
+            score_scale="five_star",
+            requires_ratings=False,
+        ),
+        (
+            COLLABORATIVE_STRATEGY,
+            "item_knn",
+        ): CollaborativeAdapter(
+            internal_algorithm_id="item_knn_cosine",
+            score_scale="preference",
+            requires_ratings=True,
+        ),
+        (
+            COLLABORATIVE_STRATEGY,
+            "user_knn",
+        ): CollaborativeAdapter(
+            internal_algorithm_id="user_knn_pearson_shrinkage",
+            score_scale="five_star",
+            requires_ratings=True,
+        ),
+        (
+            COLLABORATIVE_STRATEGY,
+            "biased",
+        ): CollaborativeAdapter(
+            internal_algorithm_id="biased_matrix_factorization",
+            score_scale="five_star",
+            requires_ratings=True,
+        ),
+    }
+)
 
 COLLABORATIVE_INTERNAL_TO_PUBLIC_ALGORITHM: Mapping[str, str] = MappingProxyType(
     {
@@ -203,6 +232,28 @@ def _translate_content_error(
     return RecommendationServiceError(
         code=public_code,
         message=error.message,
+    )
+
+
+def _translate_collaborative_error(
+    error: CollaborativeRecommendationError,
+) -> RecommendationServiceError:
+    if isinstance(
+        error,
+        (
+            CollaborativeModelArtifactError,
+            CollaborativeAlgorithmNotAvailableError,
+        ),
+    ):
+        return RecommendationServiceError(
+            code="model_unavailable",
+            message="The selected recommendation model is currently unavailable.",
+            status_code=503,
+        )
+    return RecommendationServiceError(
+        code="invalid_recommendation_input",
+        message="The recommendation input is invalid for the selected algorithm.",
+        status_code=400,
     )
 
 
