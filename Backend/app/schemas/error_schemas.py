@@ -1,6 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class RecommendationError(BaseModel):
+    code: str
+    message: str
+    details: dict[str, object] = Field(default_factory=dict)
 
 
 class ErrorResponse(BaseModel):
-    code: str
-    message: str
+    requestId: str
+    error: RecommendationError

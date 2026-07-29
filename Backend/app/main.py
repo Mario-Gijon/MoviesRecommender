@@ -1,7 +1,13 @@
 from fastapi import FastAPI # type: ignore
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from fastapi.staticfiles import StaticFiles # type: ignore
 
+from app.api.recommendation_errors import (
+    RecommendationHttpError,
+    recommendation_http_error_handler,
+    recommendation_validation_error_handler,
+)
 from app.api.routes.catalog_routes import router as catalog_router
 from app.api.routes.health_routes import router as health_router
 from app.api.routes.recommendation_routes import router as recommendation_router
@@ -33,6 +39,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.add_exception_handler(
+    RecommendationHttpError,
+    recommendation_http_error_handler,
+)
+app.add_exception_handler(
+    RequestValidationError,
+    recommendation_validation_error_handler,
 )
 
 app.include_router(health_router)
