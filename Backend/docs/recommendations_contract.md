@@ -105,6 +105,8 @@ POST /recommendations/collaborative
 These routes remain marked as deprecated and temporarily retain their previous
 request and response contracts.
 
+Deprecated endpoints retain FastAPI's previous legacy error wrapper: `{"detail": {"code": "string", "message": "string"}}`.
+
 The content-based route continues to accept `int | float` ratings, `limit`, and
 `templateSessionId`, and returns the previous content profile, score,
 explanation, recommender-detail, algorithm-detail, template, and limit fields.

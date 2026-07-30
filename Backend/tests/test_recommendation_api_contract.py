@@ -328,6 +328,60 @@ class DeprecatedRecommendationCompatibilityHttpTests(unittest.TestCase):
             body["recommendations"][0]["explanation"],
         )
 
+    def test_content_endpoint_insufficient_ratings_keeps_legacy_error_shape(
+        self,
+    ) -> None:
+        response = SERVER.request(
+            "POST",
+            "/recommendations/content-based",
+            json_body={"ratings": _ratings_for(MOVIE_IDS[:2]), "limit": 2},
+        )
+        self.assertEqual(400, response.status, response.body)
+        body = _body_dict(response)
+        self.assertEqual({"detail"}, set(body))
+        self.assertEqual({"code", "message"}, set(body["detail"]))
+        self.assertEqual(
+            "insufficient_non_neutral_ratings",
+            body["detail"]["code"],
+        )
+        self.assertIsInstance(body["detail"]["message"], str)
+        self.assertNotIn("requestId", body)
+        self.assertNotIn("error", body)
+
+    def test_legacy_error_responses_are_wrapped_in_openapi(self) -> None:
+        response = SERVER.request("GET", "/openapi.json")
+        self.assertEqual(200, response.status)
+        openapi = _body_dict(response)
+        components = openapi["components"]["schemas"]
+
+        for path in (
+            "/recommendations/content-based",
+            "/recommendations/collaborative",
+        ):
+            with self.subTest(path=path):
+                error_schema = openapi["paths"][path]["post"]["responses"][
+                    "400"
+                ]["content"]["application/json"]["schema"]
+                self.assertEqual(
+                    {"$ref": "#/components/schemas/LegacyErrorResponse"},
+                    error_schema,
+                )
+                self.assertEqual(
+                    {"detail"},
+                    set(components["LegacyErrorResponse"]["properties"]),
+                )
+                detail_schema = components["LegacyErrorResponse"][
+                    "properties"
+                ]["detail"]
+                self.assertEqual(
+                    {"$ref": "#/components/schemas/LegacyErrorDetail"},
+                    detail_schema,
+                )
+                self.assertEqual(
+                    {"code", "message"},
+                    set(components["LegacyErrorDetail"]["properties"]),
+                )
+
     def test_collaborative_endpoint_returns_configured_legacy_shape(self) -> None:
         template_session_id = "legacy-collaborative-template"
         response = SERVER.request(

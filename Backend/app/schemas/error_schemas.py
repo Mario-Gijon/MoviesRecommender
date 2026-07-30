@@ -14,6 +14,10 @@ class ErrorResponse(BaseModel):
     error: RecommendationError
 
 
-class LegacyErrorResponse(BaseModel):
+class LegacyErrorDetail(BaseModel):
     code: str
     message: str
+
+
+class LegacyErrorResponse(BaseModel):
+    detail: LegacyErrorDetail
