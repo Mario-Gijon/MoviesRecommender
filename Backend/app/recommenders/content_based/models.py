@@ -127,7 +127,6 @@ class TemporaryMovieRating:
 class ContentRecommendationRequest:
     ratings: list[TemporaryMovieRating]
     limit: int
-    templateSessionId: str | None = None
 
 
 @dataclass(frozen=True)
@@ -168,5 +167,4 @@ class ContentRecommendationItem:
 class ContentRecommendationResponse:
     profile: ContentRecommendationProfileSummary
     recommendations: list[ContentRecommendationItem]
-    templateSessionId: str
     limit: int

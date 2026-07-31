@@ -4,7 +4,11 @@ import { fetchPublicCatalogPage } from './features/movies/movies.api'
 import RateMoviesStep from './features/movies/components/RateMoviesStep'
 import RatedMoviesStep from './features/movies/components/RatedMoviesStep'
 import RecommendationsStep from './features/recommendations/components/RecommendationsStep'
-import { requestRecommendations } from './features/recommendations/recommendations.api'
+import {
+  createRecommendationRequestId,
+  requestRecommendations,
+} from './features/recommendations/recommendations.api'
+import { resolveAlgorithmForStrategy } from './features/recommendations/strategies'
 import AppLayout from './shared/components/AppLayout'
 import StepNavigation from './shared/components/StepNavigation'
 import StepShell from './shared/components/StepShell'
@@ -39,14 +43,14 @@ function App() {
   const [catalogSearch, setCatalogSearch] = useState('')
   const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState('')
   const [ratings, setRatings] = useState({})
-  const [selectedStrategy, setSelectedStrategy] = useState('content_based')
+  const [selectedStrategy, setSelectedStrategy] = useState('content')
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState('tfidf')
   const [recommendations, setRecommendations] = useState(null)
   const [isCatalogLoading, setIsCatalogLoading] = useState(true)
   const [isCatalogLoadingMore, setIsCatalogLoadingMore] = useState(false)
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [catalogError, setCatalogError] = useState('')
-  const [errorMessage, setErrorMessage] = useState('')
-  const [templateSessionId] = useState(() => `frontend-session-${Date.now()}`)
+  const [recommendationError, setRecommendationError] = useState(null)
   const catalogRequestIdRef = useRef(0)
 
   async function loadCatalogPage({ page, append, search }) {
@@ -184,8 +188,17 @@ function App() {
 
   function handleSelectStrategy(strategy) {
     setSelectedStrategy(strategy)
+    setSelectedAlgorithm((currentAlgorithm) =>
+      resolveAlgorithmForStrategy(strategy, currentAlgorithm),
+    )
     setRecommendations(null)
-    setErrorMessage('')
+    setRecommendationError(null)
+  }
+
+  function handleSelectAlgorithm(algorithm) {
+    setSelectedAlgorithm(algorithm)
+    setRecommendations(null)
+    setRecommendationError(null)
   }
 
   function handleNextStep() {
@@ -199,22 +212,25 @@ function App() {
   async function handleGenerateRecommendations() {
     try {
       setIsLoadingRecommendations(true)
-      setErrorMessage('')
+      setRecommendationError(null)
 
       const response = await requestRecommendations({
+        requestId: createRecommendationRequestId(),
         strategy: selectedStrategy,
+        algorithm: selectedAlgorithm,
         ratings: Object.entries(ratings).map(([movieId, rating]) => ({
           movieId: Number(movieId),
           rating,
         })),
         limit: 10,
-        templateSessionId,
       })
 
       setRecommendations(response)
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Could not generate recommendations.',
+      setRecommendationError(
+        error instanceof Error
+          ? error
+          : new Error('Could not generate recommendations.'),
       )
     } finally {
       setIsLoadingRecommendations(false)
@@ -237,7 +253,11 @@ function App() {
   const canGoBack = activeStep > 1
   const canGoNext = activeStep < STEPS.length
   const nextButtonLabel = activeStep === 2 ? 'Recommend' : 'Continue'
-  const stepErrorMessage = activeStep === 1 && movies.length === 0 ? catalogError : activeStep === 3 ? errorMessage : ''
+  const stepErrorMessage = activeStep === 1 && movies.length === 0
+    ? catalogError
+    : activeStep === 3
+      ? recommendationError?.message || ''
+      : ''
 
   return (
     <AppLayout activeStep={activeStep} steps={STEPS} onStepSelect={setActiveStep}>
@@ -273,6 +293,8 @@ function App() {
           <RecommendationsStep
             selectedStrategy={selectedStrategy}
             onSelectStrategy={handleSelectStrategy}
+            selectedAlgorithm={selectedAlgorithm}
+            onSelectAlgorithm={handleSelectAlgorithm}
             onGenerateRecommendations={handleGenerateRecommendations}
             recommendations={recommendations}
             isLoadingRecommendations={isLoadingRecommendations}

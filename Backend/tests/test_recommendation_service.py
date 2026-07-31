@@ -1,25 +1,14 @@
 import unittest
 from unittest.mock import patch
 
-from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.api.recommendation_compatibility import (
-    recommend_collaborative_compatibility,
-    recommend_content_based_compatibility,
-)
 from app.api.recommendation_errors import RecommendationHttpError
 from app.api.routes.recommendation_routes import create_recommendations
-from app.catalog.catalog_repository import catalog_repository
-from app.core.config import settings
 from app.recommenders.collaborative.common.errors import (
     CollaborativeAlgorithmNotAvailableError,
     CollaborativeModelArtifactError,
     CollaborativeRecommendationError,
-)
-from app.recommenders.collaborative.service import recommend_collaborative_movies
-from app.recommenders.content_based.recommender import (
-    recommend_content_based_movies,
 )
 from app.recommenders.unified.models import (
     RecommendationRating,
@@ -28,12 +17,6 @@ from app.recommenders.unified.models import (
 )
 from app.recommenders.unified.registry import RECOMMENDER_REGISTRY
 from app.recommenders.unified.service import recommend_movies
-from app.schemas.collaborative_recommendation_schemas import (
-    CollaborativeRecommendationRequest,
-)
-from app.schemas.content_recommendation_schemas import (
-    ContentBasedRecommendationRequest,
-)
 from app.schemas.recommendation_schemas import RecommendationRequest
 from app.schemas.request_id_schemas import is_valid_request_id
 
@@ -187,86 +170,3 @@ class CanonicalRouteErrorTests(unittest.TestCase):
         self.assertEqual("internal_recommendation_error", error.code)
         self.assertEqual(500, error.status_code)
         self.assertNotIn("/private/path", error.message)
-
-
-class CompatibilityServiceTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.movie_ids = [
-            int(movie["movieId"])
-            for movie in catalog_repository.get_featured_movies()[:12]
-        ]
-
-    def test_content_compatibility_invokes_real_service(self) -> None:
-        request = ContentBasedRecommendationRequest(
-            ratings=[
-                {"movieId": self.movie_ids[0], "rating": 4.5},
-                {"movieId": self.movie_ids[1], "rating": 4},
-                {"movieId": self.movie_ids[2], "rating": 2},
-            ],
-            limit=1,
-            templateSessionId="content-template",
-        )
-        with patch(
-            "app.api.recommendation_compatibility."
-            "recommend_content_based_movies",
-            wraps=recommend_content_based_movies,
-        ) as service:
-            response = recommend_content_based_compatibility(request)
-        service.assert_called_once()
-        self.assertEqual("content-template", response.templateSessionId)
-        self.assertGreater(len(response.recommendations), 0)
-
-    def test_collaborative_compatibility_invokes_configured_service(self) -> None:
-        ratings = [
-            {"movieId": movie_id, "rating": rating}
-            for movie_id, rating in zip(
-                self.movie_ids,
-                (5, 4, 2, 5, 1, 4, 2, 5, 1, 4, 2, 5),
-                strict=True,
-            )
-        ]
-        request = CollaborativeRecommendationRequest(
-            ratings=ratings,
-            limit=1,
-            templateSessionId="collaborative-template",
-        )
-        with patch(
-            "app.api.recommendation_compatibility."
-            "recommend_collaborative_movies",
-            wraps=recommend_collaborative_movies,
-        ) as service:
-            response = recommend_collaborative_compatibility(request)
-        service.assert_called_once()
-        self.assertEqual(
-            settings.active_collaborative_algorithm,
-            service.call_args.kwargs["algorithm_id"],
-        )
-        self.assertEqual(
-            settings.active_collaborative_algorithm,
-            response.recommenderDetails.algorithmId,
-        )
-        self.assertEqual(
-            "collaborative-template",
-            response.templateSessionId,
-        )
-
-    def test_collaborative_compatibility_hides_artifact_details(self) -> None:
-        request = CollaborativeRecommendationRequest(
-            ratings=[],
-            limit=1,
-        )
-        with patch(
-            "app.api.recommendation_compatibility."
-            "recommend_collaborative_movies",
-            side_effect=CollaborativeModelArtifactError(
-                code="missing_artifact",
-                message="/private/model/path is missing",
-            ),
-        ):
-            with self.assertRaises(HTTPException) as raised:
-                recommend_collaborative_compatibility(request)
-        error = raised.exception
-        self.assertEqual(503, error.status_code)
-        self.assertEqual("model_unavailable", error.detail["code"])
-        self.assertNotIn("/private", error.detail["message"])

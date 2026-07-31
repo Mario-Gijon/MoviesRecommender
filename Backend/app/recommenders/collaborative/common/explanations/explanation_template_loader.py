@@ -76,7 +76,7 @@ def select_template(
     movie_id: int,
     rank: int,
     slot: str,
-    template_session_id: str,
+    template_seed: str,
     requirement_priority: list[set[str]] | None = None,
 ) -> ExplanationTemplate | None:
     styles_to_try = [style, "mixed"]
@@ -108,7 +108,7 @@ def select_template(
     unused = [template for template in viable if template.id not in usage.used_template_ids]
     pool = unused or viable
     ordered = sorted(pool, key=lambda template: _stable_template_key(
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         movie_id=movie_id,
         rank=rank,
         slot=slot,
@@ -184,7 +184,7 @@ def _requirements_satisfied(template: ExplanationTemplate, available_values: dic
 
 def _stable_template_key(
     *,
-    template_session_id: str,
+    template_seed: str,
     movie_id: int,
     rank: int,
     slot: str,
@@ -192,5 +192,5 @@ def _stable_template_key(
     group_name: str,
     template_id: str,
 ) -> str:
-    payload = f"{template_session_id}|{movie_id}|{rank}|{slot}|{style}|{group_name}|{template_id}"
+    payload = f"{template_seed}|{movie_id}|{rank}|{slot}|{style}|{group_name}|{template_id}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

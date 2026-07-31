@@ -1,12 +1,12 @@
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendationResult,
 )
 from app.recommenders.collaborative.registry import get_collaborative_recommender
 
 
 def recommend_collaborative_movies(
-    request: CollaborativeRecommendationRequest,
+    request: CollaborativeRecommendationInput,
     *,
     algorithm_id: str,
 ) -> CollaborativeRecommendationResult:

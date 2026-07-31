@@ -7,11 +7,6 @@ from app.schemas.request_id_schemas import RequestId
 
 
 RecommendationStrategy = Literal["content", "collaborative"]
-LegacyRecommendationStrategy = Literal[
-    "content_based",
-    "collaborative",
-    "hybrid",
-]
 
 StrictMovieId = Annotated[int, Field(strict=True, ge=1)]
 StrictRating = Annotated[int, Field(strict=True, ge=1, le=5)]
@@ -59,15 +54,3 @@ class RecommendationResponse(RecommendationContractModel):
     algorithm: str
     recommendations: list[RecommendationItemResponse]
     meta: RecommendationMeta
-
-
-class RecommenderDetails(BaseModel):
-    strategy: LegacyRecommendationStrategy
-    algorithmId: str
-    algorithmLabel: str
-    modelVersion: str | None = None
-    isPersonalized: bool
-    isExplainable: bool
-    timingMs: float | None = None
-    status: str
-    details: dict[str, object] = Field(default_factory=dict)

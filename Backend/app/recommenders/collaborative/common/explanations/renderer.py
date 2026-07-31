@@ -33,7 +33,7 @@ def render_collaborative_explanation(
     evidence_profiles: list[EvidenceProfile] | None = None,
     evidence_strength: CollaborativeExplanationStrength = "medium",
     candidate_title: str | None = None,
-    template_session_id: str | None = None,
+    template_seed: str | None = None,
     explanation_source: str = "algorithmic_evidence",
     fidelity: str = "medium",
     limitations: list[str] | None = None,
@@ -50,7 +50,7 @@ def render_collaborative_explanation(
         else normalized_shared_evidence_movies
     )
     selection_input = CollaborativeTemplateSelectionInput(
-        templateSessionId=template_session_id,
+        templateSeed=template_seed,
         algorithmId=algorithm_id,
         variantId=variant_id,
         movieId=movie_id,

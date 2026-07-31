@@ -51,7 +51,7 @@ def main() -> None:
             candidate_movie_id=int(candidate_movie["movieId"]),
             rank=rank,
             variant_id="smoke_variant",
-            template_session_id="item-knn-smoke",
+            template_seed="item-knn-smoke",
             contributions=contributions,
             used_evidence_movie_counts=used_evidence_movie_counts,
         )

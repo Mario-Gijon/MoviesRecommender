@@ -7,7 +7,7 @@ from app.recommenders.collaborative.common.errors import (
     CollaborativeRecommendationError,
 )
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendedMovie,
     CollaborativeUserRating,
 )
@@ -112,7 +112,7 @@ class CollaborativeAdapter:
     ) -> list[UnifiedRecommendedMovie]:
         try:
             result = recommend_collaborative_movies(
-                CollaborativeRecommendationRequest(
+                CollaborativeRecommendationInput(
                     ratings=[
                         CollaborativeUserRating(
                             movie_id=item.movie_id,
@@ -191,16 +191,6 @@ RECOMMENDER_REGISTRY: Mapping[
         ),
     }
 )
-
-COLLABORATIVE_INTERNAL_TO_PUBLIC_ALGORITHM: Mapping[str, str] = MappingProxyType(
-    {
-        "popularity_baseline": "popularity",
-        "item_knn_cosine": "item_knn",
-        "user_knn_pearson_shrinkage": "user_knn",
-        "biased_matrix_factorization": "biased",
-    }
-)
-
 
 def _translate_content_error(
     error: ContentRecommendationDomainError,

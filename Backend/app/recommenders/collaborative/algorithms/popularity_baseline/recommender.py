@@ -12,7 +12,7 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.storage impor
 from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
 from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationExplanation,
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendationResult,
     CollaborativeRecommendedMovie,
     CollaborativeRecommenderDetails,
@@ -40,7 +40,7 @@ class PopularityBaselineRecommender:
 
     def recommend(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
     ) -> CollaborativeRecommendationResult:
         rated_movie_ids = {rating.movie_id for rating in request.ratings}
 
@@ -71,7 +71,6 @@ class PopularityBaselineRecommender:
                 },
             ),
             limit=request.limit,
-            template_session_id=request.template_session_id,
         )
 
     def recommend_fillers(

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from .constants import (
     DEFAULT_DIVERSIFIED_LIMIT,
-    DEFAULT_TEMPLATE_SESSION_ID,
+    DEFAULT_TEMPLATE_SELECTION_SEED,
     MAX_DIVERSIFIED_LIMIT,
     MAX_RATING,
     MINIMUM_REQUIRED_NON_NEUTRAL_RATINGS,
@@ -66,7 +66,6 @@ def recommend_content_based_movies(
         ratings=user_ratings,
         profile=profile,
     )
-    template_session_id = request.templateSessionId or DEFAULT_TEMPLATE_SESSION_ID
     diversified_candidates = rank_diversified_recommendations(
         content_index=content_index,
         user_profile=profile,
@@ -83,7 +82,7 @@ def recommend_content_based_movies(
         user_profile=profile,
         diversified_candidates=diversified_candidates,
         limit=request.limit,
-        template_session_id=template_session_id,
+        template_seed=DEFAULT_TEMPLATE_SELECTION_SEED,
     )
 
     recommendation_items = [
@@ -109,7 +108,6 @@ def recommend_content_based_movies(
             negativeSignals=profile.negativeSignals,
         ),
         recommendations=recommendation_items,
-        templateSessionId=template_session_id,
         limit=request.limit,
     )
 

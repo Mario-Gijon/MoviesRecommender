@@ -3,7 +3,7 @@ from __future__ import annotations
 from .constants import (
     DEFAULT_EXPLANATION_LIMIT,
     EXPLANATION_REASON_LIMIT,
-    DEFAULT_TEMPLATE_SESSION_ID,
+    DEFAULT_TEMPLATE_SELECTION_SEED,
     SIMILAR_RATED_MOVIE_LIMIT,
 )
 from .explanation_evidence import (
@@ -32,7 +32,7 @@ def explain_diversified_recommendations(
     diversified_candidates: list[DiversifiedContentCandidate],
     *,
     limit: int = DEFAULT_EXPLANATION_LIMIT,
-    template_session_id: str = DEFAULT_TEMPLATE_SESSION_ID,
+    template_seed: str = DEFAULT_TEMPLATE_SELECTION_SEED,
 ) -> list[ExplainedContentRecommendation]:
     explained: list[ExplainedContentRecommendation] = []
     template_bank = load_explanation_templates()
@@ -57,7 +57,7 @@ def explain_diversified_recommendations(
             rank=rank,
             template_bank=template_bank,
             usage=usage,
-            template_session_id=template_session_id,
+            template_seed=template_seed,
         )
         reasons = _build_reasons(
             candidate=candidate,
@@ -68,7 +68,7 @@ def explain_diversified_recommendations(
             rank=rank,
             template_bank=template_bank,
             usage=usage,
-            template_session_id=template_session_id,
+            template_seed=template_seed,
         )
         explanation = RecommendationExplanation(
             headline=headline,
@@ -126,7 +126,7 @@ def _build_headline(
     rank: int,
     template_bank,
     usage: ExplanationTemplateUsage,
-    template_session_id: str,
+    template_seed: str,
 ) -> str:
     primary_signals, _ = _split_primary_secondary_signals(evidence)
     signal_phrase = _build_signal_phrase(primary_signals)
@@ -140,7 +140,7 @@ def _build_headline(
         movie_id=candidate.movieId,
         rank=rank,
         slot="headline",
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         requirement_priority=[{"signals"}, set()] if signal_phrase else [set()],
     )
     if template is None:
@@ -158,7 +158,7 @@ def _build_reasons(
     rank: int,
     template_bank,
     usage: ExplanationTemplateUsage,
-    template_session_id: str,
+    template_seed: str,
 ) -> list[str]:
     reasons: list[str] = []
     used_signal_phrases: set[str] = set()
@@ -188,7 +188,7 @@ def _build_reasons(
         movie_id=candidate.movieId,
         rank=rank,
         slot="reason_1",
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         requirement_priority=[{"signals"}] if primary_signal_phrase else [set()],
     )
     if signal_template is not None:
@@ -210,7 +210,7 @@ def _build_reasons(
                 movie_id=candidate.movieId,
                 rank=rank,
                 slot="reason_2_movies_only",
-                template_session_id=template_session_id,
+                template_seed=template_seed,
                 requirement_priority=[{"movies"}],
             )
         if similar_template is None and secondary_signal_phrase and secondary_signal_phrase not in used_signal_phrases:
@@ -224,7 +224,7 @@ def _build_reasons(
                 movie_id=candidate.movieId,
                 rank=rank,
                 slot="reason_2_movies_signals",
-                template_session_id=template_session_id,
+                template_seed=template_seed,
                 requirement_priority=[{"movies", "signals"}, {"movies"}],
             )
         elif similar_template is None:
@@ -237,7 +237,7 @@ def _build_reasons(
                 movie_id=candidate.movieId,
                 rank=rank,
                 slot="reason_2_movies_fallback",
-                template_session_id=template_session_id,
+                template_seed=template_seed,
                 requirement_priority=[{"movies"}],
             )
         if similar_template is not None:
@@ -256,7 +256,7 @@ def _build_reasons(
             movie_id=candidate.movieId,
             rank=rank,
             slot="reason_3",
-            template_session_id=template_session_id,
+            template_seed=template_seed,
             requirement_priority=[{"avoided"}],
         )
         if negative_template is not None:
@@ -276,7 +276,7 @@ def _build_reasons(
             movie_id=candidate.movieId,
             rank=rank,
             slot="reason_3",
-            template_session_id=template_session_id,
+            template_seed=template_seed,
             requirement_priority=[set(), {"signals"}],
         )
         if closing_template is not None:

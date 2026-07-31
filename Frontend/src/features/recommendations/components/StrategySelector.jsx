@@ -9,7 +9,6 @@ function StrategySelector({ value, onChange }) {
           type="button"
           className={value === strategy.value ? 'game-strategy-button active' : 'game-strategy-button'}
           onClick={() => onChange(strategy.value)}
-          disabled={strategy.disabled}
         >
           <span>{strategy.label}</span>
           <small>{strategy.status}</small>

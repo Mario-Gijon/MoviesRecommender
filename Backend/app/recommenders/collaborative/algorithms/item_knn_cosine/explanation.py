@@ -36,7 +36,7 @@ def build_item_knn_explanation(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     contributions: list[ItemKnnExplanationContribution],
     used_evidence_movie_counts: dict[int, int] | None = None,
 ) -> ItemKnnRenderedExplanation:
@@ -49,7 +49,7 @@ def build_item_knn_explanation(
         candidate_movie_id=candidate_movie_id,
         rank=rank,
         variant_id=variant_id,
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         evidence_pool=full_evidence_pool,
         used_evidence_movie_counts=used_evidence_movie_counts,
     )
@@ -65,7 +65,7 @@ def build_item_knn_explanation(
         evidence_movies=visible_evidence_movies,
         evidence_strength=evidence_strength,
         candidate_title=candidate_title,
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         explanation_source="item_knn_contribution_evidence",
         fidelity="high" if visible_evidence_movies else "medium",
         limitations=(
@@ -151,7 +151,7 @@ def _select_visible_evidence_movies(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     evidence_pool: list[EvidenceMovie],
     used_evidence_movie_counts: dict[int, int] | None,
 ) -> list[EvidenceMovie]:
@@ -166,7 +166,7 @@ def _select_visible_evidence_movies(
             candidate_movie_id=candidate_movie_id,
             rank=rank,
             variant_id=variant_id,
-            template_session_id=template_session_id,
+            template_seed=template_seed,
             used_evidence_movie_counts=used_evidence_movie_counts,
             anchor_movie_id=movie.movieId,
         ),
@@ -185,7 +185,7 @@ def _select_visible_evidence_movies(
             candidate_movie_id=candidate_movie_id,
             rank=rank,
             variant_id=variant_id,
-            template_session_id=template_session_id,
+            template_seed=template_seed,
             used_evidence_movie_counts=used_evidence_movie_counts,
             anchor_movie_id=anchor_movie.movieId,
         ),
@@ -206,7 +206,7 @@ def _movie_selection_key(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     used_evidence_movie_counts: dict[int, int] | None,
     anchor_movie_id: int,
 ) -> tuple[int, str]:
@@ -220,7 +220,7 @@ def _movie_selection_key(
             candidate_movie_id=candidate_movie_id,
             rank=rank,
             variant_id=variant_id,
-            template_session_id=template_session_id,
+            template_seed=template_seed,
             source_movie_id=movie.movieId,
             anchor_movie_id=anchor_movie_id,
         ),
@@ -240,13 +240,13 @@ def _stable_diversity_key(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     source_movie_id: int,
     anchor_movie_id: int,
 ) -> str:
     payload = "|".join(
         [
-            template_session_id or "",
+            template_seed or "",
             str(candidate_movie_id),
             str(rank),
             variant_id,

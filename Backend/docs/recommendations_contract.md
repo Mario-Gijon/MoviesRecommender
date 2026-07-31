@@ -94,24 +94,3 @@ Registered combinations:
 | `collaborative` | `item_knn` | Rejected; requires a rating |
 | `collaborative` | `user_knn` | Rejected; requires a rating |
 | `collaborative` | `biased` | Rejected; requires a rating |
-
-## Deprecated compatibility APIs
-
-```http
-POST /recommendations/content-based
-POST /recommendations/collaborative
-```
-
-These routes remain marked as deprecated and temporarily retain their previous
-request and response contracts.
-
-Deprecated endpoints retain FastAPI's previous legacy error wrapper: `{"detail": {"code": "string", "message": "string"}}`.
-
-The content-based route continues to accept `int | float` ratings, `limit`, and
-`templateSessionId`, and returns the previous content profile, score,
-explanation, recommender-detail, algorithm-detail, template, and limit fields.
-
-The collaborative route continues to accept its previous ratings, `limit`, and
-`templateSessionId`, selects the configured collaborative algorithm, and
-returns the previous collaborative profile, score, explanation,
-algorithm-detail, recommender-detail, template, and limit fields.

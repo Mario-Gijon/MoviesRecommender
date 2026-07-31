@@ -2,13 +2,15 @@ import { useRef } from 'react'
 
 import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import { isStrategyEnabled } from '../strategies'
+import AlgorithmSelector from './AlgorithmSelector'
 import RecommendationCard from './RecommendationCard'
-import RecommendationProfileSummary from './RecommendationProfileSummary'
 import StrategySelector from './StrategySelector'
 
 function RecommendationsStep({
   selectedStrategy,
   onSelectStrategy,
+  selectedAlgorithm,
+  onSelectAlgorithm,
   onGenerateRecommendations,
   recommendations,
   isLoadingRecommendations,
@@ -26,6 +28,11 @@ function RecommendationsStep({
     <div className="recommend-game-step compact-recommend-step">
       <div className="recommend-toolbar compact-recommend-toolbar">
         <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
+        <AlgorithmSelector
+          strategy={selectedStrategy}
+          value={selectedAlgorithm}
+          onChange={onSelectAlgorithm}
+        />
         <button
           type="button"
           className="game-nav-button primary generate-button"
@@ -39,11 +46,13 @@ function RecommendationsStep({
       <section ref={scrollPanelRef} className="game-catalog-panel recommendations-stage">
         {recommendations ? (
           <div className="recommendations-panel">
-            <RecommendationProfileSummary profile={recommendations.profile} />
-
             <div className="recommendation-grid">
               {recommendations.recommendations.map((item) => (
-                <RecommendationCard key={item.movieId} item={item} rank={item.rank} />
+                <RecommendationCard
+                  key={item.movie.movieId || item.movie.id}
+                  item={item}
+                  rank={item.rank}
+                />
               ))}
             </div>
           </div>

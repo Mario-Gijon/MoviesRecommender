@@ -2,10 +2,6 @@ import logging
 
 from fastapi import APIRouter
 
-from app.api.recommendation_compatibility import (
-    recommend_collaborative_compatibility,
-    recommend_content_based_compatibility,
-)
 from app.api.recommendation_errors import (
     RecommendationHttpError,
     resolve_request_id,
@@ -19,15 +15,7 @@ from app.recommenders.unified.models import (
 )
 from app.recommenders.unified.service import recommend_movies
 from app.schemas.catalog_schemas import PublicMovieRecord
-from app.schemas.collaborative_recommendation_schemas import (
-    CollaborativeRecommendationRequest,
-    CollaborativeRecommendationResponse,
-)
-from app.schemas.content_recommendation_schemas import (
-    ContentBasedRecommendationRequest,
-    ContentBasedRecommendationResponse,
-)
-from app.schemas.error_schemas import ErrorResponse, LegacyErrorResponse
+from app.schemas.error_schemas import ErrorResponse
 from app.schemas.recommendation_schemas import (
     RecommendationExplanation,
     RecommendationItemResponse,
@@ -73,37 +61,6 @@ def create_recommendations(
         request=request,
         request_id=request_id,
     )
-
-
-@router.post(
-    "/recommendations/content-based",
-    response_model=ContentBasedRecommendationResponse,
-    responses={
-        400: {"model": LegacyErrorResponse},
-        500: {"model": LegacyErrorResponse},
-    },
-    deprecated=True,
-)
-def create_content_based_recommendations(
-    payload: ContentBasedRecommendationRequest,
-) -> ContentBasedRecommendationResponse:
-    return recommend_content_based_compatibility(payload)
-
-
-@router.post(
-    "/recommendations/collaborative",
-    response_model=CollaborativeRecommendationResponse,
-    responses={
-        400: {"model": LegacyErrorResponse},
-        500: {"model": LegacyErrorResponse},
-        503: {"model": LegacyErrorResponse},
-    },
-    deprecated=True,
-)
-def create_collaborative_recommendations(
-    payload: CollaborativeRecommendationRequest,
-) -> CollaborativeRecommendationResponse:
-    return recommend_collaborative_compatibility(payload)
 
 
 def _execute_recommendation(

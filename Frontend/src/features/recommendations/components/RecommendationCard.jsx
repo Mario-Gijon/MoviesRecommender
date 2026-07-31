@@ -2,7 +2,8 @@ import { getMovieDisplayTitle } from '../../movies/movieDisplay'
 
 function RecommendationCard({ item, rank }) {
   const movieTitle = getMovieDisplayTitle(item.movie)
-  const scoreLabel = item.scores.recommendationScore.toFixed(3)
+  const affinityLabel = `${item.matchPercentage.toFixed(1)}%`
+  const scoreLabel = item.score.toFixed(3)
   const reasons = item.explanation.reasons.slice(0, 2)
 
   return (
@@ -28,20 +29,22 @@ function RecommendationCard({ item, rank }) {
 
           <div className="recommendation-score-line">
             <span>Afinidad</span>
-            <strong>{scoreLabel}</strong>
+            <strong>{affinityLabel}</strong>
           </div>
 
-          {item.explanation.headline ? (
+          {item.explanation.summary ? (
             <p className="recommendation-headline">
-              {item.explanation.headline}
+              {item.explanation.summary}
             </p>
           ) : null}
+
+          <span className="recommendation-raw-score">Puntuación: {scoreLabel}</span>
 
           {reasons.length ? (
             <div className="recommendation-hover-details">
               <ul>
                 {reasons.map((reason) => (
-                  <li key={`${item.movieId}-${reason}`}>{reason}</li>
+                  <li key={`${item.movie.movieId || item.movie.id}-${reason}`}>{reason}</li>
                 ))}
               </ul>
             </div>

@@ -10,10 +10,12 @@ class CollaborativeUserRating:
 
 
 @dataclass(frozen=True)
-class CollaborativeRecommendationRequest:
+class CollaborativeRecommendationInput:
+    """Internal input; template_seed only stabilizes explanation wording."""
+
     ratings: list[CollaborativeUserRating]
     limit: int
-    template_session_id: str | None = None
+    template_seed: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,4 +51,3 @@ class CollaborativeRecommendationResult:
     recommendations: list[CollaborativeRecommendedMovie]
     recommender_details: CollaborativeRecommenderDetails
     limit: int
-    template_session_id: str | None = None

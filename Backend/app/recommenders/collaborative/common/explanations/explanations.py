@@ -27,12 +27,12 @@ def build_collaborative_explanation(
     candidate_movie_id: int,
     rank: int,
     profile_style: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     contributions: list[CollaborativeExplanationContribution],
 ) -> CollaborativeRecommendationExplanation:
     template_bank = load_explanation_templates()
     usage = ExplanationTemplateUsage()
-    session_id = template_session_id or "collaborative-session"
+    selection_seed = template_seed or "collaborative-default-seed"
 
     positive_contributions = [
         contribution
@@ -68,7 +68,7 @@ def build_collaborative_explanation(
         movie_id=candidate_movie_id,
         rank=rank,
         slot="headline",
-        template_session_id=session_id,
+        template_seed=selection_seed,
         usage=usage,
         requirement_priority=[{"movies"}, set()],
     )
@@ -81,7 +81,7 @@ def build_collaborative_explanation(
             movie_id=candidate_movie_id,
             rank=rank,
             slot="positive_connection",
-            template_session_id=session_id,
+            template_seed=selection_seed,
             usage=usage,
             requirement_priority=[{"movies"}, set()],
         ),
@@ -92,7 +92,7 @@ def build_collaborative_explanation(
             movie_id=candidate_movie_id,
             rank=rank,
             slot="collaborative_support",
-            template_session_id=session_id,
+            template_seed=selection_seed,
             usage=usage,
         ),
     ]
@@ -106,7 +106,7 @@ def build_collaborative_explanation(
                 movie_id=candidate_movie_id,
                 rank=rank,
                 slot="negative_balance",
-                template_session_id=session_id,
+                template_seed=selection_seed,
                 usage=usage,
                 requirement_priority=[{"avoided"}],
             )
@@ -120,7 +120,7 @@ def build_collaborative_explanation(
             movie_id=candidate_movie_id,
             rank=rank,
             slot="natural_closing",
-            template_session_id=session_id,
+            template_seed=selection_seed,
             usage=usage,
         )
     )
@@ -142,7 +142,7 @@ def _render_selected_template(
     movie_id: int,
     rank: int,
     slot: str,
-    template_session_id: str,
+    template_seed: str,
     usage: ExplanationTemplateUsage,
     requirement_priority: list[set[str]] | None = None,
 ) -> str:
@@ -155,7 +155,7 @@ def _render_selected_template(
         movie_id=movie_id,
         rank=rank,
         slot=slot,
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         requirement_priority=requirement_priority,
     )
 

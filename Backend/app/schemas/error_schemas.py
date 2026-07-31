@@ -12,12 +12,3 @@ class RecommendationError(BaseModel):
 class ErrorResponse(BaseModel):
     requestId: RequestId
     error: RecommendationError
-
-
-class LegacyErrorDetail(BaseModel):
-    code: str
-    message: str
-
-
-class LegacyErrorResponse(BaseModel):
-    detail: LegacyErrorDetail

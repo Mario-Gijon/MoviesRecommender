@@ -26,7 +26,7 @@ from app.recommenders.collaborative.common.explanations.profile_style import (
     infer_collaborative_profile_style,
 )
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendationResult,
     CollaborativeRecommendedMovie,
     CollaborativeRecommenderDetails,
@@ -146,7 +146,7 @@ class UserKnnPearsonShrinkageRecommender:
 
     def recommend(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
     ) -> CollaborativeRecommendationResult:
         total_started_at = time.perf_counter()
         self._validate_artifacts()
@@ -284,7 +284,6 @@ class UserKnnPearsonShrinkageRecommender:
                 },
             ),
             limit=request.limit,
-            template_session_id=request.template_session_id,
         )
 
     def _load_manifest(self) -> dict:
@@ -310,7 +309,7 @@ class UserKnnPearsonShrinkageRecommender:
 
     def predict_rating_for_movie(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
         movie_id: int,
     ) -> UserKnnRatingPrediction:
         started_at = time.perf_counter()
@@ -354,7 +353,7 @@ class UserKnnPearsonShrinkageRecommender:
 
     def _build_personalized_state(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
     ) -> UserKnnPersonalizedState:
         effective_ratings = _build_effective_ratings(
             request=request,
@@ -418,7 +417,7 @@ class UserKnnPearsonShrinkageRecommender:
 
 def _build_effective_ratings(
     *,
-    request: CollaborativeRecommendationRequest,
+    request: CollaborativeRecommendationInput,
     active_rating_center: float,
 ) -> list[tuple[int, float, float]]:
     effective_ratings_by_movie_id: dict[int, tuple[int, float, float]] = {}
@@ -635,7 +634,7 @@ def _build_candidate_scores(
 def _build_shared_positive_movie_ids_by_neighbor_user_id(
     *,
     overlap_rows: list[tuple[int, int, float]],
-    request: CollaborativeRecommendationRequest,
+    request: CollaborativeRecommendationInput,
     neighbor_user_ids: set[int],
 ) -> dict[int, list[int]]:
     positive_active_movie_ids = {
@@ -667,7 +666,7 @@ def _build_recommended_movie(
     *,
     candidate: UserKnnCandidateScore,
     rank: int,
-    request: CollaborativeRecommendationRequest,
+    request: CollaborativeRecommendationInput,
     config: UserKnnPearsonShrinkageRuntimeConfig,
     shared_positive_movie_ids_by_neighbor_user_id: dict[int, list[int]],
 ) -> CollaborativeRecommendedMovie:
@@ -675,7 +674,7 @@ def _build_recommended_movie(
         candidate_movie_id=candidate.movie_id,
         rank=rank,
         variant_id=config.variant_id,
-        template_session_id=request.template_session_id,
+        template_seed=request.template_seed,
         contributions=[
             UserKnnExplanationContribution(
                 neighbor_user_id=contribution.neighbor_user_id,

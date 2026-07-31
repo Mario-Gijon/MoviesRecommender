@@ -49,7 +49,7 @@ class CollaborativeExplanationTemplateUsage:
 
 @dataclass(frozen=True)
 class CollaborativeTemplateSelectionInput:
-    templateSessionId: str | None
+    templateSeed: str | None
     algorithmId: str
     variantId: str | None
     movieId: int | None
@@ -256,7 +256,7 @@ def _stable_template_key(
 ) -> str:
     payload = "|".join(
         [
-            selection_input.templateSessionId or "",
+            selection_input.templateSeed or "",
             selection_input.algorithmId,
             selection_input.variantId or "",
             str(selection_input.movieId or ""),
@@ -316,7 +316,7 @@ def _build_builtin_template_bank() -> CollaborativeExplanationTemplateBank:
         selection={
             "deterministic": True,
             "recommended_seed_parts": [
-                "templateSessionId",
+                "templateSeed",
                 "algorithmId",
                 "variantId",
                 "movieId",

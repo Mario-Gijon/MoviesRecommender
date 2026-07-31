@@ -43,7 +43,7 @@ def main() -> None:
             candidate_movie_id=int(candidate_movie["movieId"]),
             rank=rank,
             variant_id="default",
-            template_session_id="user-knn-smoke",
+            template_seed="user-knn-smoke",
             contributions=contributions,
             shared_positive_movie_ids_by_neighbor_user_id=(
                 shared_positive_movie_ids_by_neighbor_user_id

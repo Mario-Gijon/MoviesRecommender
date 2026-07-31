@@ -16,7 +16,6 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from app.catalog.catalog_repository import catalog_repository
-from app.core.config import settings
 from app.main import app
 from app.recommenders.collaborative import registry as collaborative_registry
 from app.recommenders.collaborative.algorithms.item_knn_cosine.recommender import (
@@ -56,7 +55,7 @@ from app.recommenders.collaborative.common.candidate_universe import (
     load_public_movie_ids,
 )
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeUserRating,
 )
 from app.recommenders.collaborative.common.offline_context import (
@@ -64,6 +63,14 @@ from app.recommenders.collaborative.common.offline_context import (
     build_collaborative_offline_context,
     get_default_collaborative_offline_context,
 )
+
+
+PUBLIC_ALGORITHM_BY_INTERNAL = {
+    "popularity_baseline": "popularity",
+    "item_knn_cosine": "item_knn",
+    "user_knn_pearson_shrinkage": "user_knn",
+    "biased_matrix_factorization": "biased",
+}
 
 
 @dataclass(frozen=True)
@@ -82,15 +89,17 @@ class EvaluationCase:
     audit_mode: str | None = None
     candidate_universe: CandidateUniverseMode | None = None
 
-    def to_request(self, *, limit: int) -> CollaborativeRecommendationRequest:
-        return CollaborativeRecommendationRequest(
+    def to_request(self, *, limit: int) -> CollaborativeRecommendationInput:
+        return CollaborativeRecommendationInput(
             ratings=self.ratings,
             limit=limit,
-            template_session_id=self.case_id,
+            template_seed=self.case_id,
         )
 
-    def to_api_payload(self, *, limit: int) -> dict[str, Any]:
+    def to_api_payload(self, *, algorithm: str, limit: int) -> dict[str, Any]:
         return {
+            "strategy": "collaborative",
+            "algorithm": algorithm,
             "ratings": [
                 {
                     "movieId": rating.movie_id,
@@ -99,7 +108,6 @@ class EvaluationCase:
                 for rating in self.ratings
             ],
             "limit": limit,
-            "templateSessionId": self.case_id,
         }
 
 
@@ -941,8 +949,11 @@ def benchmark_api(
         for case in cases:
             started_at = time.perf_counter()
             response = client.post(
-                "/recommendations/collaborative",
-                json=case.to_api_payload(limit=limit),
+                "/recommendations",
+                json=case.to_api_payload(
+                    algorithm=PUBLIC_ALGORITHM_BY_INTERNAL[evaluated.algorithm_id],
+                    limit=limit,
+                ),
             )
             elapsed_ms = (time.perf_counter() - started_at) * 1000
             timings_ms.append(elapsed_ms)
@@ -976,7 +987,6 @@ def empty_api_metrics() -> dict[str, Any]:
 
 
 def set_active_recommender_for_api(evaluated: EvaluatedRecommender) -> None:
-    settings.active_collaborative_algorithm = evaluated.algorithm_id
     collaborative_registry.COLLABORATIVE_RECOMMENDER_REGISTRY[evaluated.algorithm_id] = (
         evaluated.recommender
     )

@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendationResult,
 )
 
@@ -12,5 +12,5 @@ class CollaborativeRecommender(Protocol):
 
     def recommend(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
     ) -> CollaborativeRecommendationResult: ...

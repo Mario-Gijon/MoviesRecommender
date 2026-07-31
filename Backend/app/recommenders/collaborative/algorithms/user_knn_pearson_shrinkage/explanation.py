@@ -36,7 +36,7 @@ def build_user_knn_explanation(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     contributions: list[UserKnnExplanationContribution],
     shared_positive_movie_ids_by_neighbor_user_id: dict[int, list[int]],
 ) -> UserKnnRenderedExplanation:
@@ -50,7 +50,7 @@ def build_user_knn_explanation(
         candidate_movie_id=candidate_movie_id,
         rank=rank,
         variant_id=variant_id,
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         shared_movie_pool=shared_movie_pool,
     )
     evidence_strength = _infer_evidence_strength(
@@ -68,7 +68,7 @@ def build_user_knn_explanation(
         shared_evidence_movies=visible_shared_movies,
         evidence_strength=evidence_strength,
         candidate_title=candidate_title,
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         explanation_source="user_knn_neighbor_evidence",
         fidelity="high" if visible_shared_movies else "medium",
         limitations=(
@@ -165,7 +165,7 @@ def _select_visible_shared_movies(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     shared_movie_pool: list[EvidenceMovie],
 ) -> list[EvidenceMovie]:
     if len(shared_movie_pool) <= VISIBLE_SHARED_EVIDENCE_LIMIT:
@@ -179,7 +179,7 @@ def _select_visible_shared_movies(
             candidate_movie_id=candidate_movie_id,
             rank=rank,
             variant_id=variant_id,
-            template_session_id=template_session_id,
+            template_seed=template_seed,
             source_movie_id=movie.movieId,
             anchor_movie_id=anchor_movie.movieId,
         ),
@@ -213,13 +213,13 @@ def _stable_diversity_key(
     candidate_movie_id: int,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     source_movie_id: int,
     anchor_movie_id: int,
 ) -> str:
     payload = "|".join(
         [
-            template_session_id or "",
+            template_seed or "",
             str(candidate_movie_id),
             str(rank),
             variant_id,

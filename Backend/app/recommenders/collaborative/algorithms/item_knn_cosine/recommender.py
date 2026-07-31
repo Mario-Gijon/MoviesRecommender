@@ -24,7 +24,7 @@ from app.recommenders.collaborative.common.explanations.profile_style import (
     infer_collaborative_profile_style,
 )
 from app.recommenders.collaborative.common.models import (
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendationResult,
     CollaborativeRecommendedMovie,
     CollaborativeRecommenderDetails,
@@ -89,7 +89,7 @@ class ItemKnnCosineRecommender:
 
     def recommend(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
     ) -> CollaborativeRecommendationResult:
         total_started_at = time.perf_counter()
         self._validate_artifacts()
@@ -187,7 +187,7 @@ class ItemKnnCosineRecommender:
                     candidate=candidate,
                     rank=rank,
                     variant_id=self._model_variant_id,
-                    template_session_id=request.template_session_id,
+                    template_seed=request.template_seed,
                     used_evidence_movie_counts=used_evidence_movie_counts,
                 )
             )
@@ -249,7 +249,6 @@ class ItemKnnCosineRecommender:
                 },
             ),
             limit=request.limit,
-            template_session_id=request.template_session_id,
         )
 
     def _load_manifest(self) -> dict:
@@ -356,14 +355,14 @@ def _build_recommended_movie(
     candidate: CandidateScore,
     rank: int,
     variant_id: str,
-    template_session_id: str | None,
+    template_seed: str | None,
     used_evidence_movie_counts: dict[int, int],
 ) -> CollaborativeRecommendedMovie:
     rendered_explanation = build_item_knn_explanation(
         candidate_movie_id=candidate.movie_id,
         rank=rank,
         variant_id=variant_id,
-        template_session_id=template_session_id,
+        template_seed=template_seed,
         used_evidence_movie_counts=used_evidence_movie_counts,
         contributions=[
             ItemKnnExplanationContribution(

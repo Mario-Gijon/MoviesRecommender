@@ -3,9 +3,6 @@ from app.schemas.catalog_schemas import (
     PaginatedMovieCatalogResponse,
     PublicMovieRecord,
 )
-from app.schemas.content_recommendation_schemas import (
-    ContentBasedRecommendationRequest,
-)
 from app.schemas.error_schemas import ErrorResponse
 from app.schemas.recommendation_schemas import (
     RecommendationRequest,
@@ -16,7 +13,6 @@ from app.schemas.recommendation_schemas import (
 
 __all__ = [
     "CatalogStatus",
-    "ContentBasedRecommendationRequest",
     "ErrorResponse",
     "PaginatedMovieCatalogResponse",
     "PublicMovieRecord",

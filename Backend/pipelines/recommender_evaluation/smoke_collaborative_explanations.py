@@ -18,7 +18,7 @@ def main() -> None:
             EvidenceMovie(movieId=3, title="Monstruos S.A.", userRating=4, role="liked_source"),
         ],
         evidence_strength="strong",
-        template_session_id="smoke-session",
+        template_seed="smoke-seed",
     )
     _print_case("ItemKNN", item_knn)
 
@@ -38,7 +38,7 @@ def main() -> None:
             )
         ],
         evidence_strength="strong",
-        template_session_id="smoke-session",
+        template_seed="smoke-seed",
     )
     _print_case("UserKNN", user_knn)
 
@@ -53,7 +53,7 @@ def main() -> None:
             EvidenceMovie(movieId=7, title="Kung Fu Panda", userRating=4),
         ],
         evidence_strength="medium",
-        template_session_id="smoke-session",
+        template_seed="smoke-seed",
     )
     _print_case("BMF", bmf)
 
@@ -65,7 +65,7 @@ def main() -> None:
         rank=4,
         evidence_movies=[],
         evidence_strength="fallback",
-        template_session_id="smoke-session",
+        template_seed="smoke-seed",
     )
     _print_case("Popularity/Fallback", popularity)
 

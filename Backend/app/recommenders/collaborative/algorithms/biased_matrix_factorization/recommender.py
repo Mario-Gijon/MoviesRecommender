@@ -30,7 +30,7 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.recommender i
 from app.recommenders.collaborative.common.errors import CollaborativeModelArtifactError
 from app.recommenders.collaborative.common.models import (
     CollaborativeRecommendationExplanation,
-    CollaborativeRecommendationRequest,
+    CollaborativeRecommendationInput,
     CollaborativeRecommendationResult,
     CollaborativeRecommendedMovie,
     CollaborativeRecommenderDetails,
@@ -83,7 +83,7 @@ class BiasedMatrixFactorizationRecommender:
 
     def recommend(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
     ) -> CollaborativeRecommendationResult:
         total_started_at = time.perf_counter()
         runtime_artifacts = self._load_runtime_artifacts()
@@ -231,12 +231,11 @@ class BiasedMatrixFactorizationRecommender:
                 },
             ),
             limit=request.limit,
-            template_session_id=request.template_session_id,
         )
 
     def predict_rating_for_movie(
         self,
-        request: CollaborativeRecommendationRequest,
+        request: CollaborativeRecommendationInput,
         movie_id: int,
     ) -> BmfRatingPrediction:
         started_at = time.perf_counter()
@@ -412,7 +411,7 @@ class BiasedMatrixFactorizationRecommender:
 
 
 def _build_ratings_by_movie_id(
-    request: CollaborativeRecommendationRequest,
+    request: CollaborativeRecommendationInput,
 ) -> dict[int, float]:
     ratings_by_movie_id: dict[int, float] = {}
     for rating in request.ratings:

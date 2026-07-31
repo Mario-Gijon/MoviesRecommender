@@ -17,5 +17,4 @@ The frontend reads `VITE_API_URL` and defaults to `http://localhost:8014`.
 
 - Featured movies are fetched from the local FastAPI backend.
 - Ratings are stored only in React state.
-- Recommendation results are placeholder deterministic responses for now.
-
+- Recommendations use the canonical `POST /recommendations` API.

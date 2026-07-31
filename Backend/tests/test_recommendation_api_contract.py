@@ -2,7 +2,6 @@ import unittest
 from urllib.parse import urlencode
 
 from app.catalog.catalog_repository import catalog_repository
-from app.core.config import settings
 from tests.http_test_client import HttpTestResponse, LiveApiServer
 
 
@@ -263,176 +262,54 @@ class CanonicalRecommendationHttpTests(unittest.TestCase):
         self.assertGreater(_body_dict(status)["totalMovies"], 0)
 
 
-class DeprecatedRecommendationCompatibilityHttpTests(unittest.TestCase):
-    def test_legacy_routes_are_deprecated_in_openapi(self) -> None:
-        response = SERVER.request("GET", "/openapi.json")
-        self.assertEqual(200, response.status)
-        paths = _body_dict(response)["paths"]
-        self.assertTrue(
-            paths["/recommendations/content-based"]["post"]["deprecated"]
-        )
-        self.assertTrue(
-            paths["/recommendations/collaborative"]["post"]["deprecated"]
-        )
-
-    def test_content_endpoint_accepts_decimal_and_returns_legacy_shape(
-        self,
-    ) -> None:
-        template_session_id = "legacy-content-template"
-        response = SERVER.request(
-            "POST",
-            "/recommendations/content-based",
-            json_body={
-                "ratings": [
-                    {"movieId": MOVIE_IDS[0], "rating": 4.5},
-                    {"movieId": MOVIE_IDS[1], "rating": 4},
-                    {"movieId": MOVIE_IDS[2], "rating": 2},
-                ],
-                "limit": 2,
-                "templateSessionId": template_session_id,
-            },
-        )
-        self.assertEqual(200, response.status, response.body)
-        body = _body_dict(response)
-        self.assertEqual(
-            {
-                "strategy",
-                "profile",
-                "recommendations",
-                "recommenderDetails",
-                "templateSessionId",
-                "limit",
-            },
-            set(body),
-        )
-        self.assertEqual("content_based", body["strategy"])
-        self.assertEqual(template_session_id, body["templateSessionId"])
-        self.assertGreater(len(body["recommendations"]), 0)
-        self.assertEqual(
-            {
-                "movieId",
-                "rank",
-                "movie",
-                "scores",
-                "explanation",
-                "algorithmDetails",
-            },
-            set(body["recommendations"][0]),
-        )
-        self.assertIn(
-            "recommendationScore",
-            body["recommendations"][0]["scores"],
-        )
-        self.assertIn(
-            "matchedSignals",
-            body["recommendations"][0]["explanation"],
-        )
-
-    def test_content_endpoint_insufficient_ratings_keeps_legacy_error_shape(
-        self,
-    ) -> None:
-        response = SERVER.request(
-            "POST",
-            "/recommendations/content-based",
-            json_body={"ratings": _ratings_for(MOVIE_IDS[:2]), "limit": 2},
-        )
-        self.assertEqual(400, response.status, response.body)
-        body = _body_dict(response)
-        self.assertEqual({"detail"}, set(body))
-        self.assertEqual({"code", "message"}, set(body["detail"]))
-        self.assertEqual(
-            "insufficient_non_neutral_ratings",
-            body["detail"]["code"],
-        )
-        self.assertIsInstance(body["detail"]["message"], str)
-        self.assertNotIn("requestId", body)
-        self.assertNotIn("error", body)
-
-    def test_legacy_error_responses_are_wrapped_in_openapi(self) -> None:
-        response = SERVER.request("GET", "/openapi.json")
-        self.assertEqual(200, response.status)
-        openapi = _body_dict(response)
-        components = openapi["components"]["schemas"]
-
+class RemovedRecommendationCompatibilityHttpTests(unittest.TestCase):
+    def test_removed_recommendation_routes_return_not_found(self) -> None:
         for path in (
             "/recommendations/content-based",
             "/recommendations/collaborative",
         ):
             with self.subTest(path=path):
-                error_schema = openapi["paths"][path]["post"]["responses"][
-                    "400"
-                ]["content"]["application/json"]["schema"]
-                self.assertEqual(
-                    {"$ref": "#/components/schemas/LegacyErrorResponse"},
-                    error_schema,
-                )
-                self.assertEqual(
-                    {"detail"},
-                    set(components["LegacyErrorResponse"]["properties"]),
-                )
-                detail_schema = components["LegacyErrorResponse"][
-                    "properties"
-                ]["detail"]
-                self.assertEqual(
-                    {"$ref": "#/components/schemas/LegacyErrorDetail"},
-                    detail_schema,
-                )
-                self.assertEqual(
-                    {"code", "message"},
-                    set(components["LegacyErrorDetail"]["properties"]),
-                )
+                response = SERVER.request("POST", path, json_body={})
+                self.assertEqual(404, response.status)
 
-    def test_collaborative_endpoint_returns_configured_legacy_shape(self) -> None:
-        template_session_id = "legacy-collaborative-template"
-        response = SERVER.request(
-            "POST",
-            "/recommendations/collaborative",
-            json_body={
-                "ratings": _ratings_for(MOVIE_IDS[:12]),
-                "limit": 2,
-                "templateSessionId": template_session_id,
-            },
-        )
-        self.assertEqual(200, response.status, response.body)
-        body = _body_dict(response)
-        self.assertEqual(
-            {
-                "strategy",
-                "profile",
-                "recommendations",
-                "recommenderDetails",
-                "templateSessionId",
-                "limit",
-            },
-            set(body),
-        )
-        self.assertEqual("collaborative", body["strategy"])
-        self.assertEqual(template_session_id, body["templateSessionId"])
-        self.assertEqual(
-            settings.active_collaborative_algorithm,
-            body["recommenderDetails"]["algorithmId"],
-        )
-        self.assertGreater(len(body["recommendations"]), 0)
-        self.assertEqual(
-            {
-                "movieId",
-                "rank",
-                "movie",
-                "scores",
-                "explanation",
-                "algorithmDetails",
-            },
-            set(body["recommendations"][0]),
+    def test_openapi_contains_only_the_canonical_recommendation_operation(
+        self,
+    ) -> None:
+        response = SERVER.request("GET", "/openapi.json")
+        self.assertEqual(200, response.status)
+        openapi = _body_dict(response)
+        recommendation_paths = {
+            path
+            for path in openapi["paths"]
+            if path.startswith("/recommendations")
+        }
+        self.assertEqual({"/recommendations"}, recommendation_paths)
+        schema_names = set(openapi["components"]["schemas"])
+        self.assertFalse(any(name.startswith("Legacy") for name in schema_names))
+        self.assertTrue(
+            schema_names.isdisjoint(
+                {
+                    "ContentBasedRecommendationRequest",
+                    "ContentBasedRecommendationResponse",
+                    "CollaborativeRecommendationRequest",
+                    "CollaborativeRecommendationResponse",
+                }
+            )
         )
 
-    def test_legacy_validation_keeps_fastapi_default_shape(self) -> None:
-        response = SERVER.request(
-            "POST",
-            "/recommendations/content-based",
-            json_body={"ratings": [], "limit": 0},
+    def test_canonical_request_rejects_removed_extra_field(self) -> None:
+        payload = _canonical_payload(
+            strategy="collaborative",
+            algorithm="popularity",
+            movie_ids=[],
+            request_id="reject-removed-extra-field",
         )
+        payload["templateSessionId"] = "not-a-public-field"
+        response = SERVER.request("POST", "/recommendations", json_body=payload)
         self.assertEqual(422, response.status)
-        self.assertEqual({"detail"}, set(_body_dict(response)))
+        body = _body_dict(response)
+        _assert_canonical_error(self, body)
+        self.assertEqual("invalid_request", body["error"]["code"])
 
 
 def _post_canonical(

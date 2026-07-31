@@ -3,15 +3,25 @@ const DEFAULT_API_URL = 'http://localhost:8014'
 const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL
 
 export async function apiRequest(path, options = {}) {
+  const { errorNormalizer, ...requestOptions } = options
   const response = await fetch(`${API_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
-    ...options,
+    ...requestOptions,
   })
 
   if (!response.ok) {
+    let payload = null
+    try {
+      payload = normalizeApiPayload(await response.json())
+    } catch {
+      // The generic client remains usable for APIs that do not return JSON errors.
+    }
+    if (errorNormalizer) {
+      throw errorNormalizer({ payload, status: response.status })
+    }
     throw new Error(`Request failed with status ${response.status}`)
   }
 
