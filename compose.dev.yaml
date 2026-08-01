@@ -16,6 +16,7 @@ services:
     image: movies-recommender-dataset-dev
     volumes:
       - ./Backend/app:/app/app
+      - ./Backend/pipelines:/app/pipelines
       - ${DATA_DIR:-./Backend/data}:/app/data
 
   frontend:

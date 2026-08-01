@@ -26,6 +26,11 @@ host through `DATA_DIR` (default `./Backend/data`). This includes both the share
 `offline_dataset/` and recommender-specific `recommender_models/` directories, so
 they survive `stop`, `down`, image pulls, and restarts.
 
+Docker users configure only `DATA_DIR`; Compose supplies
+`MOVIES_RECOMMENDER_DATA_DIR=/app/data` inside each backend container. The latter
+setting is only useful when running Python directly outside Docker, where its
+default remains `Backend/data`.
+
 ```bash
 cp .env.example .env
 docker compose up -d api

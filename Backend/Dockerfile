@@ -13,6 +13,7 @@ COPY requirements.txt ./
 RUN pip install --requirement requirements.txt
 
 COPY app ./app
+COPY pipelines ./pipelines
 RUN mkdir --parents /app/data && chown --recursive app:app /app
 
 USER app
