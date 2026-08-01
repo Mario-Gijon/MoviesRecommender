@@ -19,12 +19,29 @@ class DatasetCleanupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             paths = self._fixture(Path(temporary)); apply_cleanup("standard", paths)
             self.assertFalse((paths.data_dir / "pipeline_cache").exists())
-            self.assertTrue((paths.data_dir / "raw").exists())
-            apply_cleanup("minimal", paths)
+            self.assertFalse((paths.data_dir / "raw").exists())
+            self.assertTrue((paths.offline / "audit").exists())
+            paths = self._fixture(Path(temporary) / "minimal"); apply_cleanup("minimal", paths)
+            self.assertFalse((paths.data_dir / "pipeline_cache").exists())
             self.assertFalse((paths.data_dir / "raw").exists())
             self.assertFalse((paths.offline / "audit").exists())
             self.assertTrue((paths.offline / "csv" / "public_movies.csv").exists())
             self.assertTrue(paths.posters.exists()); self.assertTrue((paths.data_dir / "recommender_models").exists())
+
+    def test_removable_paths_preserve_runtime_dataset_components(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = DatasetPaths(Path(temporary))
+            cache = paths.data_dir / "pipeline_cache"
+            raw = paths.data_dir / "raw"
+            audit = paths.offline / "audit"
+
+            self.assertEqual((), paths.removable("none"))
+            self.assertEqual((cache, raw), paths.removable("standard"))
+            self.assertEqual((cache, raw, audit), paths.removable("minimal"))
+
+            protected = {paths.offline / "csv", paths.posters, paths.offline / "manifest.json", paths.data_dir / "recommender_models"}
+            for mode in ("none", "standard", "minimal"):
+                self.assertTrue(protected.isdisjoint(paths.removable(mode)))
 
     def test_invalid_dataset_blocks_cleanup_and_dry_run_keeps_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

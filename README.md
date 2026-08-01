@@ -130,10 +130,13 @@ Bare commands are interactive; use `--non-interactive --yes` for automation. ZIP
 imports are mounted into the dataset container automatically. Deploy asks for model
 variants, algorithms, cleanup, and frontend; restart never rebuilds models.
 
-`minimal` dataset cleanup removes raw files, cache, and offline audit output; model
-`--clean` removes optional model exports. `stop` never deletes persistent data.
-Requests select algorithms while deployment selects model variants. Manual Compose
-commands below remain available as an advanced fallback.
+`standard` dataset cleanup removes the pipeline cache and original MovieLens source
+files, while retaining the audit report. `minimal` also removes the audit report.
+Posters, final CSV files, and the manifest are always retained; MovieLens source data
+can be downloaded again for a future dataset regeneration. Model `--clean` removes
+optional model exports. `stop` never deletes persistent data. Requests select
+algorithms while deployment selects model variants. Manual Compose commands below
+remain available as an advanced fallback.
 
 Generating `offline_dataset/` does not rebuild `recommender_models/`. Rebuilding
 `recommender_models/` does not regenerate `offline_dataset/`. Rebuild the current
@@ -179,10 +182,8 @@ docker compose --profile maintenance run --rm recommender-build --algorithm item
 
 - Configurable persistent runtime data and Docker deployment foundations.
 - No authentication or user accounts.
-- No dataset cleanup modes, external installation package, or Docker Hub publication
-  workflow yet.
+- No external installation package or Docker Hub publication workflow yet.
 
 ## Later phases
 
-- Dataset cleanup and recommender rebuilding commands.
 - External installation package and Docker Hub publication workflow.

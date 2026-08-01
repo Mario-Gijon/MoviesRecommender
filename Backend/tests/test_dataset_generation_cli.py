@@ -163,6 +163,37 @@ class DatasetCliConfigurationTests(unittest.TestCase):
             summary,
         )
 
+    def test_cleanup_menu_describes_raw_data_and_audit_retention(self) -> None:
+        output = io.StringIO()
+        with patch("pipelines.dataset_generation.cli._ask_choice", return_value="standard"), redirect_stdout(output):
+            self.assertEqual("standard", cli._ask_cleanup())
+
+        menu = output.getvalue()
+        self.assertIn("Removes pipeline cache and downloaded MovieLens source files.", menu)
+        self.assertIn("Keeps the final dataset, posters and dataset quality report.", menu)
+        self.assertIn("Removes pipeline cache, downloaded MovieLens source files and dataset quality report.", menu)
+
+    def test_cleanup_effects_and_previews_include_all_removable_paths(self) -> None:
+        self.assertIn("pipeline cache", cli._cleanup_effect("standard"))
+        self.assertIn("raw MovieLens data", cli._cleanup_effect("standard"))
+        self.assertIn("pipeline cache", cli._cleanup_effect("minimal"))
+        self.assertIn("raw MovieLens data", cli._cleanup_effect("minimal"))
+        self.assertIn("offline audit files", cli._cleanup_effect("minimal"))
+
+        paths = cli.DatasetPaths(Path("/app/data"))
+        standard = io.StringIO()
+        minimal = io.StringIO()
+        with redirect_stdout(standard):
+            cli._print_cleanup_preview("standard", paths)
+        with redirect_stdout(minimal):
+            cli._print_cleanup_preview("minimal", paths)
+
+        self.assertIn("/app/data/pipeline_cache", standard.getvalue())
+        self.assertIn("/app/data/raw", standard.getvalue())
+        self.assertNotIn("/app/data/offline_dataset/audit", standard.getvalue())
+        self.assertIn("/app/data/offline_dataset/audit", minimal.getvalue())
+        self.assertIn("/app/data/offline_dataset/images/posters", minimal.getvalue())
+
     def test_dry_run_does_not_prepare_source_or_run_commands(self) -> None:
         runner = Mock()
         with patch("pipelines.dataset_generation.run_movielens_32m_pipeline.prepare_source") as prepare:

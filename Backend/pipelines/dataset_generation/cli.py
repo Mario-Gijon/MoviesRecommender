@@ -297,7 +297,7 @@ def _ask_source(default: str) -> str:
 
 
 def _ask_cleanup() -> str:
-    print("Choose what should be removed after successful generation:\n\n1. Keep everything\n   Keeps final files, MovieLens files, cache and audit files.\n\n2. Standard cleanup\n   Removes intermediate pipeline cache and keeps final files, posters and source files.\n\n3. Minimal runtime files\n   Removes cache, raw MovieLens files and offline audit files; keeps manifest, CSV files and posters.")
+    print("Choose what should be removed after successful generation:\n\n1. Keep everything\n   Keeps final dataset files, posters, audit files, MovieLens source files and pipeline cache.\n   Uses the most disk space.\n\n2. Standard cleanup\n   Removes pipeline cache and downloaded MovieLens source files.\n   Keeps the final dataset, posters and dataset quality report.\n\n3. Minimal runtime files\n   Removes pipeline cache, downloaded MovieLens source files and dataset quality report.\n   Keeps only the final dataset files, manifest and posters required by the application.")
     return _ask_choice("Cleanup", ("none", "standard", "minimal"), "standard")
 
 
@@ -319,7 +319,7 @@ def _cleanup_label(value: str) -> str:
 
 
 def _cleanup_effect(value: str) -> str:
-    return {"none": "Removes nothing", "standard": "Removes pipeline cache", "minimal": "Removes pipeline cache, raw MovieLens data and offline audit files"}.get(value, "Removes nothing")
+    return {"none": "Removes nothing", "standard": "Removes pipeline cache and raw MovieLens data", "minimal": "Removes pipeline cache, raw MovieLens data and offline audit files"}.get(value, "Removes nothing")
 
 
 def _ask_integer(question: str, default: int | None, *, optional: bool, allow_zero: bool = False) -> int | None:

@@ -29,8 +29,12 @@ class DatasetPaths:
     def removable(self, mode: str) -> tuple[Path, ...]:
         if mode == "none":
             return ()
-        paths = (self.data_dir / "pipeline_cache",)
-        return paths if mode == "standard" else paths + (self.data_dir / "raw", self.offline / "audit")
+        paths = (self.data_dir / "pipeline_cache", self.data_dir / "raw")
+        if mode == "standard":
+            return paths
+        if mode == "minimal":
+            return paths + (self.offline / "audit",)
+        return ()
 
     @property
     def preserved(self) -> tuple[Path, ...]:
