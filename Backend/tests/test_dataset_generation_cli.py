@@ -61,16 +61,22 @@ class DatasetCliConfigurationTests(unittest.TestCase):
             "--non-interactive", "--yes", "--source", "zip", "--dry-run",
         ]))
 
-    def test_noninteractive_non_raw_range_does_not_require_source(self) -> None:
+    def test_noninteractive_source_requirement_depends_on_selected_stages(self) -> None:
         self.assertEqual(0, cli.main([
-            "--non-interactive", "--yes", "--start-at", "catalog", "--stop-after", "export", "--dry-run",
+            "--non-interactive", "--yes", "--start-at", "catalog", "--stop-after", "catalog", "--dry-run",
         ]))
         self.assertEqual(1, cli.main([
             "--non-interactive", "--yes", "--start-at", "candidates", "--dry-run",
         ]))
+        self.assertEqual(1, cli.main([
+            "--non-interactive", "--yes", "--start-at", "ratings", "--stop-after", "ratings", "--dry-run",
+        ]))
+        self.assertEqual(0, cli.main([
+            "--non-interactive", "--yes", "--source", "existing", "--start-at", "ratings", "--stop-after", "ratings", "--dry-run",
+        ]))
 
     def test_interactive_non_raw_range_skips_source_and_prints_one_plan(self) -> None:
-        args = cli.build_parser().parse_args(["--start-at", "catalog", "--stop-after", "export"])
+        args = cli.build_parser().parse_args(["--start-at", "catalog", "--stop-after", "catalog"])
         with patch("pipelines.dataset_generation.cli._ask_choice", return_value="recommended"), patch(
             "pipelines.dataset_generation.cli._ask_yes_no", return_value=False
         ), patch("pipelines.dataset_generation.cli.has_valid_extracted_files") as raw:
@@ -79,13 +85,25 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         self.assertIsNone(zip_path)
         self.assertEqual("catalog", config.start_at)
         raw.assert_not_called()
-        config = DatasetPipelineConfig(start_at="catalog", stop_after="export", skip_posters=True)
+        config = DatasetPipelineConfig(start_at="catalog", stop_after="catalog", skip_posters=True)
         output = io.StringIO()
         with patch("pipelines.dataset_generation.cli._interactive_configuration", return_value=(config, "existing", None)), patch(
             "pipelines.dataset_generation.cli._resolve_token", return_value=None
         ), patch("builtins.input", return_value="n"), redirect_stdout(output):
             cli.main([])
         self.assertEqual(1, output.getvalue().count("Execution summary"))
+
+    def test_interactive_ratings_range_asks_for_source(self) -> None:
+        args = cli.build_parser().parse_args(["--start-at", "ratings", "--stop-after", "ratings"])
+        with patch("pipelines.dataset_generation.cli._ask_choice", side_effect=("recommended", "existing")) as choice, patch(
+            "pipelines.dataset_generation.cli._ask_yes_no", return_value=False
+        ), patch("pipelines.dataset_generation.cli.has_valid_extracted_files", return_value=True) as raw:
+            config, source, zip_path = cli._interactive_configuration(args)
+        self.assertEqual("ratings", config.start_at)
+        self.assertEqual("existing", source)
+        self.assertIsNone(zip_path)
+        raw.assert_called_once()
+        self.assertEqual("MovieLens source", choice.call_args_list[1].args[0])
 
     def test_custom_stop_after_uses_explicit_default(self) -> None:
         config = DatasetPipelineConfig(stop_after="export")
@@ -104,6 +122,18 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         self.assertNotIn("posters", stages)
         prepare.assert_not_called()
         runner.assert_not_called()
+
+    def test_run_pipeline_prepares_source_for_ratings_but_not_catalog(self) -> None:
+        runner = Mock()
+        with patch("pipelines.dataset_generation.run_movielens_32m_pipeline.prepare_source") as prepare:
+            run_pipeline(DatasetPipelineConfig(start_at="ratings", stop_after="ratings"), source="existing", runner=runner)
+        prepare.assert_called_once_with("existing", zip_path=None)
+        with patch("pipelines.dataset_generation.run_movielens_32m_pipeline.prepare_source") as prepare:
+            run_pipeline(DatasetPipelineConfig(start_at="catalog", stop_after="catalog"), runner=runner)
+        prepare.assert_not_called()
+        with patch("pipelines.dataset_generation.run_movielens_32m_pipeline.prepare_source") as prepare:
+            run_pipeline(DatasetPipelineConfig(start_at="catalog", stop_after="export"), source="existing", runner=runner)
+        prepare.assert_called_once_with("existing", zip_path=None)
 
     def test_tmdb_token_not_required_outside_enrichment_and_not_printed(self) -> None:
         config = DatasetPipelineConfig(start_at="catalog", skip_posters=True)

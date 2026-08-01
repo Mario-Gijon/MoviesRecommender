@@ -83,9 +83,8 @@ MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN='...' \
 ```
 
 Use `--dry-run` to print exact stage commands without downloads, TMDB calls, poster
-requests, or writes. A MovieLens source is required when a run begins candidate
-construction; resumed catalog/rating/export runs use their already-present inputs
-and do not prompt for a source. Source modes are `existing`, `download`, and
+requests, or writes. Raw MovieLens source preparation is required for stage ranges
+containing `candidates` or `ratings`. Source modes are `existing`, `download`, and
 `zip`; `existing` requires all four extracted MovieLens CSVs, while `download`
 reuses valid raw data first, then a validated cached official ZIP. `--force` on the
 legacy downloader performs a fresh validated official download. Corrupt cached ZIPs

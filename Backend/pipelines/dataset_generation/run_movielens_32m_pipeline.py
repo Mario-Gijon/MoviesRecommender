@@ -11,9 +11,7 @@ from .movielens_source import MovieLensSourceError, prepare_source
 
 
 STAGE_ORDER = ("candidates", "enrich", "catalog", "ratings", "export", "posters", "audit")
-# A resumed ratings stage still reads existing raw ratings, but source preparation is
-# only needed when candidate construction starts a new raw-data pipeline.
-SOURCE_PREPARATION_STAGES = {"candidates"}
+SOURCE_PREPARATION_STAGES = {"candidates", "ratings"}
 
 
 class DatasetStageError(RuntimeError):
