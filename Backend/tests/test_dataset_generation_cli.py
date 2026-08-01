@@ -91,7 +91,7 @@ class DatasetCliConfigurationTests(unittest.TestCase):
             "pipelines.dataset_generation.cli._resolve_token", return_value=None
         ), patch("builtins.input", return_value="n"), redirect_stdout(output):
             cli.main([])
-        self.assertEqual(1, output.getvalue().count("Execution summary"))
+        self.assertEqual(1, output.getvalue().count("Dataset installation summary"))
 
     def test_interactive_ratings_range_asks_for_source(self) -> None:
         args = cli.build_parser().parse_args(["--start-at", "ratings", "--stop-after", "ratings"])
@@ -112,7 +112,7 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         ), patch("pipelines.dataset_generation.cli._ask_text", side_effect=lambda _q, default=None, **_k: default), patch(
             "pipelines.dataset_generation.cli._ask_choice", side_effect=lambda _q, _choices, default: default
         ) as choice:
-            cli._ask_custom_config(config)
+            cli._ask_advanced_config(config)
         self.assertEqual("export", choice.call_args_list[-1].args[2])
 
     def test_dry_run_does_not_prepare_source_or_run_commands(self) -> None:

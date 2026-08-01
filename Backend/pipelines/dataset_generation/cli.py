@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             token = _resolve_token(config, interactive=True, dry_run=args.dry_run)
             _print_plan(config, source, args.zip_path)
             plan_printed = True
-            if not args.dry_run and not _ask_yes_no("Run this dataset pipeline now?", default=False):
+            if not args.dry_run and not _ask_yes_no("Start generating the dataset with these settings?", default=False):
                 print("Cancelled. No pipeline stages were run.")
                 return 0
         if not plan_printed:
@@ -166,50 +166,59 @@ def _validate_non_interactive(args: argparse.Namespace, config: DatasetPipelineC
 def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelineConfig, str, Path | None]:
     paths = default_paths()
     print(f"Persistent data root: {DATA_DIR}")
-    preset = _ask_choice("How would you like to configure the dataset? (1 Recommended, 2 Custom, 3 Advanced)", ("recommended", "custom", "advanced"), "recommended")
-    preset = "custom" if preset == "advanced" else preset
-    args.preset = preset
+    mode = _ask_configuration_mode()
+    args.preset = "recommended" if mode in {"recommended", "custom"} else "defaults"
     config = resolve_config(args)
-    if preset == "custom":
+    if mode == "custom":
         config = _ask_custom_config(config)
+    elif mode == "advanced":
+        config = _ask_advanced_config(config)
+    else:
+        _print_recommended_settings(config)
     source = "existing"
     zip_path = None
     if stages_require_raw_source(config):
         raw_available = has_valid_extracted_files(paths.dataset_dir)
         print("MovieLens raw files: " + ("available" if raw_available else "missing or incomplete"))
-        source = _ask_choice("MovieLens source", ("existing", "download", "zip"), "existing" if raw_available else "download")
+        source = _ask_source("existing" if raw_available else "download")
         zip_path = Path(_ask_text("Path to MovieLens ZIP", required=True)) if source == "zip" else None
     config = replace(
         config,
-        skip_posters=not _ask_yes_no("Download missing posters?", default=not args.skip_posters),
-        audit=_ask_yes_no("Generate offline audit?", default=args.audit),
+        skip_posters=not _ask_explained_yes_no("Download missing movie posters?\nPoster files are displayed by the frontend and existing files are reused.", not args.skip_posters),
+        audit=_ask_explained_yes_no("Generate a dataset quality report?\nIt creates diagnostic files and is not required to run the application.", args.audit),
     )
     if "enrich" in select_stages(config):
-        resume = _ask_yes_no("Resume existing TMDB enrichment when possible?", default=config.resume_tmdb)
-        force = False if resume else _ask_yes_no("Force a fresh TMDB enrichment?", default=False)
+        resume = _ask_explained_yes_no("Reuse completed TMDB enrichment and continue from the last saved point?\nRecommended: avoids repeating successful requests.", config.resume_tmdb)
+        force = False if resume else _ask_explained_yes_no("Start TMDB enrichment again from the beginning?\nThis repeats TMDB API requests.", False)
         config = replace(config, resume_tmdb=resume, force_tmdb=force)
     validate_config(config)
-    args.cleanup = _ask_choice("Cleanup after successful generation", ("none", "standard", "minimal"), "standard")
+    args.cleanup = _ask_cleanup()
     _print_existing_output_summary()
     return config, source, zip_path
 
 
 def _ask_custom_config(config: DatasetPipelineConfig) -> DatasetPipelineConfig:
     values = asdict(config)
-    for field in ("candidate_limit", "candidate_min_ratings", "candidate_min_year", "candidate_max_year", "candidate_min_tags"):
-        values[field] = _ask_integer(field.replace("_", " "), values[field], optional=field == "candidate_max_year", allow_zero=field == "candidate_min_tags")
+    prompts = (("Maximum movies to process\nThis limits how many eligible movies are enriched with TMDB.", "candidate_limit", False, False), ("Minimum ratings per movie\nMovies with fewer MovieLens ratings are excluded.", "candidate_min_ratings", False, False), ("Oldest release year\nMovies released before this year are excluded.", "candidate_min_year", False, False), ("Newest release year\nLeave blank for no upper limit.", "candidate_max_year", True, False), ("Minimum distinct user tags\nUse 0 to keep movies with no user tags.", "candidate_min_tags", False, True))
+    for prompt, field, optional, allow_zero in prompts:
+        print(prompt); values[field] = _ask_integer("Value", values[field], optional=optional, allow_zero=allow_zero)
     values["catalog_min_ratings"] = values["candidate_min_ratings"]
     values["public_min_year"] = values["candidate_min_year"]
     values["collaborative_min_year"] = values["candidate_min_year"]
+    return DatasetPipelineConfig(**values)
+
+
+def _ask_advanced_config(config: DatasetPipelineConfig) -> DatasetPipelineConfig:
+    values = asdict(config)
+    for field in NUMERIC_FIELDS:
+        values[field] = _ask_integer(field.replace("_", " "), values[field], optional=field in {"candidate_max_year", "public_limit"}, allow_zero=field == "candidate_min_tags")
     values["family_only"] = _ask_yes_no("Family-only mode?", default=bool(values["family_only"]))
     values["display_language"] = _ask_text("Display language", default=values["display_language"], required=True)
     values["start_at"] = _ask_choice("Start stage", ("candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"), values["start_at"])
     values["stop_after"] = _ask_choice("Stop after stage (or none)", ("none", "candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"), values["stop_after"] or "none")
     if values["stop_after"] == "none":
         values["stop_after"] = None
-    custom = DatasetPipelineConfig(**values)
-    validate_config(custom)
-    return custom
+    return DatasetPipelineConfig(**values)
 
 
 def _resolve_token(config: DatasetPipelineConfig, *, interactive: bool, dry_run: bool) -> str | None:
@@ -226,15 +235,12 @@ def _resolve_token(config: DatasetPipelineConfig, *, interactive: bool, dry_run:
 
 
 def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | None) -> None:
-    stages = select_stages(config)
-    print("\nExecution summary")
-    print(f"Data root: {DATA_DIR}")
-    print((f"Source: {source}" + (f" ({zip_path})" if zip_path else "")) if stages_require_raw_source(config) else "MovieLens source preparation: not required for selected stages")
-    print("Stages: " + ", ".join(stages))
-    print("Existing generated candidate, enrichment, catalog, ratings and offline CSV outputs may be regenerated.")
-    print("Existing posters are reused unless a stage explicitly replaces them. Recommender models are never touched.")
-    for stage in stages:
-        print(f"  {stage}: {shlex.join(build_stage_command(stage, config))}")
+    print("\nDataset installation summary")
+    print(f"Persistent data directory: {DATA_DIR}\nMovieLens source: {source}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nTMDB behavior: {'fresh' if config.force_tmdb else 'resume'}")
+
+
+def _print_recommended_settings(config: DatasetPipelineConfig) -> None:
+    print("Recommended settings\nMaximum movies considered: " + str(config.candidate_limit) + "\nMinimum ratings required per movie: " + str(config.candidate_min_ratings) + f"\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum user tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nCollaborative core size: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nThe movie count is a maximum; the final catalogue may contain fewer movies after filtering and TMDB validation. A minimum-tag value of 0 disables the tag requirement.")
 
 
 def _print_cleanup_summary(mode: str, paths: DatasetPaths, removed: tuple[Path, ...], skipped: tuple[Path, ...]) -> None:
@@ -272,9 +278,39 @@ def _ask_yes_no(question: str, *, default: bool) -> bool:
 def _ask_choice(question: str, choices: tuple[str, ...], default: str) -> str:
     while True:
         value = input(f"{question} ({'/'.join(choices)}) [{default}]: ").strip().lower() or default
+        if value.isdigit() and 1 <= int(value) <= len(choices):
+            value = choices[int(value) - 1]
         if value in choices:
             return value
         print("Choose one of: " + ", ".join(choices))
+
+
+def _ask_configuration_mode() -> str:
+    print("How would you like to configure the dataset?\n\n1. Recommended\n   Balanced settings suitable for most installations.\n   The exact values will be shown before continuing.\n\n2. Custom\n   Choose the main catalogue size and filtering rules.\n\n3. Advanced\n   Configure all dataset and pipeline parameters.")
+    return _ask_choice("Configuration", ("recommended", "custom", "advanced"), "recommended")
+
+
+def _ask_source(default: str) -> str:
+    print("Choose how MovieLens data will be obtained:\n\n1. Download automatically\n   Downloads the official MovieLens 32M archive.\n\n2. Reuse existing files\n   Uses valid files already stored in the persistent data directory.\n\n3. Import a local ZIP\n   Imports an existing MovieLens 32M ZIP from this computer.")
+    return _ask_choice("MovieLens source", ("download", "existing", "zip"), default)
+
+
+def _ask_cleanup() -> str:
+    print("Choose what should be removed after successful generation:\n\n1. Keep everything\n   Keeps final files, MovieLens files, cache and audit files.\n\n2. Standard cleanup\n   Removes intermediate pipeline cache and keeps final files, posters and source files.\n\n3. Minimal runtime files\n   Removes cache, raw MovieLens files and offline audit files; keeps manifest, CSV files and posters.")
+    return _ask_choice("Cleanup", ("none", "standard", "minimal"), "standard")
+
+
+def _ask_numbered_choice(question: str, mappings: dict[str, str], default: str) -> str:
+    accepted = {**mappings, **{value: value for value in mappings.values()}}
+    while True:
+        value = input(f"{question} [{default}]: ").strip().lower() or default
+        if value in accepted: return accepted[value]
+        print("Choose one of: " + ", ".join(sorted(set(accepted.values()))))
+
+
+def _ask_explained_yes_no(explanation: str, default: bool) -> bool:
+    print(explanation)
+    return _ask_yes_no("Continue?", default=default)
 
 
 def _ask_integer(question: str, default: int | None, *, optional: bool, allow_zero: bool = False) -> int | None:
