@@ -51,19 +51,62 @@ docker compose --profile frontend -f compose.yaml -f compose.dev.yaml up --build
 ```
 
 The development frontend keeps `VITE_API_URL=http://localhost:8014`; the production
-frontend uses relative `/api` URLs through Nginx. The `dataset` service is opt-in
-with `--profile dataset` and is a safe placeholder in this phase.
+frontend uses relative `/api` URLs through Nginx.
+
+## Dataset generation
+
+The opt-in `dataset` service generates `offline_dataset/` from MovieLens 32M and
+TMDB metadata. It reuses valid raw files and cached work where possible, but
+regenerates the selected candidate, enrichment, catalogue, ratings, export, poster,
+and audit outputs. It never rebuilds `recommender_models/`.
+
+Run the local terminal wizard from `Backend`:
+
+```bash
+.venv/bin/python -m pipelines.dataset_generation.cli
+```
+
+Or run the same wizard in Docker:
+
+```bash
+docker compose --profile dataset run --rm dataset
+```
+
+The `recommended` profile creates the broad 15,000-item configuration; choose
+`custom` in the wizard for individual limits, years, language, stages, poster and
+audit options. Deterministic installation-style use is available with, for example:
+
+```bash
+MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN='...' \
+  .venv/bin/python -m pipelines.dataset_generation.cli \
+  --non-interactive --yes --source download --preset recommended --audit
+```
+
+Use `--dry-run` to print exact stage commands without downloads, TMDB calls, poster
+requests, or writes. Source modes are `existing`, `download`, and `zip`; `existing`
+requires all four extracted MovieLens CSVs, while `download` reuses a valid cached
+official ZIP and existing raw data. For a custom ZIP in Docker, mount it read-only;
+the CLI path is inside the container:
+
+```bash
+docker compose --profile dataset run --rm \
+  -v /absolute/host/path/ml-32m.zip:/input/ml-32m.zip:ro \
+  dataset --source zip --zip-path /input/ml-32m.zip
+```
+
+The imported raw CSVs are written under persistent `DATA_DIR`; the original host ZIP
+is not modified. Enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`; set it
+in the environment (or enter it through the hidden interactive prompt). Use resume
+to reuse enrichment progress. Poster download and audit generation are optional.
 
 ## Current scope
 
 - Configurable persistent runtime data and Docker deployment foundations.
 - No authentication or user accounts.
-- No interactive dataset generator, custom MovieLens ZIP selection, cleanup modes,
-  recommender rebuilding command, external installation package, or Docker Hub
-  publication workflow yet.
+- No dataset cleanup modes, recommender rebuilding command, external installation
+  package, or Docker Hub publication workflow yet.
 
 ## Later phases
 
-- Interactive dataset generation and MovieLens source selection.
 - Dataset cleanup and recommender rebuilding commands.
 - External installation package and Docker Hub publication workflow.

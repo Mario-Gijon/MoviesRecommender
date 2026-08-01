@@ -17,9 +17,11 @@ services:
     profiles: ["dataset"]
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
+      MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN: ${MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN:-}
     volumes:
       - ${DATA_DIR:-./Backend/data}:/app/data
-    command: ["sh", "-c", "echo 'Dataset generation is not implemented in this phase.'"]
+    stdin_open: true
+    tty: true
 
   frontend:
     image: ${FRONTEND_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/frontend:${APP_VERSION:-0.1.0}}

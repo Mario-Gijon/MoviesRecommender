@@ -22,7 +22,7 @@ FROM base AS api
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8014"]
 
 FROM base AS dataset
-CMD ["sh", "-c", "echo 'Dataset tooling is not implemented in this image yet.'"]
+ENTRYPOINT ["python", "-m", "pipelines.dataset_generation.cli"]
 
 FROM base AS development
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8014", "--reload"]
