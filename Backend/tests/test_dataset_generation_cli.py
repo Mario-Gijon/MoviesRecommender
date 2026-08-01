@@ -115,6 +115,54 @@ class DatasetCliConfigurationTests(unittest.TestCase):
             cli._ask_advanced_config(config)
         self.assertEqual("export", choice.call_args_list[-1].args[2])
 
+    def test_configuration_mode_menu_accepts_number_and_text(self) -> None:
+        with patch("builtins.input", return_value="1"):
+            self.assertEqual(cli._ask_configuration_mode(), "recommended")
+
+        with patch("builtins.input", return_value="advanced"):
+            self.assertEqual(cli._ask_configuration_mode(), "advanced")
+
+    def test_explained_prompt_uses_the_actual_decision_question(self) -> None:
+        question = "Download missing movie posters?"
+        with (
+            patch("pipelines.dataset_generation.cli._ask_yes_no", return_value=True) as ask,
+            redirect_stdout(io.StringIO()) as output,
+        ):
+            result = cli._ask_explained_yes_no(
+                question,
+                "Posters are saved for frontend display.",
+                default=True,
+            )
+
+        self.assertTrue(result)
+        ask.assert_called_once_with(question, default=True)
+        self.assertNotIn("Continue?", output.getvalue())
+
+    def test_installation_summary_uses_readable_resolved_decisions(self) -> None:
+        config = DatasetPipelineConfig(skip_posters=False, audit=True, force_tmdb=False)
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            cli._print_plan(
+                config,
+                "download",
+                None,
+                mode="advanced",
+                cleanup="minimal",
+            )
+
+        summary = output.getvalue()
+        self.assertIn("Configuration mode: Advanced", summary)
+        self.assertIn("MovieLens source: Download automatically", summary)
+        self.assertIn("Download posters: Yes", summary)
+        self.assertIn("Generate audit: Yes", summary)
+        self.assertIn("TMDB behavior: Resume completed enrichment", summary)
+        self.assertIn("Cleanup mode: Minimal runtime files", summary)
+        self.assertIn(
+            "Cleanup effect: Removes pipeline cache, raw MovieLens data and offline audit files",
+            summary,
+        )
+
     def test_dry_run_does_not_prepare_source_or_run_commands(self) -> None:
         runner = Mock()
         with patch("pipelines.dataset_generation.run_movielens_32m_pipeline.prepare_source") as prepare:

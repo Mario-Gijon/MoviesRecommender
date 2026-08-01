@@ -116,13 +116,13 @@ def main(argv: list[str] | None = None) -> int:
             config, source, zip_path = _interactive_configuration(args)
             args.zip_path = zip_path
             token = _resolve_token(config, interactive=True, dry_run=args.dry_run)
-            _print_plan(config, source, args.zip_path)
+            _print_plan(config, source, args.zip_path, mode=getattr(args, "configuration_mode", None), cleanup=args.cleanup)
             plan_printed = True
             if not args.dry_run and not _ask_yes_no("Start generating the dataset with these settings?", default=False):
                 print("Cancelled. No pipeline stages were run.")
                 return 0
         if not plan_printed:
-            _print_plan(config, source, args.zip_path)
+            _print_plan(config, source, args.zip_path, mode=args.preset, cleanup=args.cleanup)
         _print_cleanup_preview(args.cleanup, DatasetPaths(DATA_DIR))
         if args.dry_run:
             print("Dry run complete. No files were downloaded or modified.")
@@ -167,6 +167,7 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
     paths = default_paths()
     print(f"Persistent data root: {DATA_DIR}")
     mode = _ask_configuration_mode()
+    args.configuration_mode = mode
     args.preset = "recommended" if mode in {"recommended", "custom"} else "defaults"
     config = resolve_config(args)
     if mode == "custom":
@@ -184,12 +185,12 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
         zip_path = Path(_ask_text("Path to MovieLens ZIP", required=True)) if source == "zip" else None
     config = replace(
         config,
-        skip_posters=not _ask_explained_yes_no("Download missing movie posters?\nPoster files are displayed by the frontend and existing files are reused.", not args.skip_posters),
-        audit=_ask_explained_yes_no("Generate a dataset quality report?\nIt creates diagnostic files and is not required to run the application.", args.audit),
+        skip_posters=not _ask_explained_yes_no("Download missing movie posters?", "Poster files are displayed by the frontend and stored in the persistent data directory. Existing poster files are reused.", default=not args.skip_posters),
+        audit=_ask_explained_yes_no("Generate a dataset quality report?", "This creates diagnostic files for inspecting the generated dataset. The report is not required to run the application.", default=args.audit),
     )
     if "enrich" in select_stages(config):
-        resume = _ask_explained_yes_no("Reuse completed TMDB enrichment and continue from the last saved point?\nRecommended: avoids repeating successful requests.", config.resume_tmdb)
-        force = False if resume else _ask_explained_yes_no("Start TMDB enrichment again from the beginning?\nThis repeats TMDB API requests.", False)
+        resume = _ask_explained_yes_no("Reuse completed TMDB enrichment and continue from the last saved point?", "Recommended. This avoids repeating successful TMDB API requests after an interruption.", default=config.resume_tmdb)
+        force = False if resume else _ask_explained_yes_no("Start TMDB enrichment again from the beginning?", "This repeats TMDB API requests and may take considerably longer.", default=False)
         config = replace(config, resume_tmdb=resume, force_tmdb=force)
     validate_config(config)
     args.cleanup = _ask_cleanup()
@@ -234,9 +235,9 @@ def _resolve_token(config: DatasetPipelineConfig, *, interactive: bool, dry_run:
     raise ValueError("TMDB enrichment requires MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN.")
 
 
-def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | None) -> None:
+def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | None, *, mode: str | None = None, cleanup: str = "none") -> None:
     print("\nDataset installation summary")
-    print(f"Persistent data directory: {DATA_DIR}\nMovieLens source: {source}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nTMDB behavior: {'fresh' if config.force_tmdb else 'resume'}")
+    print(f"Persistent data directory: {DATA_DIR}\nConfiguration mode: {_preset_label(mode)}\nMovieLens source: {_source_label(source)}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nDownload posters: {'No' if config.skip_posters else 'Yes'}\nGenerate audit: {'Yes' if config.audit else 'No'}\nTMDB behavior: {'Fresh enrichment' if config.force_tmdb else 'Resume completed enrichment'}\nCleanup mode: {_cleanup_label(cleanup)}\nCleanup effect: {_cleanup_effect(cleanup)}")
 
 
 def _print_recommended_settings(config: DatasetPipelineConfig) -> None:
@@ -300,17 +301,25 @@ def _ask_cleanup() -> str:
     return _ask_choice("Cleanup", ("none", "standard", "minimal"), "standard")
 
 
-def _ask_numbered_choice(question: str, mappings: dict[str, str], default: str) -> str:
-    accepted = {**mappings, **{value: value for value in mappings.values()}}
-    while True:
-        value = input(f"{question} [{default}]: ").strip().lower() or default
-        if value in accepted: return accepted[value]
-        print("Choose one of: " + ", ".join(sorted(set(accepted.values()))))
-
-
-def _ask_explained_yes_no(explanation: str, default: bool) -> bool:
+def _ask_explained_yes_no(question: str, explanation: str, *, default: bool) -> bool:
     print(explanation)
-    return _ask_yes_no("Continue?", default=default)
+    return _ask_yes_no(question, default=default)
+
+
+def _preset_label(value: str | None) -> str:
+    return {"recommended": "Recommended", "custom": "Custom", "advanced": "Advanced", "defaults": "Defaults"}.get(value or "recommended", "Recommended")
+
+
+def _source_label(value: str) -> str:
+    return {"download": "Download automatically", "existing": "Reuse existing files", "zip": "Import local ZIP"}.get(value, value)
+
+
+def _cleanup_label(value: str) -> str:
+    return {"none": "Keep everything", "standard": "Standard cleanup", "minimal": "Minimal runtime files"}.get(value, value)
+
+
+def _cleanup_effect(value: str) -> str:
+    return {"none": "Removes nothing", "standard": "Removes pipeline cache", "minimal": "Removes pipeline cache, raw MovieLens data and offline audit files"}.get(value, "Removes nothing")
 
 
 def _ask_integer(question: str, default: int | None, *, optional: bool, allow_zero: bool = False) -> int | None:
