@@ -23,6 +23,17 @@ services:
     stdin_open: true
     tty: true
 
+  recommender-build:
+    image: ${API_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/api:${APP_VERSION:-0.1.0}}
+    profiles: ["maintenance"]
+    environment:
+      MOVIES_RECOMMENDER_DATA_DIR: /app/data
+    volumes:
+      - ${DATA_DIR:-./Backend/data}:/app/data
+    entrypoint: ["python", "-m", "pipelines.recommender_build.cli"]
+    stdin_open: true
+    tty: true
+
   frontend:
     image: ${FRONTEND_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/frontend:${APP_VERSION:-0.1.0}}
     profiles: ["frontend"]

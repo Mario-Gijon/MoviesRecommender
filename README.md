@@ -103,12 +103,41 @@ is not modified. Enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`; set
 in the environment (or enter it through the hidden interactive prompt). Use resume
 to reuse enrichment progress. Poster download and audit generation are optional.
 
+## Recommender artifact rebuilding
+
+Generating `offline_dataset/` does not rebuild `recommender_models/`. Rebuilding
+`recommender_models/` does not regenerate `offline_dataset/`. Rebuild the current
+runtime artifacts locally with:
+
+```bash
+cd Backend
+.venv/bin/python -m pipelines.recommender_build.cli --yes
+.venv/bin/python -m pipelines.recommender_build.cli --algorithm item_knn --algorithm biased --yes
+```
+
+The maintenance command stages every selected build under `DATA_DIR/tmp`, validates
+it, then promotes only the selected persisted targets under `recommender_models/`.
+Its active production variants are Item KNN `top_k_50_min_support_25` and BMF
+`factors_128_epochs_100_lr_0_005_reg_0_02`; it refuses to build when these do not
+match runtime settings. Use `--dry-run` for a read-only input preflight (it exits
+nonzero when the required offline CSVs are absent), and use `--yes` for automation;
+otherwise an interactive terminal confirmation is required. Restart the API after a
+successful promotion. This command neither regenerates the offline dataset nor
+creates recommender audits.
+
+In Docker, use the opt-in maintenance profile:
+
+```bash
+docker compose --profile maintenance run --rm recommender-build --yes
+docker compose --profile maintenance run --rm recommender-build --algorithm biased --yes
+```
+
 ## Current scope
 
 - Configurable persistent runtime data and Docker deployment foundations.
 - No authentication or user accounts.
-- No dataset cleanup modes, recommender rebuilding command, external installation
-  package, or Docker Hub publication workflow yet.
+- No dataset cleanup modes, external installation package, or Docker Hub publication
+  workflow yet.
 
 ## Later phases
 

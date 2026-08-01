@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -38,9 +39,18 @@ from .feature_parsing import (
 )
 
 
-def main() -> None:
-    public_movies_df = _read_public_movies()
-    CONTENT_BASED_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+def build_content_index(
+    *,
+    public_movies_path: Path = PUBLIC_MOVIES_CSV_PATH,
+    output_dir: Path = CONTENT_BASED_OUTPUT_DIR,
+) -> None:
+    public_movies_df = _read_public_movies(public_movies_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    features_path = output_dir / MOVIE_CONTENT_FEATURES_PATH.name
+    index_path = output_dir / MOVIE_CONTENT_INDEX_PATH.name
+    feature_names_path = output_dir / CONTENT_FEATURE_NAMES_PATH.name
+    metadata_path = output_dir / CONTENT_FEATURE_METADATA_PATH.name
+    summary_path = output_dir / CONTENT_INDEX_SUMMARY_PATH.name
 
     prepared_movies = _prepare_movies(public_movies_df)
     block_results = _build_all_blocks(prepared_movies)
@@ -51,6 +61,8 @@ def main() -> None:
         movie_count=len(prepared_movies),
         final_matrix=final_matrix,
         block_results=block_results,
+        public_movies_path=public_movies_path,
+        output_dir=output_dir,
     )
     summary = _build_summary(
         source_movie_count=len(public_movies_df),
@@ -59,44 +71,48 @@ def main() -> None:
         block_results=block_results,
     )
 
-    save_npz(MOVIE_CONTENT_FEATURES_PATH, final_matrix)
-    MOVIE_CONTENT_INDEX_PATH.write_text(
+    save_npz(features_path, final_matrix)
+    index_path.write_text(
         json.dumps(movie_index, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    CONTENT_FEATURE_NAMES_PATH.write_text(
+    feature_names_path.write_text(
         json.dumps(feature_names, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    CONTENT_FEATURE_METADATA_PATH.write_text(
+    metadata_path.write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    CONTENT_INDEX_SUMMARY_PATH.write_text(
+    summary_path.write_text(
         json.dumps(summary, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    print(f"Input CSV: {PUBLIC_MOVIES_CSV_PATH}")
-    print(f"Output directory: {CONTENT_BASED_OUTPUT_DIR}")
+    print(f"Input CSV: {public_movies_path}")
+    print(f"Output directory: {output_dir}")
     print(f"Movies indexed: {len(prepared_movies)}")
     print(f"Feature count: {final_matrix.shape[1]}")
     print(f"Non-zero count: {int(final_matrix.nnz)}")
-    print(f"Feature matrix: {MOVIE_CONTENT_FEATURES_PATH}")
-    print(f"Movie index: {MOVIE_CONTENT_INDEX_PATH}")
-    print(f"Feature names: {CONTENT_FEATURE_NAMES_PATH}")
-    print(f"Feature metadata: {CONTENT_FEATURE_METADATA_PATH}")
-    print(f"Content summary: {CONTENT_INDEX_SUMMARY_PATH}")
+    print(f"Feature matrix: {features_path}")
+    print(f"Movie index: {index_path}")
+    print(f"Feature names: {feature_names_path}")
+    print(f"Feature metadata: {metadata_path}")
+    print(f"Content summary: {summary_path}")
 
 
-def _read_public_movies() -> pd.DataFrame:
-    if not PUBLIC_MOVIES_CSV_PATH.exists():
+def main() -> None:
+    build_content_index()
+
+
+def _read_public_movies(public_movies_path: Path = PUBLIC_MOVIES_CSV_PATH) -> pd.DataFrame:
+    if not public_movies_path.exists():
         raise RuntimeError(
-            f"Required input CSV is missing: {PUBLIC_MOVIES_CSV_PATH}. "
+            f"Required input CSV is missing: {public_movies_path}. "
             "Generate the offline dataset export first."
         )
 
-    dataframe = pd.read_csv(PUBLIC_MOVIES_CSV_PATH)
+    dataframe = pd.read_csv(public_movies_path)
     missing_columns = [column for column in REQUIRED_COLUMNS if column not in dataframe.columns]
     if missing_columns:
         missing_text = ", ".join(missing_columns)
@@ -374,6 +390,8 @@ def _build_metadata(
     movie_count: int,
     final_matrix: csr_matrix,
     block_results: dict[str, dict[str, Any]],
+    public_movies_path: Path = PUBLIC_MOVIES_CSV_PATH,
+    output_dir: Path = CONTENT_BASED_OUTPUT_DIR,
 ) -> dict[str, Any]:
     included_blocks = [name for name, result in block_results.items() if result["status"] == "included"]
     skipped_blocks = [
@@ -383,8 +401,8 @@ def _build_metadata(
     ]
     return {
         "generatedAt": _utc_timestamp(),
-        "sourcePath": str(PUBLIC_MOVIES_CSV_PATH),
-        "outputDir": str(CONTENT_BASED_OUTPUT_DIR),
+        "sourcePath": str(public_movies_path),
+        "outputDir": str(output_dir),
         "movieCount": movie_count,
         "featureCount": int(final_matrix.shape[1]),
         "nonZeroCount": int(final_matrix.nnz),

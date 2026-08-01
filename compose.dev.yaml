@@ -19,6 +19,16 @@ services:
       - ./Backend/pipelines:/app/pipelines
       - ${DATA_DIR:-./Backend/data}:/app/data
 
+  recommender-build:
+    build:
+      context: ./Backend
+      target: development
+    image: movies-recommender-api-dev
+    volumes:
+      - ./Backend/app:/app/app
+      - ./Backend/pipelines:/app/pipelines
+      - ${DATA_DIR:-./Backend/data}:/app/data
+
   frontend:
     build:
       context: ./Frontend
