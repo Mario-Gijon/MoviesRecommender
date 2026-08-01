@@ -179,6 +179,12 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         self.assertIn("--force", command)
         self.assertNotIn("--resume", command)
 
+    def test_minimum_tags_is_optional_and_reaches_candidate_command(self) -> None:
+        config = DatasetPipelineConfig(candidate_min_tags=0)
+        self.assertIn("--min-tags", build_stage_command("candidates", config))
+        with self.assertRaises(ValueError):
+            cli.validate_config(DatasetPipelineConfig(candidate_min_tags=-1))
+
     def test_legacy_downloader_force_requests_fresh_source(self) -> None:
         paths = MovieLensSourcePaths(Path("/tmp/raw/ml-32m"), Path("/tmp/raw/ml-32m.zip"))
         with patch.object(sys, "argv", ["download_movielens_32m", "--force"]), patch(

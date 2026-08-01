@@ -45,10 +45,15 @@ def main() -> None:
     candidates_df["userTags"] = candidates_df["userTags"].apply(
         lambda value: value if isinstance(value, list) else []
     )
+    candidates_df["distinctTagCount"] = candidates_df["distinctTagCount"].fillna(0).astype("int64")
 
     min_ratings_mask = candidates_df["ratingCount"] >= args.min_ratings
     passed_min_ratings = int(min_ratings_mask.sum())
     candidates_df = candidates_df[min_ratings_mask].copy()
+
+    min_tags_mask = candidates_df["distinctTagCount"] >= args.min_tags
+    passed_min_tags = int(min_tags_mask.sum())
+    candidates_df = candidates_df[min_tags_mask].copy()
 
     tmdb_id_mask = candidates_df["tmdbId"].notna()
     passed_tmdb_id_filter = int(tmdb_id_mask.sum())
@@ -88,6 +93,7 @@ def main() -> None:
     print(f"Total movies read: {total_movies_read}")
     print(f"Total movies with ratings: {len(movies_with_ratings)}")
     print(f"Movies passing min ratings: {passed_min_ratings}")
+    print(f"Movies passing min tags: {passed_min_tags}")
     print(f"Movies passing tmdbId filter: {passed_tmdb_id_filter}")
     print(f"Movies passing year filter: {passed_year_filter}")
     print(f"Candidates written: {len(candidates)}")
@@ -112,6 +118,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--min-year", type=int, default=2000)
     parser.add_argument("--max-year", type=int)
     parser.add_argument("--max-tags-per-movie", type=int, default=35)
+    parser.add_argument("--min-tags", type=int, default=0)
     return parser.parse_args()
 
 
@@ -170,7 +177,7 @@ def _load_tags(*, max_tags_per_movie: int) -> pd.DataFrame:
     tags_df["tag"] = tags_df["tag"].fillna("").apply(_normalize_tag)
     tags_df = tags_df[tags_df["tag"] != ""].copy()
     if tags_df.empty:
-        return pd.DataFrame(columns=["movieId", "userTags"])
+        return pd.DataFrame(columns=["movieId", "userTags", "distinctTagCount"])
 
     tag_counts_df = (
         tags_df.groupby(["movieId", "tag"], sort=False)
@@ -182,13 +189,14 @@ def _load_tags(*, max_tags_per_movie: int) -> pd.DataFrame:
             kind="mergesort",
         )
     )
+    distinct_counts = tag_counts_df.groupby("movieId", sort=False).size().reset_index(name="distinctTagCount")
     top_tags_df = tag_counts_df.groupby("movieId", sort=False).head(max_tags_per_movie)
     user_tags_df = (
         top_tags_df.groupby("movieId", sort=False)["tag"]
         .agg(list)
         .reset_index(name="userTags")
     )
-    return user_tags_df
+    return user_tags_df.merge(distinct_counts, on="movieId", how="left")
 
 
 def _load_links() -> pd.DataFrame:

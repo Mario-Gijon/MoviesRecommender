@@ -30,7 +30,6 @@ def parser() -> argparse.ArgumentParser:
         p.add_argument("--non-interactive", action="store_true")
     dataset = subs.add_parser("dataset", help="Generate an offline dataset")
     common(dataset); dataset.add_argument("--source", choices=("existing", "download", "zip")); dataset.add_argument("--zip-path", type=Path); dataset.add_argument("--preset", choices=("recommended", "defaults", "custom"), default="recommended"); dataset.add_argument("--cleanup", choices=("none", "standard", "minimal"), default="none"); dataset.add_argument("--skip-posters", action="store_true"); dataset.add_argument("--audit", action="store_true"); dataset.add_argument("--yes", action="store_true")
-    for name in ("candidate-limit", "candidate-min-ratings", "candidate-min-year", "candidate-max-year", "candidate-min-tags", "max-tags-per-movie", "public-limit", "collaborative-core-limit", "catalog-min-ratings", "public-min-year", "collaborative-min-year"): dataset.add_argument("--" + name, type=int)
     deploy = subs.add_parser("deploy", help="Build recommenders and start the API")
     common(deploy); deploy.add_argument("--algorithms", default="all"); deploy.add_argument("--item-knn-variant"); deploy.add_argument("--bmf-variant"); clean = deploy.add_mutually_exclusive_group(); clean.add_argument("--clean", action="store_true"); clean.add_argument("--no-clean", action="store_true"); front = deploy.add_mutually_exclusive_group(); front.add_argument("--frontend", action="store_true"); front.add_argument("--no-frontend", action="store_true"); deploy.add_argument("--yes", action="store_true")
     for name in ("restart", "status", "stop"):
@@ -112,9 +111,6 @@ def dataset(args) -> int:
     if args.source == "zip": command += ["--zip-path", "/input/ml-32m.zip"]
     if args.skip_posters: command.append("--skip-posters")
     if args.audit: command.append("--audit")
-    for name in ("candidate_limit", "candidate_min_ratings", "candidate_min_year", "candidate_max_year", "candidate_min_tags", "max_tags_per_movie", "public_limit", "collaborative_core_limit", "catalog_min_ratings", "public_min_year", "collaborative_min_year"):
-        value = getattr(args, name)
-        if value is not None: command += ["--" + name.replace("_", "-"), str(value)]
     if args.yes: command.append("--yes")
     code = run(command); print(f"Dataset location: {data / 'offline_dataset'}") if code == 0 else None; return code
 

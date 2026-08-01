@@ -35,13 +35,13 @@ from .run_movielens_32m_pipeline import (
 
 RECOMMENDED_VALUES = {
     "candidate_limit": 15000, "candidate_min_ratings": 100, "candidate_min_year": 1990,
-    "candidate_max_year": None, "max_tags_per_movie": 35, "public_limit": None,
+    "candidate_max_year": None, "candidate_min_tags": 0, "max_tags_per_movie": 35, "public_limit": None,
     "collaborative_core_limit": 15000, "catalog_min_ratings": 100,
     "public_min_year": 2000, "collaborative_min_year": 1990, "family_only": False,
 }
 PRESETS = {"defaults": {}, "recommended": RECOMMENDED_VALUES, "custom": {}}
 NUMERIC_FIELDS = (
-    "candidate_limit", "candidate_min_ratings", "candidate_min_year", "candidate_max_year",
+    "candidate_limit", "candidate_min_ratings", "candidate_min_year", "candidate_max_year", "candidate_min_tags",
     "max_tags_per_movie", "public_limit", "collaborative_core_limit", "catalog_min_ratings",
     "public_min_year", "collaborative_min_year",
 )
@@ -94,7 +94,9 @@ def resolve_config(args: argparse.Namespace) -> DatasetPipelineConfig:
 def validate_config(config: DatasetPipelineConfig) -> None:
     for field in NUMERIC_FIELDS:
         value = getattr(config, field)
-        if value is not None and value <= 0:
+        if field == "candidate_min_tags":
+            if value < 0: raise ValueError("candidate minimum tags must be zero or greater.")
+        elif value is not None and value <= 0:
             raise ValueError(f"{field.replace('_', ' ')} must be greater than zero.")
     if config.candidate_max_year is not None and config.candidate_max_year < config.candidate_min_year:
         raise ValueError("candidate maximum year must not be before candidate minimum year.")
@@ -164,7 +166,8 @@ def _validate_non_interactive(args: argparse.Namespace, config: DatasetPipelineC
 def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelineConfig, str, Path | None]:
     paths = default_paths()
     print(f"Persistent data root: {DATA_DIR}")
-    preset = _ask_choice("Parameter profile", ("recommended", "defaults", "custom"), args.preset)
+    preset = _ask_choice("How would you like to configure the dataset? (1 Recommended, 2 Custom, 3 Advanced)", ("recommended", "custom", "advanced"), "recommended")
+    preset = "custom" if preset == "advanced" else preset
     args.preset = preset
     config = resolve_config(args)
     if preset == "custom":
@@ -193,10 +196,11 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
 
 def _ask_custom_config(config: DatasetPipelineConfig) -> DatasetPipelineConfig:
     values = asdict(config)
-    for field in NUMERIC_FIELDS:
-        current = values[field]
-        optional = field in {"candidate_max_year", "public_limit"}
-        values[field] = _ask_integer(field.replace("_", " "), current, optional=optional)
+    for field in ("candidate_limit", "candidate_min_ratings", "candidate_min_year", "candidate_max_year", "candidate_min_tags"):
+        values[field] = _ask_integer(field.replace("_", " "), values[field], optional=field == "candidate_max_year", allow_zero=field == "candidate_min_tags")
+    values["catalog_min_ratings"] = values["candidate_min_ratings"]
+    values["public_min_year"] = values["candidate_min_year"]
+    values["collaborative_min_year"] = values["candidate_min_year"]
     values["family_only"] = _ask_yes_no("Family-only mode?", default=bool(values["family_only"]))
     values["display_language"] = _ask_text("Display language", default=values["display_language"], required=True)
     values["start_at"] = _ask_choice("Start stage", ("candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"), values["start_at"])
@@ -273,7 +277,7 @@ def _ask_choice(question: str, choices: tuple[str, ...], default: str) -> str:
         print("Choose one of: " + ", ".join(choices))
 
 
-def _ask_integer(question: str, default: int | None, *, optional: bool) -> int | None:
+def _ask_integer(question: str, default: int | None, *, optional: bool, allow_zero: bool = False) -> int | None:
     while True:
         value = input(f"{question} [{'' if default is None else default}]: ").strip()
         if not value:
@@ -285,7 +289,7 @@ def _ask_integer(question: str, default: int | None, *, optional: bool) -> int |
         except ValueError:
             print("Enter a whole number.")
             continue
-        if parsed > 0:
+        if parsed > 0 or (allow_zero and parsed == 0):
             return parsed
         print("Enter a number greater than zero.")
 

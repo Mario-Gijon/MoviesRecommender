@@ -28,6 +28,7 @@ class DatasetPipelineConfig:
     candidate_min_ratings: int = 100
     candidate_min_year: int = 1995
     candidate_max_year: int | None = None
+    candidate_min_tags: int = 0
     max_tags_per_movie: int = 35
     public_limit: int | None = None
     collaborative_core_limit: int = 8000
@@ -68,6 +69,7 @@ def build_stage_command(stage: str, config: DatasetPipelineConfig) -> list[str]:
         command += [
             "pipelines.dataset_generation.build_movielens_32m_candidates", "--limit", str(config.candidate_limit),
             "--min-ratings", str(config.candidate_min_ratings), "--min-year", str(config.candidate_min_year),
+            "--min-tags", str(config.candidate_min_tags),
             "--max-tags-per-movie", str(config.max_tags_per_movie),
         ]
         if config.candidate_max_year is not None:
@@ -130,7 +132,7 @@ def main() -> None:
     args = _parse_args()
     config = DatasetPipelineConfig(
         candidate_limit=args.candidate_limit, candidate_min_ratings=args.candidate_min_ratings,
-        candidate_min_year=args.candidate_min_year, candidate_max_year=args.candidate_max_year,
+        candidate_min_year=args.candidate_min_year, candidate_max_year=args.candidate_max_year, candidate_min_tags=args.candidate_min_tags,
         max_tags_per_movie=args.max_tags_per_movie, public_limit=args.public_limit,
         collaborative_core_limit=args.collaborative_core_limit, catalog_min_ratings=args.catalog_min_ratings,
         public_min_year=args.public_min_year, collaborative_min_year=args.collaborative_min_year,
@@ -162,6 +164,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate-min-ratings", type=int, default=100)
     parser.add_argument("--candidate-min-year", type=int, default=1995)
     parser.add_argument("--candidate-max-year", type=int)
+    parser.add_argument("--candidate-min-tags", type=int, default=0)
     parser.add_argument("--max-tags-per-movie", type=int, default=35)
     parser.add_argument("--download-raw-movielens", action="store_true")
     parser.add_argument("--public-limit", type=int)

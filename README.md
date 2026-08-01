@@ -107,6 +107,13 @@ to reuse enrichment progress. Poster download and audit generation are optional.
 
 ## Quick local workflow
 
+Dataset setup offers Recommended (balanced defaults), Custom (movie count, ratings,
+years and minimum distinct tags), and Advanced settings. Minimum tags filters on all
+distinct normalized MovieLens tags; maximum stored tags only limits exported tags.
+For automation, for example: `python manage.py dataset --non-interactive --source
+existing --candidate-min-tags 0 --yes`. The movie count is a maximum and later
+validation may produce a smaller catalogue.
+
 Only Python, Docker, and Docker Compose are needed. Choose any writable `DATA_DIR`;
 the dataset container creates the portable dataset, and the backend container builds
 and loads recommenders. The frontend is optional.
