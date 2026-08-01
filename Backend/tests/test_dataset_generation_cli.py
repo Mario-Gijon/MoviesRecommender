@@ -95,7 +95,7 @@ class DatasetCliConfigurationTests(unittest.TestCase):
 
     def test_interactive_ratings_range_asks_for_source(self) -> None:
         args = cli.build_parser().parse_args(["--start-at", "ratings", "--stop-after", "ratings"])
-        with patch("pipelines.dataset_generation.cli._ask_choice", side_effect=("recommended", "existing")) as choice, patch(
+        with patch("pipelines.dataset_generation.cli._ask_choice", side_effect=("recommended", "existing", "standard")) as choice, patch(
             "pipelines.dataset_generation.cli._ask_yes_no", return_value=False
         ), patch("pipelines.dataset_generation.cli.has_valid_extracted_files", return_value=True) as raw:
             config, source, zip_path = cli._interactive_configuration(args)

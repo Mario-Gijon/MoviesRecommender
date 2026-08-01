@@ -105,6 +105,25 @@ to reuse enrichment progress. Poster download and audit generation are optional.
 
 ## Recommender artifact rebuilding
 
+## Quick local workflow
+
+Only Python, Docker, and Docker Compose are needed. Choose any writable `DATA_DIR`;
+the dataset container creates the portable dataset, and the backend container builds
+and loads recommenders. The frontend is optional.
+
+```bash
+python manage.py dataset
+python manage.py deploy
+python manage.py status
+python manage.py restart
+python manage.py stop
+```
+
+`minimal` dataset cleanup removes raw files, cache, and offline audit output; model
+`--clean` removes optional model exports. `stop` never deletes persistent data.
+Requests select algorithms while deployment selects model variants. Manual Compose
+commands below remain available as an advanced fallback.
+
 Generating `offline_dataset/` does not rebuild `recommender_models/`. Rebuilding
 `recommender_models/` does not regenerate `offline_dataset/`. Rebuild the current
 runtime artifacts locally with:

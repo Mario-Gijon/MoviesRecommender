@@ -22,6 +22,7 @@ from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_POSTERS_DIR,
 )
 from .movielens_source import MovieLensSourceError, default_paths, has_valid_extracted_files
+from .cleanup import DatasetCleanupError, DatasetPaths, apply_cleanup
 from .run_movielens_32m_pipeline import (
     DatasetStageError,
     DatasetPipelineConfig,
@@ -65,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     tmdb.add_argument("--force-tmdb", action="store_true", default=None)
     parser.add_argument("--skip-posters", action="store_true")
     parser.add_argument("--audit", action="store_true")
+    parser.add_argument("--cleanup", choices=("none", "standard", "minimal"), default="none")
     return parser
 
 
@@ -119,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
         if not plan_printed:
             _print_plan(config, source, args.zip_path)
+        _print_cleanup_preview(args.cleanup, DatasetPaths(DATA_DIR))
         if args.dry_run:
             print("Dry run complete. No files were downloaded or modified.")
             return 0
@@ -126,12 +129,17 @@ def main(argv: list[str] | None = None) -> int:
             os.environ["MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN"] = token
         stages = run_pipeline(config, source=source, zip_path=args.zip_path)
         print("Dataset pipeline completed: " + ", ".join(stages))
+        removed, skipped = apply_cleanup(args.cleanup, DatasetPaths(DATA_DIR), skip_posters=config.skip_posters)
+        _print_cleanup_summary(args.cleanup, DatasetPaths(DATA_DIR), removed, skipped)
         print(f"Offline dataset: {OFFLINE_DATASET_DIR}")
         print("Recommender models were not rebuilt.")
         return 0
     except DatasetStageError as exc:
         print(f"Dataset stage failed: {exc.stage}", file=sys.stderr)
         print("Completed intermediate outputs were retained; rerun with --start-at to resume.", file=sys.stderr)
+        return 1
+    except DatasetCleanupError as exc:
+        print(f"Dataset generation completed, but cleanup failed: {exc}", file=sys.stderr)
         return 1
     except (MovieLensSourceError, ValueError) as exc:
         print(f"Dataset pipeline failed: {exc}", file=sys.stderr)
@@ -178,6 +186,7 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
         force = False if resume else _ask_yes_no("Force a fresh TMDB enrichment?", default=False)
         config = replace(config, resume_tmdb=resume, force_tmdb=force)
     validate_config(config)
+    args.cleanup = _ask_choice("Cleanup after successful generation", ("none", "standard", "minimal"), "standard")
     _print_existing_output_summary()
     return config, source, zip_path
 
@@ -222,6 +231,19 @@ def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | Non
     print("Existing posters are reused unless a stage explicitly replaces them. Recommender models are never touched.")
     for stage in stages:
         print(f"  {stage}: {shlex.join(build_stage_command(stage, config))}")
+
+
+def _print_cleanup_summary(mode: str, paths: DatasetPaths, removed: tuple[Path, ...], skipped: tuple[Path, ...]) -> None:
+    print("\nCleanup mode: " + mode)
+    print("Removed: " + (", ".join(str(path) for path in removed) if removed else "none"))
+    print("Skipped: " + (", ".join(str(path) for path in skipped) if skipped else "none"))
+    print("Preserved: " + ", ".join(str(path) for path in paths.preserved))
+
+
+def _print_cleanup_preview(mode: str, paths: DatasetPaths) -> None:
+    print("Cleanup mode: " + mode)
+    print("Would remove: " + (", ".join(str(path) for path in paths.removable(mode)) or "nothing"))
+    print("Always preserved: " + ", ".join(str(path) for path in paths.preserved))
 
 
 def _print_existing_output_summary() -> None:

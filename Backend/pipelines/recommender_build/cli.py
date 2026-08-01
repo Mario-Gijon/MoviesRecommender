@@ -62,6 +62,7 @@ from app.recommenders.content_based.constants import (
 )
 
 from app.recommenders.build_profiles import UnsupportedBuildProfileError, get_biased_matrix_factorization_variant_profile, get_item_knn_variant_profile
+from app.recommenders.build_profiles import get_supported_biased_matrix_factorization_profiles, get_supported_item_knn_profiles
 from app.recommenders.artifact_policy import (
     optional_artifacts,
     remove_optional_artifacts,
@@ -127,6 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--clean", action="store_true", help="Remove optional build artifacts before installing each selected target.")
     parser.add_argument("--dry-run", action="store_true", help="Print the plan and run read-only input preflight.")
     parser.add_argument("--yes", action="store_true", help="Confirm a real rebuild without prompting.")
+    parser.add_argument("--list-profiles", action="store_true", help="Print supported deployment profiles without reading data.")
+    parser.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
 
@@ -426,6 +429,13 @@ def prepare_plan(algorithms: tuple[str, ...], paths: BuildPaths) -> ResolvedBuil
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.list_profiles:
+            payload = {
+                "itemKnn": [{"variantId": p.variant_id, "label": p.label, "recommended": p.recommended, "parameters": {"topK": p.top_k, "minSupport": p.min_support}} for p in get_supported_item_knn_profiles()],
+                "biasedMatrixFactorization": [{"variantId": p.variant_id, "label": p.label, "recommended": False, "parameters": {"factorCount": p.factor_count, "epochs": p.epochs, "learningRate": p.learning_rate, "regularization": p.regularization}} for p in get_supported_biased_matrix_factorization_profiles()],
+            }
+            print(json.dumps(payload) if args.format == "json" else payload)
+            return 0
         algorithms = select_algorithms(args.algorithm)
         paths = default_paths()
         plan = prepare_plan(algorithms, paths)
