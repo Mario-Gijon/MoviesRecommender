@@ -11,6 +11,7 @@ manage = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(manage)
 
 
 class ManageTests(unittest.TestCase):
+    CATALOGUE = {"itemKnn": [{"variantId": "item", "recommended": True}], "biasedMatrixFactorization": [{"variantId": "bmf"}]}
     def test_env_update_preserves_unknown_and_normalizes_path(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); env = root / ".env"; env.write_text("# note\nUNKNOWN=value\nDATA_DIR=old\n", encoding="utf-8")
@@ -54,3 +55,23 @@ class ManageTests(unittest.TestCase):
         args = manage.parser().parse_args(["deploy", "--non-interactive"])
         with patch.object(manage, "configured_data_dir", return_value=Path("/missing")), patch.object(manage, "update_env") as update:
             self.assertEqual(1, manage.deploy(args)); update.assert_called_once()
+
+    def test_clean_resolution_controls_builder_and_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data = Path(temporary)
+            def execute(arguments):
+                args = manage.parser().parse_args(arguments)
+                with patch.object(manage, "configured_data_dir", return_value=data), patch.object(manage, "validate_dataset", return_value=(True, "ok")), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "profiles", return_value=self.CATALOGUE), patch.object(manage, "update_env"), patch.object(manage, "run", return_value=0) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(manage, "_choose_profile", side_effect=lambda _t, _v, default: default), patch.object(manage, "_ask_yes_no", side_effect=[False, False, True]), patch("builtins.input", return_value="all"):
+                    self.assertEqual(0, manage.deploy(args))
+                return run.call_args_list[0].args[0]
+            self.assertNotIn("--clean", execute(["deploy"]))
+            self.assertIn("--clean", execute(["deploy", "--non-interactive", "--yes"]))
+            self.assertNotIn("--clean", execute(["deploy", "--non-interactive", "--yes", "--no-clean"]))
+
+    def test_explicit_clean_does_not_prompt_and_zip_errors_precede_compose(self) -> None:
+        args = manage.parser().parse_args(["dataset", "--source", "zip"])
+        with patch.object(manage, "ensure_docker") as docker:
+            self.assertEqual(1, manage.dataset(args)); docker.assert_not_called()
+        args = manage.parser().parse_args(["dataset", "--source", "existing", "--zip-path", "/tmp/x.zip"])
+        with patch.object(manage, "ensure_docker") as docker:
+            self.assertEqual(1, manage.dataset(args)); docker.assert_not_called()

@@ -93,16 +93,15 @@ def ensure_docker(dev: bool) -> bool:
 
 def dataset(args) -> int:
     data = configured_data_dir(args); updates = {"DATA_DIR": absolute_path(data)}
+    if args.source == "zip" and (not args.zip_path or not args.zip_path.is_file()): print("--source zip requires an existing regular --zip-path.", file=sys.stderr); return 1
+    if args.source != "zip" and args.zip_path: print("--zip-path is only valid with --source zip.", file=sys.stderr); return 1
+    if args.non_interactive and not args.source: print("--non-interactive dataset requires --source.", file=sys.stderr); return 1
+    if args.non_interactive and not args.yes: print("--non-interactive dataset requires --yes.", file=sys.stderr); return 1
     if not args.non_interactive and not read_env().get("MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN"):
         token = getpass.getpass("TMDB bearer token (leave blank to use existing/no enrichment): ").strip()
         if token: updates["MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN"] = token
     update_env(updates)
     if not ensure_docker(args.dev): return 1
-    if args.non_interactive:
-        if not args.source: print("--non-interactive dataset requires --source.", file=sys.stderr); return 1
-        if not args.yes: print("--non-interactive dataset requires --yes.", file=sys.stderr); return 1
-        if args.source == "zip" and (not args.zip_path or not args.zip_path.is_file()): print("--source zip requires an existing regular --zip-path.", file=sys.stderr); return 1
-        if args.source != "zip" and args.zip_path: print("--zip-path is only valid with --source zip.", file=sys.stderr); return 1
     command = compose_args(args.dev) + ["--profile", "dataset", "run", "--rm"]
     if args.source == "zip":
         command += ["--volume", f"{absolute_path(args.zip_path)}:/input/ml-32m.zip:ro"]
@@ -136,23 +135,24 @@ def deploy(args) -> int:
     except RuntimeError as exc: print(str(exc), file=sys.stderr); return 1
     item = args.item_knn_variant or next((p["variantId"] for p in catalogue["itemKnn"] if p.get("recommended")), None)
     bmf = args.bmf_variant or (catalogue["biasedMatrixFactorization"][0].get("variantId") if catalogue["biasedMatrixFactorization"] else None)
+    clean_enabled = _resolve_clean(args, interactive=not args.non_interactive)
     if not args.non_interactive:
         item = _choose_profile("Select Item KNN variant", catalogue["itemKnn"], item)
         bmf = _choose_profile("Select BMF variant", catalogue["biasedMatrixFactorization"], bmf)
         raw_algorithms = input("Algorithms [all]: ").strip() or "all"
         args.algorithms = raw_algorithms
-        if not args.no_clean and not args.clean: args.clean = _ask_yes_no("Remove optional recommender exports?", True)
         if not args.no_frontend and not args.frontend: args.frontend = _ask_yes_no("Start frontend?", True)
     requested = ALGORITHMS if args.algorithms == "all" else tuple(args.algorithms.split(","))
     if not requested or any(name not in ALGORITHMS for name in requested): print("Algorithms must be a non-empty comma-separated selection of supported names.", file=sys.stderr); return 1
     if item not in {p.get("variantId") for p in catalogue["itemKnn"]} or bmf not in {p.get("variantId") for p in catalogue["biasedMatrixFactorization"]}: print("Unsupported recommender variant.", file=sys.stderr); return 1
     selected = requested
     if args.non_interactive and not args.yes: print("--non-interactive deploy requires --yes.", file=sys.stderr); return 1
+    _print_deploy_summary(data, selected, item, bmf, clean_enabled, args.frontend, args.dev)
     if not args.non_interactive and not _ask_yes_no("Build selected recommender models?", True): return 0
     update_env({"DATA_DIR": absolute_path(data), "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": item, "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": bmf})
     command = compose_args(args.dev) + ["--profile", "maintenance", "run", "--rm", "recommender-build"]
     for algorithm in selected: command += ["--algorithm", algorithm]
-    if not args.no_clean: command.append("--clean")
+    if clean_enabled: command.append("--clean")
     command.append("--yes")
     if run(command): return 1
     if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
@@ -200,6 +200,24 @@ def _ask_yes_no(question: str, default: bool) -> bool:
     try: value = input(f"{question} [{'Y/n' if default else 'y/N'}] ").strip().lower()
     except (EOFError, KeyboardInterrupt): return False
     return default if not value else value in {"y", "yes"}
+
+
+def _resolve_clean(args, *, interactive: bool) -> bool:
+    if args.clean:
+        return True
+    if args.no_clean:
+        return False
+    return _ask_yes_no("Remove optional recommender exports?", True) if interactive else True
+
+
+def _print_deploy_summary(data: Path, selected: tuple[str, ...], item: str | None, bmf: str | None, clean: bool, frontend: bool, dev: bool) -> None:
+    print("\nDeployment summary")
+    print(f"Data directory: {data}")
+    print("Selected algorithms: " + ", ".join(selected))
+    print(f"Item KNN variant: {item}\nBMF variant: {bmf}")
+    print(f"Remove optional exports: {'yes' if clean else 'no'}")
+    print(f"Start frontend: {'yes' if frontend else 'no'}")
+    print(f"Compose mode: {'development' if dev else 'deployment'}")
 
 
 def _choose_profile(title: str, values: list[dict], default: str | None) -> str | None:
