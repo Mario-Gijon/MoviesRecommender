@@ -80,7 +80,7 @@ def validate_dataset(data_dir: Path) -> tuple[bool, str]:
     posters = root / "images" / "posters"
     if not posters.is_dir(): missing.append(str(posters))
     if missing: return False, "Missing required dataset paths: " + ", ".join(missing)
-    return True, f"Dataset found\nPublic catalogue CSV: {required[1]}\nCollaborative ratings CSV: {required[3]}\nPoster count: {sum(1 for _ in posters.iterdir())}"
+    return True, f"Dataset found\nPublic catalogue CSV: {required[1]}\nCollaborative ratings CSV: {required[3]}\nPoster count: {sum(1 for path in posters.iterdir() if path.is_file())}"
 
 
 def configured_data_dir(args) -> Path:
@@ -98,8 +98,18 @@ def dataset(args) -> int:
         if token: updates["MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN"] = token
     update_env(updates)
     if not ensure_docker(args.dev): return 1
-    command = compose_args(args.dev) + ["--profile", "dataset", "run", "--rm", "dataset", "--non-interactive", "--source", args.source or "existing", "--preset", args.preset, "--cleanup", args.cleanup]
-    if args.zip_path: command += ["--zip-path", str(args.zip_path)]
+    if args.non_interactive:
+        if not args.source: print("--non-interactive dataset requires --source.", file=sys.stderr); return 1
+        if not args.yes: print("--non-interactive dataset requires --yes.", file=sys.stderr); return 1
+        if args.source == "zip" and (not args.zip_path or not args.zip_path.is_file()): print("--source zip requires an existing regular --zip-path.", file=sys.stderr); return 1
+        if args.source != "zip" and args.zip_path: print("--zip-path is only valid with --source zip.", file=sys.stderr); return 1
+    command = compose_args(args.dev) + ["--profile", "dataset", "run", "--rm"]
+    if args.source == "zip":
+        command += ["--volume", f"{absolute_path(args.zip_path)}:/input/ml-32m.zip:ro"]
+    command.append("dataset")
+    if args.non_interactive: command += ["--non-interactive", "--source", args.source, "--preset", args.preset, "--cleanup", args.cleanup]
+    elif args.cleanup != "none": command += ["--cleanup", args.cleanup]
+    if args.source == "zip": command += ["--zip-path", "/input/ml-32m.zip"]
     if args.skip_posters: command.append("--skip-posters")
     if args.audit: command.append("--audit")
     if args.yes: command.append("--yes")
@@ -108,19 +118,37 @@ def dataset(args) -> int:
 
 def profiles(args) -> dict:
     command = compose_args(args.dev) + ["--profile", "maintenance", "run", "--rm", "recommender-build", "--list-profiles", "--format", "json"]
-    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, shell=False)
-    if result.returncode: raise RuntimeError("Could not read recommender profile catalogue.")
-    return json.loads(result.stdout)
+    try: result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, shell=False)
+    except OSError as exc: raise RuntimeError("Docker Compose is unavailable for profile discovery.") from exc
+    if result.returncode or not result.stdout.strip(): raise RuntimeError("Could not read recommender profile catalogue.")
+    try: payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc: raise RuntimeError("Recommender profile catalogue returned invalid JSON.") from exc
+    if not isinstance(payload.get("itemKnn"), list) or not isinstance(payload.get("biasedMatrixFactorization"), list): raise RuntimeError("Recommender profile catalogue is missing expected profile groups.")
+    return payload
 
 
 def deploy(args) -> int:
-    data = configured_data_dir(args); valid, message = validate_dataset(data)
+    data = configured_data_dir(args); update_env({"DATA_DIR": absolute_path(data)}); valid, message = validate_dataset(data)
     if not valid: print(message, file=sys.stderr); return 1
     print(message)
     if not ensure_docker(args.dev): return 1
-    catalogue = profiles(args); item = args.item_knn_variant or next(p["variantId"] for p in catalogue["itemKnn"] if p["recommended"]); bmf = args.bmf_variant or catalogue["biasedMatrixFactorization"][0]["variantId"]
-    selected = ALGORITHMS if args.algorithms == "all" else tuple(a for a in args.algorithms.split(",") if a in ALGORITHMS)
-    if not selected: print("No valid algorithms selected.", file=sys.stderr); return 1
+    try: catalogue = profiles(args)
+    except RuntimeError as exc: print(str(exc), file=sys.stderr); return 1
+    item = args.item_knn_variant or next((p["variantId"] for p in catalogue["itemKnn"] if p.get("recommended")), None)
+    bmf = args.bmf_variant or (catalogue["biasedMatrixFactorization"][0].get("variantId") if catalogue["biasedMatrixFactorization"] else None)
+    if not args.non_interactive:
+        item = _choose_profile("Select Item KNN variant", catalogue["itemKnn"], item)
+        bmf = _choose_profile("Select BMF variant", catalogue["biasedMatrixFactorization"], bmf)
+        raw_algorithms = input("Algorithms [all]: ").strip() or "all"
+        args.algorithms = raw_algorithms
+        if not args.no_clean and not args.clean: args.clean = _ask_yes_no("Remove optional recommender exports?", True)
+        if not args.no_frontend and not args.frontend: args.frontend = _ask_yes_no("Start frontend?", True)
+    requested = ALGORITHMS if args.algorithms == "all" else tuple(args.algorithms.split(","))
+    if not requested or any(name not in ALGORITHMS for name in requested): print("Algorithms must be a non-empty comma-separated selection of supported names.", file=sys.stderr); return 1
+    if item not in {p.get("variantId") for p in catalogue["itemKnn"]} or bmf not in {p.get("variantId") for p in catalogue["biasedMatrixFactorization"]}: print("Unsupported recommender variant.", file=sys.stderr); return 1
+    selected = requested
+    if args.non_interactive and not args.yes: print("--non-interactive deploy requires --yes.", file=sys.stderr); return 1
+    if not args.non_interactive and not _ask_yes_no("Build selected recommender models?", True): return 0
     update_env({"DATA_DIR": absolute_path(data), "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": item, "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": bmf})
     command = compose_args(args.dev) + ["--profile", "maintenance", "run", "--rm", "recommender-build"]
     for algorithm in selected: command += ["--algorithm", algorithm]
@@ -147,11 +175,15 @@ def wait_ready(port: str) -> bool:
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
-    if not args.command: parser().print_help(); return 0
+    if not args.command: return menu()
     if args.command == "dataset": return dataset(args)
     if args.command == "deploy": return deploy(args)
     if args.command == "restart":
-        return 0 if run(compose_args(args.dev) + ["restart", "api"]) == 0 and wait_ready(read_env().get("BACKEND_PORT", "8014")) else 1
+        if run(compose_args(args.dev) + ["restart", "api"]) or not wait_ready(read_env().get("BACKEND_PORT", "8014")): return 1
+        if args.frontend:
+            if run(compose_args(args.dev) + ["restart", "frontend"]): return 1
+            print("Frontend: http://127.0.0.1:" + read_env().get("FRONTEND_PORT", "5173"))
+        return 0
     if args.command == "status":
         run(compose_args(args.dev) + ["ps"])
         for endpoint in ("health", "ready"):
@@ -162,6 +194,28 @@ def main(argv=None) -> int:
     if args.command == "stop":
         code = run(compose_args(args.dev) + ["down"]); print("Persistent DATA_DIR contents were not deleted."); return code
     return 1
+
+
+def _ask_yes_no(question: str, default: bool) -> bool:
+    try: value = input(f"{question} [{'Y/n' if default else 'y/N'}] ").strip().lower()
+    except (EOFError, KeyboardInterrupt): return False
+    return default if not value else value in {"y", "yes"}
+
+
+def _choose_profile(title: str, values: list[dict], default: str | None) -> str | None:
+    print(title)
+    for index, value in enumerate(values, start=1): print(f"{index}. {value.get('label', value.get('variantId'))}" + (" [recommended]" if value.get("recommended") else ""))
+    try: choice = input(f"Choice [{default}]: ").strip()
+    except (EOFError, KeyboardInterrupt): return default
+    return values[int(choice) - 1].get("variantId") if choice.isdigit() and 1 <= int(choice) <= len(values) else default
+
+
+def menu() -> int:
+    print("Movies Recommender\n\n1. Generate or update dataset\n2. Deploy or rebuild backend\n3. Restart services\n4. Show status\n5. Stop services\n0. Exit")
+    try: choice = input("Select an option: ").strip()
+    except (EOFError, KeyboardInterrupt): print("Cancelled."); return 0
+    mapping = {"1": "dataset", "2": "deploy", "3": "restart", "4": "status", "5": "stop"}
+    return 0 if choice == "0" else main([mapping[choice]]) if choice in mapping else 1
 
 
 if __name__ == "__main__": raise SystemExit(main())

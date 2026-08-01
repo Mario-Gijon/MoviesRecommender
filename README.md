@@ -119,6 +119,10 @@ python manage.py restart
 python manage.py stop
 ```
 
+Bare commands are interactive; use `--non-interactive --yes` for automation. ZIP
+imports are mounted into the dataset container automatically. Deploy asks for model
+variants, algorithms, cleanup, and frontend; restart never rebuilds models.
+
 `minimal` dataset cleanup removes raw files, cache, and offline audit output; model
 `--clean` removes optional model exports. `stop` never deletes persistent data.
 Requests select algorithms while deployment selects model variants. Manual Compose
