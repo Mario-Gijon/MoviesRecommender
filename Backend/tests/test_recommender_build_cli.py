@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -75,7 +76,7 @@ class RecommenderBuildCliTests(unittest.TestCase):
             paths.public_movies.write_text("movieId,displayTitle,genres,suitabilityCategory,standDisplayScore\n", encoding="utf-8")
             with self.assertRaises(cli.RecommenderBuildError):
                 cli.build_selected(("tfidf",), paths)
-            self.assertFalse(paths.temp_root.exists())
+            self.assertFalse(any(paths.temp_root.iterdir()) if paths.temp_root.exists() else False)
 
     def test_dry_run_is_read_only_and_noninteractive_needs_yes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -117,6 +118,37 @@ class RecommenderBuildCliTests(unittest.TestCase):
             self.assertEqual(100, item.call_args_list[0].args[0].top_k)
             self.assertNotEqual(item.call_args.kwargs["offline_context"].collaborative_model_artifact_root, paths.collaborative_root)
             self.assertEqual(["item_knn", "biased"], list(promote.call_args.args[0]))
+
+    def test_promotion_replaces_selected_target_and_cleans_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = _paths(Path(temporary))
+            plan = cli.ResolvedBuildPlan(("tfidf",))
+            paths.content_root.mkdir(parents=True)
+            (paths.content_root / "value").write_text("old", encoding="utf-8")
+            staged = Path(temporary) / "stage" / "content_based"
+            staged.mkdir(parents=True)
+            (staged / "value").write_text("new", encoding="utf-8")
+            cli.promote(("tfidf",), plan, staged, staged.parent / "collaborative", paths)
+            self.assertEqual("new", (paths.content_root / "value").read_text(encoding="utf-8"))
+            self.assertFalse(any(paths.temp_root.iterdir()) if paths.temp_root.exists() else False)
+
+    def test_failed_backup_keeps_original_target_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = _paths(Path(temporary))
+            plan = cli.ResolvedBuildPlan(("tfidf",))
+            paths.content_root.mkdir(parents=True)
+            (paths.content_root / "value").write_text("old", encoding="utf-8")
+            staged = Path(temporary) / "stage" / "content_based"
+            staged.mkdir(parents=True)
+            real_replace = os.replace
+            def fail_backup(source, target):
+                if Path(source) == paths.content_root:
+                    raise OSError("backup failure")
+                return real_replace(source, target)
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=fail_backup):
+                with self.assertRaises(cli.RecommenderPromotionError):
+                    cli.promote(("tfidf",), plan, staged, staged.parent / "collaborative", paths)
+            self.assertEqual("old", (paths.content_root / "value").read_text(encoding="utf-8"))
 
 
 def _paths(root: Path) -> cli.BuildPaths:

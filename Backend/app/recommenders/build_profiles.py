@@ -20,7 +20,7 @@ class ItemKnnVariantProfile:
     recommended: bool = False
 
     def build_config(self, *, overwrite: bool) -> ItemKnnCosineBuildConfig:
-        config = ItemKnnCosineBuildConfig(self.top_k, self.min_support, self.chunk_size, overwrite)
+        config = ItemKnnCosineBuildConfig(top_k=self.top_k, min_support=self.min_support, chunk_size=self.chunk_size, overwrite=overwrite)
         if config.variant_id != self.variant_id:
             raise RuntimeError(f"Item KNN profile ID does not match its configuration: {self.variant_id}")
         return config
@@ -43,9 +43,9 @@ class BiasedMatrixFactorizationVariantProfile:
 
     def build_config(self, *, overwrite: bool) -> BiasedMatrixFactorizationBuildConfig:
         config = BiasedMatrixFactorizationBuildConfig(
-            self.factor_count, self.epochs, self.learning_rate, self.regularization,
-            self.validation_ratio, self.random_seed, overwrite, self.chunksize,
-            self.init_std, early_stopping_patience=self.early_stopping_patience,
+            factor_count=self.factor_count, epochs=self.epochs, learning_rate=self.learning_rate, regularization=self.regularization,
+            validation_ratio=self.validation_ratio, random_seed=self.random_seed, overwrite=overwrite, chunksize=self.chunksize,
+            init_std=self.init_std, early_stopping_patience=self.early_stopping_patience,
             min_validation_improvement=self.min_validation_improvement,
         )
         if config.variant_id != self.variant_id:
@@ -60,8 +60,29 @@ ITEM_KNN_VARIANT_PROFILES = (
 BIASED_MATRIX_FACTORIZATION_VARIANT_PROFILES = (
     BiasedMatrixFactorizationVariantProfile("factors_128_epochs_100_lr_0_005_reg_0_02", "Production BMF (128 factors)", 128, 100, 0.005, 0.02),
 )
-DEFAULT_ITEM_KNN_VARIANT_ID = next(profile.variant_id for profile in ITEM_KNN_VARIANT_PROFILES if profile.recommended)
-DEFAULT_BIASED_MATRIX_FACTORIZATION_VARIANT_ID = BIASED_MATRIX_FACTORIZATION_VARIANT_PROFILES[0].variant_id
+def validate_profile_catalogues(
+    item_profiles: tuple[ItemKnnVariantProfile, ...] = ITEM_KNN_VARIANT_PROFILES,
+    bmf_profiles: tuple[BiasedMatrixFactorizationVariantProfile, ...] = BIASED_MATRIX_FACTORIZATION_VARIANT_PROFILES,
+) -> tuple[str, str]:
+    if len({profile.variant_id for profile in item_profiles}) != len(item_profiles):
+        raise RuntimeError("Item KNN profile IDs must be unique.")
+    if len({profile.variant_id for profile in bmf_profiles}) != len(bmf_profiles):
+        raise RuntimeError("BMF profile IDs must be unique.")
+    recommended = [profile for profile in item_profiles if profile.recommended]
+    if len(recommended) != 1:
+        raise RuntimeError("Exactly one Item KNN profile must be recommended.")
+    if not bmf_profiles:
+        raise RuntimeError("Exactly one default BMF profile must be registered.")
+    for profile in item_profiles:
+        if profile.build_config(overwrite=True).variant_id != profile.variant_id:
+            raise RuntimeError("Item KNN profile ID does not match its configuration.")
+    for profile in bmf_profiles:
+        if profile.build_config(overwrite=True).variant_id != profile.variant_id:
+            raise RuntimeError("BMF profile ID does not match its configuration.")
+    return recommended[0].variant_id, bmf_profiles[0].variant_id
+
+
+DEFAULT_ITEM_KNN_VARIANT_ID, DEFAULT_BIASED_MATRIX_FACTORIZATION_VARIANT_ID = validate_profile_catalogues()
 
 
 def get_supported_item_knn_profiles() -> tuple[ItemKnnVariantProfile, ...]:

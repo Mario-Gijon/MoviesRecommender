@@ -117,6 +117,11 @@ cd Backend
 
 The maintenance command stages every selected build under `DATA_DIR/tmp`, validates
 it, then promotes only the selected persisted targets under `recommender_models/`.
+For Compose deployments, copy the root `.env.example` to `.env`; for direct Python
+backend runs, copy `Backend/.env.example` to `Backend/.env`. API requests select
+algorithms, never variants. Promotion uses same-filesystem staged replacements; if a
+rollback cannot complete, the error preserves a recovery backup directory under
+`DATA_DIR/tmp` and identifies the targets requiring manual recovery.
 Requests select algorithms, while variants are deployment-internal. Item KNN defaults
 to `top_k_100_min_support_25`; `top_k_50_min_support_25` is also a supported profile.
 The BMF deployment profile is `factors_128_epochs_100_lr_0_005_reg_0_02`. The API and

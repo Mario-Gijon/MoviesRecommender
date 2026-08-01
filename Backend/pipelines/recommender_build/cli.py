@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,6 +82,17 @@ class RecommenderBuildStageError(RecommenderBuildError):
 
 class RecommenderPromotionError(RecommenderBuildError):
     pass
+
+
+@dataclass
+class PromotionRecord:
+    algorithm: str
+    production: Path
+    staged: Path
+    backup: Path | None
+    original_existed: bool
+    backup_created: bool = False
+    staged_promoted: bool = False
 
 
 @dataclass(frozen=True)
@@ -214,8 +226,11 @@ def _context(paths: BuildPaths, stage_collaborative_root: Path):
 
 
 def build_selected(algorithms: tuple[str, ...], paths: BuildPaths) -> None:
-    plan = resolve_plan(algorithms)
-    preflight(algorithms, paths)
+    execute_plan(prepare_plan(algorithms, paths), paths)
+
+
+def execute_plan(plan: ResolvedBuildPlan, paths: BuildPaths) -> None:
+    algorithms = plan.algorithms
     paths.temp_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="recommender-build-", dir=paths.temp_root) as temporary:
         stage_models = Path(temporary) / "recommender_models"
@@ -306,32 +321,48 @@ def _csv_has_row(path: Path) -> bool:
 
 
 def promote(algorithms: tuple[str, ...], plan: ResolvedBuildPlan, stage_content: Path, stage_collaborative: Path, paths: BuildPaths) -> None:
-    backups: list[tuple[Path, Path | None]] = []
-    backup_root = stage_content.parent.parent / "backups"
+    records: list[PromotionRecord] = []
+    for algorithm in algorithms:
+        staged = targets_for(algorithm, plan, content_root=stage_content, collaborative_root=stage_collaborative)
+        if not staged.is_dir():
+            raise RecommenderPromotionError(f"Promotion failed; staged target is missing for {algorithm}.")
+        production = targets_for(algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
+        records.append(PromotionRecord(algorithm, production, staged, None, production.exists()))
+    backup_root = paths.temp_root / f"recommender-promotion-backup-{uuid.uuid4().hex}"
     try:
-        for algorithm in algorithms:
-            staged = targets_for(algorithm, plan, content_root=stage_content, collaborative_root=stage_collaborative)
-            production = targets_for(algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
-            production.parent.mkdir(parents=True, exist_ok=True)
-            backup = backup_root / algorithm if production.exists() else None
-            backups.append((production, backup))
-            if backup is not None:
-                backup.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(production, backup)
-            os.replace(staged, production)
+        backup_root.mkdir(parents=True, exist_ok=False)
+        for record in records:
+            record.production.parent.mkdir(parents=True, exist_ok=True)
+            if record.original_existed:
+                record.backup = backup_root / record.algorithm
+                os.replace(record.production, record.backup)
+                record.backup_created = True
+            os.replace(record.staged, record.production)
+            record.staged_promoted = True
     except OSError as exc:
-        incomplete: list[str] = []
-        for production, backup in reversed(backups):
-            try:
-                if production.exists():
-                    shutil.rmtree(production)
-                if backup is not None and backup.exists():
-                    os.replace(backup, production)
-            except OSError:
-                incomplete.append(production.name)
+        incomplete = _rollback_promotion(records)
         if incomplete:
-            raise RecommenderPromotionError("Promotion failed and rollback was incomplete for: " + ", ".join(incomplete)) from exc
-        raise RecommenderPromotionError("Promotion failed; previous targets were restored.") from exc
+            raise RecommenderPromotionError(
+                "Promotion failed; rollback was incomplete for: " + ", ".join(incomplete)
+                + f". Manual recovery may be required from: {backup_root}"
+            ) from exc
+        shutil.rmtree(backup_root, ignore_errors=True)
+        raise RecommenderPromotionError("Promotion failed; previous selected targets were restored.") from exc
+    else:
+        shutil.rmtree(backup_root, ignore_errors=True)
+
+
+def _rollback_promotion(records: list[PromotionRecord]) -> list[str]:
+    incomplete: list[str] = []
+    for record in reversed(records):
+        try:
+            if record.staged_promoted and record.production.exists():
+                shutil.rmtree(record.production)
+            if record.backup_created and record.backup is not None and record.backup.exists():
+                os.replace(record.backup, record.production)
+        except OSError:
+            incomplete.append(record.algorithm)
+    return incomplete
 
 
 def print_plan(plan: ResolvedBuildPlan, paths: BuildPaths) -> None:
@@ -376,7 +407,7 @@ def main(argv: list[str] | None = None) -> int:
             if input("Rebuild selected recommender artifacts? [y/N] ").strip().lower() not in {"y", "yes"}:
                 print("Cancelled. No artifacts were modified.")
                 return 0
-        build_selected(algorithms, paths)
+        execute_plan(plan, paths)
         print("Recommender artifacts were rebuilt successfully.")
         print("Restart the API service so the running process reloads the new artifacts.")
         return 0
