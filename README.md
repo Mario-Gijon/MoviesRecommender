@@ -113,15 +113,17 @@ runtime artifacts locally with:
 cd Backend
 .venv/bin/python -m pipelines.recommender_build.cli --yes
 .venv/bin/python -m pipelines.recommender_build.cli --algorithm item_knn --algorithm biased --yes
+.venv/bin/python -m pipelines.recommender_build.cli --algorithm item_knn --clean --yes
 ```
 
-The maintenance command stages every selected build under `DATA_DIR/tmp`, validates
-it, then promotes only the selected persisted targets under `recommender_models/`.
+The maintenance command builds each selected target under `DATA_DIR/tmp`, validates
+it, optionally removes non-runtime artifacts with `--clean`, then installs that target
+under `recommender_models/` before proceeding to the next selection.
 For Compose deployments, copy the root `.env.example` to `.env`; for direct Python
 backend runs, copy `Backend/.env.example` to `Backend/.env`. API requests select
-algorithms, never variants. Promotion uses same-filesystem staged replacements; if a
-rollback cannot complete, the error preserves a recovery backup directory under
-`DATA_DIR/tmp` and identifies the targets requiring manual recovery.
+algorithms, never variants. Each target replacement uses a same-filesystem sibling
+backup; if recovery fails, the error identifies that backup for manual recovery. A
+later failed build does not undo targets already installed.
 Requests select algorithms, while variants are deployment-internal. Item KNN defaults
 to `top_k_100_min_support_25`; `top_k_50_min_support_25` is also a supported profile.
 The BMF deployment profile is `factors_128_epochs_100_lr_0_005_reg_0_02`. The API and
@@ -140,6 +142,7 @@ In Docker, use the opt-in maintenance profile:
 ```bash
 docker compose --profile maintenance run --rm recommender-build --yes
 docker compose --profile maintenance run --rm recommender-build --algorithm biased --yes
+docker compose --profile maintenance run --rm recommender-build --algorithm item_knn --clean --yes
 ```
 
 ## Current scope

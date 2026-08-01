@@ -97,6 +97,34 @@ class RuntimeDataConfigurationTests(unittest.TestCase):
         ):
             self.assertEqual({"status": "ready"}, readiness_check())
 
+    def test_readiness_accepts_runtime_only_recommender_artifacts(self) -> None:
+        source = (
+            "from app.core.readiness import check_runtime_readiness; "
+            "from app.project_paths.dataset_paths import OFFLINE_DATASET_MANIFEST_PATH, "
+            "OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH, "
+            "OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH, "
+            "OFFLINE_DATASET_EXCLUDED_MOVIES_CSV_PATH, "
+            "OFFLINE_DATASET_MOVIE_RATINGS_SUMMARY_CSV_PATH, "
+            "OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH, OFFLINE_DATASET_POSTERS_DIR; "
+            "from app.recommenders.content_based.constants import CONTENT_INDEX_REQUIRED_PATHS; "
+            "from app.recommenders.collaborative.algorithms.popularity_baseline.storage import get_popularity_baseline_artifacts; "
+            "from app.recommenders.collaborative.algorithms.item_knn_cosine.storage import get_item_knn_cosine_variant_artifacts; "
+            "from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.storage import get_user_knn_pearson_shrinkage_artifacts; "
+            "from app.recommenders.collaborative.algorithms.biased_matrix_factorization.storage import get_biased_matrix_factorization_variant_artifacts; "
+            "from app.core.config import settings; "
+            "offline=(OFFLINE_DATASET_MANIFEST_PATH, OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH, OFFLINE_DATASET_COLLABORATIVE_SUPPORT_MOVIES_CSV_PATH, OFFLINE_DATASET_EXCLUDED_MOVIES_CSV_PATH, OFFLINE_DATASET_MOVIE_RATINGS_SUMMARY_CSV_PATH, OFFLINE_DATASET_COLLABORATIVE_RATINGS_CSV_PATH); "
+            "[(path.parent.mkdir(parents=True, exist_ok=True), path.write_text('fixture')) for path in offline]; "
+            "OFFLINE_DATASET_POSTERS_DIR.mkdir(parents=True); "
+            "[(path.parent.mkdir(parents=True, exist_ok=True), path.write_text('fixture')) for path in CONTENT_INDEX_REQUIRED_PATHS.values()]; "
+            "popularity=get_popularity_baseline_artifacts(); item=get_item_knn_cosine_variant_artifacts(settings.active_collaborative_model_variant); user=get_user_knn_pearson_shrinkage_artifacts(); biased=get_biased_matrix_factorization_variant_artifacts(settings.biased_matrix_factorization_model_variant); "
+            "runtime=(popularity.manifest_path, popularity.ranking_sqlite_path, item.manifest_path, item.neighbors_sqlite_path, user.manifest_path, user.ratings_sqlite_path, biased.manifest_path, biased.movie_factors_path, biased.movie_biases_path, biased.movie_index_path, biased.global_stats_path, biased.training_metrics_path); "
+            "[(path.parent.mkdir(parents=True, exist_ok=True), path.write_text('fixture')) for path in runtime]; "
+            "print(check_runtime_readiness().is_ready)"
+        )
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            result = _run_python(source, data_dir=temporary_dir)
+            self.assertEqual("True", result.stdout.strip())
+
     def test_current_registry_combinations_remain_registered(self) -> None:
         self.assertEqual(EXPECTED_COMBINATIONS, set(RECOMMENDER_REGISTRY))
         self.assertEqual(

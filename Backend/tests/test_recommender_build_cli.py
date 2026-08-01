@@ -5,6 +5,12 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from app.core.config import settings
+from app.recommenders.artifact_policy import (
+    optional_artifacts,
+    remove_optional_artifacts,
+    required_artifacts,
+    validate_runtime_artifacts,
+)
 from app.recommenders.content_based.build_content_index import build_content_index
 from pipelines.recommender_build import cli
 from app.recommenders.build_profiles import (
@@ -101,6 +107,23 @@ class RecommenderBuildCliTests(unittest.TestCase):
             self.assertTrue((output / "movie_content_features.npz").is_file())
             self.assertFalse((root / "recommender_models").exists())
 
+    def test_artifact_policy_matches_runtime_and_clean_removes_only_optional_files(self) -> None:
+        self.assertEqual(
+            ("model_manifest.json", "ranking.sqlite"),
+            required_artifacts("popularity"),
+        )
+        self.assertEqual(
+            ("user_factors.npy", "user_biases.csv", "user_index.csv"),
+            optional_artifacts("biased"),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary)
+            for name in (*required_artifacts("tfidf"), *optional_artifacts("tfidf")):
+                (target / name).write_text("artifact", encoding="utf-8")
+            self.assertEqual(("content_index_summary.json",), remove_optional_artifacts("tfidf", target))
+            validate_runtime_artifacts("tfidf", target)
+            self.assertFalse((target / "content_index_summary.json").exists())
+
     def test_selected_builds_receive_staging_context_in_canonical_order(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = _paths(Path(temporary))
@@ -113,29 +136,29 @@ class RecommenderBuildCliTests(unittest.TestCase):
                 cli.settings, "biased_matrix_factorization_model_variant", DEFAULT_BIASED_MATRIX_FACTORIZATION_VARIANT_ID
             ), patch("pipelines.recommender_build.cli.build_item_knn_cosine_model", item), patch(
                 "pipelines.recommender_build.cli.build_biased_matrix_factorization_model", biased
-            ), patch("pipelines.recommender_build.cli.validate_staged"), patch("pipelines.recommender_build.cli.promote") as promote:
+            ), patch("pipelines.recommender_build.cli.validate_staged"), patch(
+                "pipelines.recommender_build.cli.validate_runtime_artifacts"
+            ), patch("pipelines.recommender_build.cli.replace_target") as replace_target:
                 cli.build_selected(("item_knn", "biased"), paths)
             self.assertEqual(100, item.call_args_list[0].args[0].top_k)
             self.assertNotEqual(item.call_args.kwargs["offline_context"].collaborative_model_artifact_root, paths.collaborative_root)
-            self.assertEqual(["item_knn", "biased"], list(promote.call_args.args[0]))
+            self.assertEqual(2, replace_target.call_count)
 
-    def test_promotion_replaces_selected_target_and_cleans_backup(self) -> None:
+    def test_replacement_replaces_target_and_cleans_sibling_backup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = _paths(Path(temporary))
-            plan = cli.ResolvedBuildPlan(("tfidf",))
             paths.content_root.mkdir(parents=True)
             (paths.content_root / "value").write_text("old", encoding="utf-8")
             staged = Path(temporary) / "stage" / "content_based"
             staged.mkdir(parents=True)
             (staged / "value").write_text("new", encoding="utf-8")
-            cli.promote(("tfidf",), plan, staged, staged.parent / "collaborative", paths)
+            cli.replace_target(staged, paths.content_root)
             self.assertEqual("new", (paths.content_root / "value").read_text(encoding="utf-8"))
-            self.assertFalse(any(paths.temp_root.iterdir()) if paths.temp_root.exists() else False)
+            self.assertFalse((paths.content_root.parent / ".content_based.recommender-build-backup").exists())
 
     def test_failed_backup_keeps_original_target_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = _paths(Path(temporary))
-            plan = cli.ResolvedBuildPlan(("tfidf",))
             paths.content_root.mkdir(parents=True)
             (paths.content_root / "value").write_text("old", encoding="utf-8")
             staged = Path(temporary) / "stage" / "content_based"
@@ -147,8 +170,67 @@ class RecommenderBuildCliTests(unittest.TestCase):
                 return real_replace(source, target)
             with patch("pipelines.recommender_build.cli.os.replace", side_effect=fail_backup):
                 with self.assertRaises(cli.RecommenderPromotionError):
-                    cli.promote(("tfidf",), plan, staged, staged.parent / "collaborative", paths)
+                    cli.replace_target(staged, paths.content_root)
             self.assertEqual("old", (paths.content_root / "value").read_text(encoding="utf-8"))
+
+    def test_stale_backup_blocks_replacement_without_touching_original(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            (root / ".target.recommender-build-backup").mkdir()
+            with self.assertRaises(cli.RecommenderPromotionError):
+                cli.replace_target(staged, production)
+            self.assertEqual("old", (production / "value").read_text(encoding="utf-8"))
+
+    def test_sequential_build_keeps_completed_target_when_later_build_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = _paths(Path(temporary))
+            plan = cli.ResolvedBuildPlan(("tfidf", "popularity", "user_knn"))
+            built: list[str] = []
+
+            def build(algorithm, resolved_plan, build_paths, content_root, collaborative_root):
+                built.append(algorithm)
+                target = cli.targets_for(
+                    algorithm, resolved_plan, content_root=content_root, collaborative_root=collaborative_root
+                )
+                if algorithm == "popularity":
+                    raise RuntimeError("simulated later failure")
+                target.mkdir(parents=True)
+                for name in required_artifacts(algorithm):
+                    (target / name).write_text("artifact", encoding="utf-8")
+
+            with patch("pipelines.recommender_build.cli._build_algorithm", side_effect=build), patch(
+                "pipelines.recommender_build.cli.validate_staged"
+            ):
+                with self.assertRaises(cli.RecommenderBuildStageError):
+                    cli.execute_plan(plan, paths)
+            self.assertTrue(paths.content_root.is_dir())
+            self.assertFalse((paths.collaborative_root / "popularity_baseline" / "default").exists())
+            self.assertEqual(["tfidf", "popularity"], built)
+
+    def test_clean_removes_optional_artifacts_before_install(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = _paths(Path(temporary))
+            plan = cli.ResolvedBuildPlan(("tfidf",))
+
+            def build(algorithm, resolved_plan, build_paths, content_root, collaborative_root):
+                target = cli.targets_for(
+                    algorithm, resolved_plan, content_root=content_root, collaborative_root=collaborative_root
+                )
+                target.mkdir(parents=True)
+                for name in (*required_artifacts(algorithm), *optional_artifacts(algorithm)):
+                    (target / name).write_text("artifact", encoding="utf-8")
+
+            with patch("pipelines.recommender_build.cli._build_algorithm", side_effect=build), patch(
+                "pipelines.recommender_build.cli.validate_staged"
+            ):
+                cli.execute_plan(plan, paths, clean=True)
+            self.assertFalse((paths.content_root / "content_index_summary.json").exists())
+            validate_runtime_artifacts("tfidf", paths.content_root)
 
 
 def _paths(root: Path) -> cli.BuildPaths:

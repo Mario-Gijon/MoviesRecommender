@@ -8,7 +8,6 @@ import shutil
 import sqlite3
 import sys
 import tempfile
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -63,6 +62,11 @@ from app.recommenders.content_based.constants import (
 )
 
 from app.recommenders.build_profiles import UnsupportedBuildProfileError, get_biased_matrix_factorization_variant_profile, get_item_knn_variant_profile
+from app.recommenders.artifact_policy import (
+    optional_artifacts,
+    remove_optional_artifacts,
+    validate_runtime_artifacts,
+)
 from .profile import biased_config, item_knn_config, popularity_config, user_knn_config
 
 
@@ -82,17 +86,6 @@ class RecommenderBuildStageError(RecommenderBuildError):
 
 class RecommenderPromotionError(RecommenderBuildError):
     pass
-
-
-@dataclass
-class PromotionRecord:
-    algorithm: str
-    production: Path
-    staged: Path
-    backup: Path | None
-    original_existed: bool
-    backup_created: bool = False
-    staged_promoted: bool = False
 
 
 @dataclass(frozen=True)
@@ -131,6 +124,7 @@ def default_paths() -> BuildPaths:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Rebuild persisted recommender artifacts from offline_dataset.")
     parser.add_argument("--algorithm", choices=PUBLIC_ALGORITHMS, action="append", help="Algorithm to rebuild; repeatable. Defaults to all.")
+    parser.add_argument("--clean", action="store_true", help="Remove optional build artifacts before installing each selected target.")
     parser.add_argument("--dry-run", action="store_true", help="Print the plan and run read-only input preflight.")
     parser.add_argument("--yes", action="store_true", help="Confirm a real rebuild without prompting.")
     return parser
@@ -225,45 +219,81 @@ def _context(paths: BuildPaths, stage_collaborative_root: Path):
     )
 
 
-def build_selected(algorithms: tuple[str, ...], paths: BuildPaths) -> None:
-    execute_plan(prepare_plan(algorithms, paths), paths)
+def build_selected(algorithms: tuple[str, ...], paths: BuildPaths, *, clean: bool = False) -> None:
+    execute_plan(prepare_plan(algorithms, paths), paths, clean=clean)
 
 
-def execute_plan(plan: ResolvedBuildPlan, paths: BuildPaths) -> None:
-    algorithms = plan.algorithms
+def execute_plan(plan: ResolvedBuildPlan, paths: BuildPaths, *, clean: bool = False) -> None:
+    """Build and install one selected target at a time in canonical plan order."""
     paths.temp_root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="recommender-build-", dir=paths.temp_root) as temporary:
-        stage_models = Path(temporary) / "recommender_models"
-        stage_content = stage_models / "content_based"
-        stage_collaborative = stage_models / "collaborative"
-        context = _context(paths, stage_collaborative)
-        for algorithm in algorithms:
-            try:
-                if algorithm == "tfidf":
-                    build_content_index(public_movies_path=paths.public_movies, output_dir=stage_content)
-                elif algorithm == "popularity":
-                    build_popularity_baseline_model(popularity_config(), offline_context=context)
-                elif algorithm == "item_knn":
-                    build_item_knn_cosine_model(item_knn_config(_required_variant(plan, algorithm)), offline_context=context)
-                elif algorithm == "user_knn":
-                    build_user_knn_pearson_shrinkage_model(user_knn_config(), offline_context=context)
-                elif algorithm == "biased":
-                    build_biased_matrix_factorization_model(biased_config(_required_variant(plan, algorithm)), offline_context=context)
-                else:
-                    raise ValueError(f"Unsupported algorithm: {algorithm}")
-            except Exception as exc:
-                raise RecommenderBuildStageError(algorithm, "build", exc) from exc
-        for algorithm in algorithms:
-            try:
-                validate_staged(algorithm, plan, stage_content, stage_collaborative)
-            except Exception as exc:
-                raise RecommenderBuildStageError(algorithm, "validation", exc) from exc
+    completed: list[str] = []
+    total = len(plan.algorithms)
+    for index, algorithm in enumerate(plan.algorithms, start=1):
+        prefix = f"[{index}/{total}]"
         try:
-            promote(algorithms, plan, stage_content, stage_collaborative, paths)
-        except RecommenderPromotionError:
+            print(f"{prefix} Building {algorithm}")
+            with tempfile.TemporaryDirectory(prefix=f"recommender-build-{algorithm}-", dir=paths.temp_root) as temporary:
+                stage_models = Path(temporary) / "recommender_models"
+                stage_content = stage_models / "content_based"
+                stage_collaborative = stage_models / "collaborative"
+                _build_algorithm(algorithm, plan, paths, stage_content, stage_collaborative)
+                print(f"{prefix} Validating {algorithm}")
+                validate_staged(algorithm, plan, stage_content, stage_collaborative)
+                staged_target = targets_for(
+                    algorithm, plan, content_root=stage_content, collaborative_root=stage_collaborative
+                )
+                if clean:
+                    print(f"{prefix} Cleaning {algorithm}")
+                    remove_optional_artifacts(algorithm, staged_target)
+                validate_runtime_artifacts(algorithm, staged_target)
+                production = targets_for(
+                    algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root
+                )
+                replace_target(staged_target, production)
+            completed.append(algorithm)
+            print(f"{prefix} Installed {algorithm}")
+        except RecommenderBuildError:
+            _print_execution_failure(index, total, algorithm, completed, plan.algorithms)
             raise
         except Exception as exc:
-            raise RecommenderPromotionError("Recommender build failed: promotion\nPhase: promotion") from exc
+            _print_execution_failure(index, total, algorithm, completed, plan.algorithms)
+            raise RecommenderBuildStageError(algorithm, "build/install", exc) from exc
+
+
+def _build_algorithm(
+    algorithm: str,
+    plan: ResolvedBuildPlan,
+    paths: BuildPaths,
+    stage_content: Path,
+    stage_collaborative: Path,
+) -> None:
+    context = _context(paths, stage_collaborative)
+    if algorithm == "tfidf":
+        build_content_index(public_movies_path=paths.public_movies, output_dir=stage_content)
+    elif algorithm == "popularity":
+        build_popularity_baseline_model(popularity_config(), offline_context=context)
+    elif algorithm == "item_knn":
+        build_item_knn_cosine_model(item_knn_config(_required_variant(plan, algorithm)), offline_context=context)
+    elif algorithm == "user_knn":
+        build_user_knn_pearson_shrinkage_model(user_knn_config(), offline_context=context)
+    elif algorithm == "biased":
+        build_biased_matrix_factorization_model(biased_config(_required_variant(plan, algorithm)), offline_context=context)
+    else:
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
+
+
+def _print_execution_failure(
+    index: int,
+    total: int,
+    algorithm: str,
+    completed: list[str],
+    selected: tuple[str, ...],
+) -> None:
+    completed_text = ", ".join(completed) if completed else "none"
+    remaining = ", ".join(selected[index:]) or "none"
+    print(f"Completed: {completed_text}", file=sys.stderr)
+    print(f"[{index}/{total}] Failed {algorithm}", file=sys.stderr)
+    print(f"Remaining not run: {remaining}", file=sys.stderr)
 
 
 def validate_staged(algorithm: str, plan: ResolvedBuildPlan, content_root: Path, collaborative_root: Path) -> None:
@@ -320,68 +350,70 @@ def _csv_has_row(path: Path) -> bool:
         raise RuntimeError("CSV artifact is unreadable.") from exc
 
 
-def promote(algorithms: tuple[str, ...], plan: ResolvedBuildPlan, stage_content: Path, stage_collaborative: Path, paths: BuildPaths) -> None:
-    records: list[PromotionRecord] = []
-    for algorithm in algorithms:
-        staged = targets_for(algorithm, plan, content_root=stage_content, collaborative_root=stage_collaborative)
-        if not staged.is_dir():
-            raise RecommenderPromotionError(f"Promotion failed; staged target is missing for {algorithm}.")
-        production = targets_for(algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
-        records.append(PromotionRecord(algorithm, production, staged, None, production.exists()))
-    backup_root = paths.temp_root / f"recommender-promotion-backup-{uuid.uuid4().hex}"
+def replace_target(staged: Path, production: Path) -> None:
+    """Install one validated target and restore only that target on replacement failure."""
+    if not staged.is_dir():
+        raise RecommenderPromotionError(f"Staged target is missing or not a directory: {staged}")
+    backup = production.parent / f".{production.name}.recommender-build-backup"
+    if backup.exists() or backup.is_symlink():
+        raise RecommenderPromotionError(
+            f"Cannot replace {production}; stale recovery backup exists at {backup}. "
+            "Resolve that backup before retrying."
+        )
+    original_existed = production.exists() or production.is_symlink()
+    backup_created = False
     try:
-        backup_root.mkdir(parents=True, exist_ok=False)
-        for record in records:
-            record.production.parent.mkdir(parents=True, exist_ok=True)
-            if record.original_existed:
-                record.backup = backup_root / record.algorithm
-                os.replace(record.production, record.backup)
-                record.backup_created = True
-            os.replace(record.staged, record.production)
-            record.staged_promoted = True
+        production.parent.mkdir(parents=True, exist_ok=True)
+        if original_existed:
+            os.replace(production, backup)
+            backup_created = True
+        os.replace(staged, production)
     except OSError as exc:
-        incomplete = _rollback_promotion(records)
-        if incomplete:
-            raise RecommenderPromotionError(
-                "Promotion failed; rollback was incomplete for: " + ", ".join(incomplete)
-                + f". Manual recovery may be required from: {backup_root}"
-            ) from exc
-        shutil.rmtree(backup_root, ignore_errors=True)
-        raise RecommenderPromotionError("Promotion failed; previous selected targets were restored.") from exc
-    else:
-        shutil.rmtree(backup_root, ignore_errors=True)
-
-
-def _rollback_promotion(records: list[PromotionRecord]) -> list[str]:
-    incomplete: list[str] = []
-    for record in reversed(records):
+        if backup_created:
+            try:
+                os.replace(backup, production)
+            except OSError as restore_exc:
+                raise RecommenderPromotionError(
+                    f"Replacement failed for {production}; restoration also failed. "
+                    f"Recover the previous target from {backup}."
+                ) from restore_exc
+        raise RecommenderPromotionError(
+            f"Replacement failed for {production}; the previous target was preserved."
+        ) from exc
+    if backup_created:
         try:
-            if record.staged_promoted and record.production.exists():
-                shutil.rmtree(record.production)
-            if record.backup_created and record.backup is not None and record.backup.exists():
-                os.replace(record.backup, record.production)
-        except OSError:
-            incomplete.append(record.algorithm)
-    return incomplete
+            shutil.rmtree(backup)
+        except OSError as exc:
+            raise RecommenderPromotionError(
+                f"Installed {production}, but could not remove recovery backup {backup}. "
+                "Remove it before the next rebuild."
+            ) from exc
 
 
-def print_plan(plan: ResolvedBuildPlan, paths: BuildPaths) -> None:
+def print_plan(plan: ResolvedBuildPlan, paths: BuildPaths, *, clean: bool = False) -> None:
     algorithms = plan.algorithms
     print("Recommender build plan")
     print(f"Data root: {paths.data_root}")
     print("Selected algorithms: " + ", ".join(algorithms))
     print("Canonical order: " + ", ".join(ALGORITHM_ORDER))
+    print(f"Clean optional artifacts: {'yes' if clean else 'no'}")
     print("Inputs: public_movies.csv" + (", collaborative_support_movies.csv, collaborative_ratings.csv" if any(a in {"item_knn", "user_knn", "biased"} for a in algorithms) else ""))
     for algorithm in algorithms:
         target = targets_for(algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
         print(f"  {algorithm}: target={target} ({'exists' if target.exists() else 'new'})")
-        if algorithm == "item_knn":
+        optional = ", ".join(optional_artifacts(algorithm)) or "none"
+        print(f"    optional artifacts {'removed' if clean else 'retained'}: {optional}")
+        if algorithm == "popularity":
+            print(f"    resolved variant: {POPULARITY_VARIANT_ID}")
+        elif algorithm == "item_knn":
             profile = get_item_knn_variant_profile(_required_variant(plan, algorithm))
-            print(f"    active variant: {profile.variant_id}; profile: supported; top_k: {profile.top_k}; min_support: {profile.min_support}")
+            print(f"    resolved variant: {profile.variant_id}; profile: supported; top_k: {profile.top_k}; min_support: {profile.min_support}")
+        elif algorithm == "user_knn":
+            print(f"    resolved variant: {USER_KNN_VARIANT_ID}")
         elif algorithm == "biased":
             profile = get_biased_matrix_factorization_variant_profile(_required_variant(plan, algorithm))
-            print(f"    active variant: {profile.variant_id}; profile: supported; factors: {profile.factor_count}; epochs: {profile.epochs}")
-    print("Current targets remain untouched until every staged build validates.")
+            print(f"    resolved variant: {profile.variant_id}; profile: supported; factors: {profile.factor_count}; epochs: {profile.epochs}")
+    print("Each selected target is built, validated, and installed before the next one starts.")
     print("Restart the API service after successful promotion to reload artifacts.")
 
 
@@ -397,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         algorithms = select_algorithms(args.algorithm)
         paths = default_paths()
         plan = prepare_plan(algorithms, paths)
-        print_plan(plan, paths)
+        print_plan(plan, paths, clean=args.clean)
         if args.dry_run:
             print("Dry run complete. Input preflight passed; no files were modified.")
             return 0
@@ -407,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             if input("Rebuild selected recommender artifacts? [y/N] ").strip().lower() not in {"y", "yes"}:
                 print("Cancelled. No artifacts were modified.")
                 return 0
-        execute_plan(plan, paths)
+        execute_plan(plan, paths, clean=args.clean)
         print("Recommender artifacts were rebuilt successfully.")
         print("Restart the API service so the running process reloads the new artifacts.")
         return 0
