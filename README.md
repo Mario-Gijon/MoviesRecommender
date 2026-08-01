@@ -117,13 +117,18 @@ cd Backend
 
 The maintenance command stages every selected build under `DATA_DIR/tmp`, validates
 it, then promotes only the selected persisted targets under `recommender_models/`.
-Its active production variants are Item KNN `top_k_50_min_support_25` and BMF
-`factors_128_epochs_100_lr_0_005_reg_0_02`; it refuses to build when these do not
-match runtime settings. Use `--dry-run` for a read-only input preflight (it exits
-nonzero when the required offline CSVs are absent), and use `--yes` for automation;
-otherwise an interactive terminal confirmation is required. Restart the API after a
-successful promotion. This command neither regenerates the offline dataset nor
-creates recommender audits.
+Requests select algorithms, while variants are deployment-internal. Item KNN defaults
+to `top_k_100_min_support_25`; `top_k_50_min_support_25` is also a supported profile.
+The BMF deployment profile is `factors_128_epochs_100_lr_0_005_reg_0_02`. The API and
+maintenance command share active-variant environment settings, and maintenance builds
+only the active code-supported profile; arbitrary variant IDs are rejected. Adding a
+variant requires registering it in code, and generating a second variant does not make
+it active. Changing the active variant requires rebuilding that target and restarting
+the API. A future deployment CLI will select supported profiles. Use `--dry-run` for a
+read-only input preflight (it exits nonzero when required CSVs are absent), and use
+`--yes` for automation; otherwise an interactive terminal confirmation is required.
+Unselected variants are preserved. This command neither regenerates the offline
+dataset nor creates recommender audits.
 
 In Docker, use the opt-in maintenance profile:
 

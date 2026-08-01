@@ -5,6 +5,8 @@ services:
     image: ${API_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/api:${APP_VERSION:-0.1.0}}
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
+      MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT: ${MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT:-top_k_100_min_support_25}
+      MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT: ${MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT:-factors_128_epochs_100_lr_0_005_reg_0_02}
     volumes:
       - ${DATA_DIR:-./Backend/data}:/app/data
     ports:
@@ -28,6 +30,8 @@ services:
     profiles: ["maintenance"]
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
+      MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT: ${MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT:-top_k_100_min_support_25}
+      MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT: ${MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT:-factors_128_epochs_100_lr_0_005_reg_0_02}
     volumes:
       - ${DATA_DIR:-./Backend/data}:/app/data
     entrypoint: ["python", "-m", "pipelines.recommender_build.cli"]

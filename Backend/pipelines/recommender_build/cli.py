@@ -61,7 +61,8 @@ from app.recommenders.content_based.constants import (
     REQUIRED_COLUMNS,
 )
 
-from .profile import BIASED_VARIANT_ID, ITEM_KNN_VARIANT_ID, biased_config, item_knn_config, popularity_config, user_knn_config
+from app.recommenders.build_profiles import UnsupportedBuildProfileError, get_biased_matrix_factorization_variant_profile, get_item_knn_variant_profile
+from .profile import biased_config, item_knn_config, popularity_config, user_knn_config
 
 
 ALGORITHM_ORDER = ("tfidf", "popularity", "item_knn", "user_knn", "biased")
@@ -95,6 +96,16 @@ class BuildPaths:
     temp_root: Path
 
 
+@dataclass(frozen=True)
+class ResolvedBuildPlan:
+    algorithms: tuple[str, ...]
+    item_knn_variant_id: str | None = None
+    biased_variant_id: str | None = None
+
+    def variant_for(self, algorithm: str) -> str | None:
+        return self.item_knn_variant_id if algorithm == "item_knn" else self.biased_variant_id if algorithm == "biased" else None
+
+
 def default_paths() -> BuildPaths:
     return BuildPaths(
         DATA_DIR, OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
@@ -121,14 +132,22 @@ def select_algorithms(values: list[str] | None) -> tuple[str, ...]:
     return tuple(algorithm for algorithm in ALGORITHM_ORDER if algorithm in wanted)
 
 
-def validate_runtime_profile(algorithms: tuple[str, ...] = ALGORITHM_ORDER) -> None:
-    mismatches = []
-    if "item_knn" in algorithms and ITEM_KNN_VARIANT_ID != settings.active_collaborative_model_variant:
-        mismatches.append(f"item_knn expected runtime variant {settings.active_collaborative_model_variant!r}, profile builds {ITEM_KNN_VARIANT_ID!r}")
-    if "biased" in algorithms and BIASED_VARIANT_ID != settings.biased_matrix_factorization_model_variant:
-        mismatches.append(f"biased expected runtime variant {settings.biased_matrix_factorization_model_variant!r}, profile builds {BIASED_VARIANT_ID!r}")
-    if mismatches:
-        raise RecommenderBuildError("Runtime/profile variant mismatch; no artifacts were modified: " + "; ".join(mismatches))
+def resolve_plan(algorithms: tuple[str, ...]) -> ResolvedBuildPlan:
+    try:
+        item_variant = settings.active_collaborative_model_variant if "item_knn" in algorithms else None
+        biased_variant = settings.biased_matrix_factorization_model_variant if "biased" in algorithms else None
+        if item_variant is not None:
+            get_item_knn_variant_profile(item_variant)
+        if biased_variant is not None:
+            get_biased_matrix_factorization_variant_profile(biased_variant)
+        return ResolvedBuildPlan(algorithms, item_variant, biased_variant)
+    except UnsupportedBuildProfileError as exc:
+        raise RecommenderBuildError(str(exc)) from exc
+
+
+def validate_runtime_profile(algorithms: tuple[str, ...]) -> None:
+    """Backward-compatible selected-profile validation helper."""
+    resolve_plan(algorithms)
 
 
 def preflight(algorithms: tuple[str, ...], paths: BuildPaths) -> None:
@@ -164,18 +183,25 @@ def _validate_csv(path: Path, required_headers: set[str], label: str) -> None:
         raise RecommenderBuildError(f"Required dataset input could not be read: {label}.") from exc
 
 
-def targets_for(algorithm: str, *, content_root: Path, collaborative_root: Path) -> Path:
+def targets_for(algorithm: str, plan: ResolvedBuildPlan, *, content_root: Path, collaborative_root: Path) -> Path:
     if algorithm == "tfidf":
         return content_root
     if algorithm == "popularity":
         return collaborative_root / POPULARITY_ALGORITHM_ID / POPULARITY_VARIANT_ID
     if algorithm == "item_knn":
-        return collaborative_root / ITEM_KNN_ALGORITHM_ID / ITEM_KNN_VARIANT_ID
+        return collaborative_root / ITEM_KNN_ALGORITHM_ID / _required_variant(plan, algorithm)
     if algorithm == "user_knn":
         return collaborative_root / USER_KNN_ALGORITHM_ID / USER_KNN_VARIANT_ID
     if algorithm == "biased":
-        return collaborative_root / BIASED_ALGORITHM_ID / BIASED_VARIANT_ID
+        return collaborative_root / BIASED_ALGORITHM_ID / _required_variant(plan, algorithm)
     raise ValueError(f"Unsupported algorithm: {algorithm}")
+
+
+def _required_variant(plan: ResolvedBuildPlan, algorithm: str) -> str:
+    variant = plan.variant_for(algorithm)
+    if variant is None:
+        raise ValueError(f"No resolved variant for {algorithm}")
+    return variant
 
 
 def _context(paths: BuildPaths, stage_collaborative_root: Path):
@@ -188,7 +214,7 @@ def _context(paths: BuildPaths, stage_collaborative_root: Path):
 
 
 def build_selected(algorithms: tuple[str, ...], paths: BuildPaths) -> None:
-    validate_runtime_profile()
+    plan = resolve_plan(algorithms)
     preflight(algorithms, paths)
     paths.temp_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="recommender-build-", dir=paths.temp_root) as temporary:
@@ -203,26 +229,30 @@ def build_selected(algorithms: tuple[str, ...], paths: BuildPaths) -> None:
                 elif algorithm == "popularity":
                     build_popularity_baseline_model(popularity_config(), offline_context=context)
                 elif algorithm == "item_knn":
-                    build_item_knn_cosine_model(item_knn_config(), offline_context=context)
+                    build_item_knn_cosine_model(item_knn_config(_required_variant(plan, algorithm)), offline_context=context)
                 elif algorithm == "user_knn":
                     build_user_knn_pearson_shrinkage_model(user_knn_config(), offline_context=context)
+                elif algorithm == "biased":
+                    build_biased_matrix_factorization_model(biased_config(_required_variant(plan, algorithm)), offline_context=context)
                 else:
-                    build_biased_matrix_factorization_model(biased_config(), offline_context=context)
+                    raise ValueError(f"Unsupported algorithm: {algorithm}")
             except Exception as exc:
                 raise RecommenderBuildStageError(algorithm, "build", exc) from exc
         for algorithm in algorithms:
             try:
-                validate_staged(algorithm, stage_content, stage_collaborative)
+                validate_staged(algorithm, plan, stage_content, stage_collaborative)
             except Exception as exc:
                 raise RecommenderBuildStageError(algorithm, "validation", exc) from exc
         try:
-            promote(algorithms, stage_content, stage_collaborative, paths)
+            promote(algorithms, plan, stage_content, stage_collaborative, paths)
+        except RecommenderPromotionError:
+            raise
         except Exception as exc:
             raise RecommenderPromotionError("Recommender build failed: promotion\nPhase: promotion") from exc
 
 
-def validate_staged(algorithm: str, content_root: Path, collaborative_root: Path) -> None:
-    target = targets_for(algorithm, content_root=content_root, collaborative_root=collaborative_root)
+def validate_staged(algorithm: str, plan: ResolvedBuildPlan, content_root: Path, collaborative_root: Path) -> None:
+    target = targets_for(algorithm, plan, content_root=content_root, collaborative_root=collaborative_root)
     if algorithm == "tfidf":
         features = load_npz(target / MOVIE_CONTENT_FEATURES_PATH.name)
         movies = json.loads((target / MOVIE_CONTENT_INDEX_PATH.name).read_text(encoding="utf-8"))
@@ -235,22 +265,26 @@ def validate_staged(algorithm: str, content_root: Path, collaborative_root: Path
         if manifest.get("algorithmId") != POPULARITY_ALGORITHM_ID or not load_popularity_ranking(artifact_root=collaborative_root):
             raise RuntimeError("Popularity staged artifact is invalid or empty.")
     elif algorithm == "item_knn":
-        manifest = load_item_knn_cosine_manifest(ITEM_KNN_VARIANT_ID, artifact_root=collaborative_root)
-        if manifest.get("algorithmId") != ITEM_KNN_ALGORITHM_ID or manifest.get("variantId") != ITEM_KNN_VARIANT_ID:
+        variant = _required_variant(plan, algorithm)
+        manifest = load_item_knn_cosine_manifest(variant, artifact_root=collaborative_root)
+        if manifest.get("algorithmId") != ITEM_KNN_ALGORITHM_ID or manifest.get("variantId") != variant:
             raise RuntimeError("Item KNN staged manifest has an unexpected variant.")
-        _sqlite_has_row(get_item_knn_cosine_variant_artifacts(ITEM_KNN_VARIANT_ID, artifact_root=collaborative_root).neighbors_sqlite_path)
+        _sqlite_has_row(get_item_knn_cosine_variant_artifacts(variant, artifact_root=collaborative_root).neighbors_sqlite_path)
     elif algorithm == "user_knn":
         manifest = load_user_knn_pearson_shrinkage_manifest(artifact_root=collaborative_root)
         artifacts = get_user_knn_pearson_shrinkage_artifacts(artifact_root=collaborative_root)
         if manifest.get("algorithmId") != USER_KNN_ALGORITHM_ID or not _csv_has_row(artifacts.user_stats_csv_path):
             raise RuntimeError("User KNN staged artifact is invalid or empty.")
         _sqlite_has_row(artifacts.ratings_sqlite_path)
-    else:
-        artifacts = get_biased_matrix_factorization_variant_artifacts(BIASED_VARIANT_ID, artifact_root=collaborative_root)
-        manifest = load_biased_matrix_factorization_manifest(BIASED_VARIANT_ID, artifact_root=collaborative_root)
-        if manifest.get("algorithmId") != BIASED_ALGORITHM_ID or manifest.get("variantId") != BIASED_VARIANT_ID:
+    elif algorithm == "biased":
+        variant = _required_variant(plan, algorithm)
+        artifacts = get_biased_matrix_factorization_variant_artifacts(variant, artifact_root=collaborative_root)
+        manifest = load_biased_matrix_factorization_manifest(variant, artifact_root=collaborative_root)
+        if manifest.get("algorithmId") != BIASED_ALGORITHM_ID or manifest.get("variantId") != variant:
             raise RuntimeError("Biased staged manifest has an unexpected variant.")
         validate_biased_matrix_factorization_runtime_artifacts(artifacts)
+    else:
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
 
 
 def _sqlite_has_row(path: Path) -> None:
@@ -271,13 +305,13 @@ def _csv_has_row(path: Path) -> bool:
         raise RuntimeError("CSV artifact is unreadable.") from exc
 
 
-def promote(algorithms: tuple[str, ...], stage_content: Path, stage_collaborative: Path, paths: BuildPaths) -> None:
+def promote(algorithms: tuple[str, ...], plan: ResolvedBuildPlan, stage_content: Path, stage_collaborative: Path, paths: BuildPaths) -> None:
     backups: list[tuple[Path, Path | None]] = []
     backup_root = stage_content.parent.parent / "backups"
     try:
         for algorithm in algorithms:
-            staged = targets_for(algorithm, content_root=stage_content, collaborative_root=stage_collaborative)
-            production = targets_for(algorithm, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
+            staged = targets_for(algorithm, plan, content_root=stage_content, collaborative_root=stage_collaborative)
+            production = targets_for(algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
             production.parent.mkdir(parents=True, exist_ok=True)
             backup = backup_root / algorithm if production.exists() else None
             backups.append((production, backup))
@@ -286,26 +320,44 @@ def promote(algorithms: tuple[str, ...], stage_content: Path, stage_collaborativ
                 os.replace(production, backup)
             os.replace(staged, production)
     except OSError as exc:
+        incomplete: list[str] = []
         for production, backup in reversed(backups):
-            if production.exists():
-                shutil.rmtree(production)
-            if backup is not None and backup.exists():
-                os.replace(backup, production)
-        raise RuntimeError("Promotion failed; previous targets were restored.") from exc
+            try:
+                if production.exists():
+                    shutil.rmtree(production)
+                if backup is not None and backup.exists():
+                    os.replace(backup, production)
+            except OSError:
+                incomplete.append(production.name)
+        if incomplete:
+            raise RecommenderPromotionError("Promotion failed and rollback was incomplete for: " + ", ".join(incomplete)) from exc
+        raise RecommenderPromotionError("Promotion failed; previous targets were restored.") from exc
 
 
-def print_plan(algorithms: tuple[str, ...], paths: BuildPaths) -> None:
+def print_plan(plan: ResolvedBuildPlan, paths: BuildPaths) -> None:
+    algorithms = plan.algorithms
     print("Recommender build plan")
     print(f"Data root: {paths.data_root}")
     print("Selected algorithms: " + ", ".join(algorithms))
     print("Canonical order: " + ", ".join(ALGORITHM_ORDER))
-    print("Inputs: public_movies.csv" + (", collaborative_support_movies.csv, collaborative_ratings.csv" if any(a != "tfidf" for a in algorithms) else ""))
-    print(f"Runtime variants: item_knn={settings.active_collaborative_model_variant}, biased={settings.biased_matrix_factorization_model_variant}")
+    print("Inputs: public_movies.csv" + (", collaborative_support_movies.csv, collaborative_ratings.csv" if any(a in {"item_knn", "user_knn", "biased"} for a in algorithms) else ""))
     for algorithm in algorithms:
-        target = targets_for(algorithm, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
-        print(f"  {algorithm}: {target.name} ({'exists' if target.exists() else 'new'})")
+        target = targets_for(algorithm, plan, content_root=paths.content_root, collaborative_root=paths.collaborative_root)
+        print(f"  {algorithm}: target={target} ({'exists' if target.exists() else 'new'})")
+        if algorithm == "item_knn":
+            profile = get_item_knn_variant_profile(_required_variant(plan, algorithm))
+            print(f"    active variant: {profile.variant_id}; profile: supported; top_k: {profile.top_k}; min_support: {profile.min_support}")
+        elif algorithm == "biased":
+            profile = get_biased_matrix_factorization_variant_profile(_required_variant(plan, algorithm))
+            print(f"    active variant: {profile.variant_id}; profile: supported; factors: {profile.factor_count}; epochs: {profile.epochs}")
     print("Current targets remain untouched until every staged build validates.")
     print("Restart the API service after successful promotion to reload artifacts.")
+
+
+def prepare_plan(algorithms: tuple[str, ...], paths: BuildPaths) -> ResolvedBuildPlan:
+    plan = resolve_plan(algorithms)
+    preflight(algorithms, paths)
+    return plan
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -313,9 +365,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         algorithms = select_algorithms(args.algorithm)
         paths = default_paths()
-        print_plan(algorithms, paths)
+        plan = prepare_plan(algorithms, paths)
+        print_plan(plan, paths)
         if args.dry_run:
-            preflight(algorithms, paths)
             print("Dry run complete. Input preflight passed; no files were modified.")
             return 0
         if not args.yes:

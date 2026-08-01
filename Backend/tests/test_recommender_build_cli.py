@@ -6,7 +6,12 @@ from unittest.mock import Mock, patch
 from app.core.config import settings
 from app.recommenders.content_based.build_content_index import build_content_index
 from pipelines.recommender_build import cli
-from pipelines.recommender_build.profile import BIASED_VARIANT_ID, ITEM_KNN_VARIANT_ID
+from app.recommenders.build_profiles import (
+    DEFAULT_BIASED_MATRIX_FACTORIZATION_VARIANT_ID,
+    DEFAULT_ITEM_KNN_VARIANT_ID,
+    get_item_knn_variant_profile,
+    get_supported_item_knn_profiles,
+)
 
 
 class RecommenderBuildCliTests(unittest.TestCase):
@@ -19,15 +24,32 @@ class RecommenderBuildCliTests(unittest.TestCase):
             cli.select_algorithms(["all", "tfidf"])
 
     def test_profile_variants_match_runtime_settings(self) -> None:
-        with patch.object(cli.settings, "active_collaborative_model_variant", ITEM_KNN_VARIANT_ID), patch.object(
-            cli.settings, "biased_matrix_factorization_model_variant", BIASED_VARIANT_ID
+        with patch.object(cli.settings, "active_collaborative_model_variant", DEFAULT_ITEM_KNN_VARIANT_ID), patch.object(
+            cli.settings, "biased_matrix_factorization_model_variant", DEFAULT_BIASED_MATRIX_FACTORIZATION_VARIANT_ID
         ):
-            cli.validate_runtime_profile()
+            cli.validate_runtime_profile(("item_knn", "biased"))
+
+    def test_catalogue_has_recommended_100_and_supported_50(self) -> None:
+        profiles = get_supported_item_knn_profiles()
+        self.assertEqual(("top_k_100_min_support_25", "top_k_50_min_support_25"), tuple(p.variant_id for p in profiles))
+        self.assertTrue(profiles[0].recommended)
+        self.assertEqual(profiles[0].variant_id, DEFAULT_ITEM_KNN_VARIANT_ID)
+        self.assertEqual("top_k_50_min_support_25", get_item_knn_variant_profile("top_k_50_min_support_25").build_config(overwrite=True).variant_id)
+
+    def test_selected_resolution_uses_active_50_and_ignores_unselected_variants(self) -> None:
+        with patch.object(cli.settings, "active_collaborative_model_variant", "top_k_50_min_support_25"):
+            plan = cli.resolve_plan(("item_knn",))
+        self.assertEqual("top_k_50_min_support_25", plan.item_knn_variant_id)
+        self.assertEqual(50, get_item_knn_variant_profile(plan.item_knn_variant_id).top_k)
+        with patch.object(cli.settings, "active_collaborative_model_variant", "unsupported"):
+            self.assertEqual(("tfidf",), cli.resolve_plan(("tfidf",)).algorithms)
+            with self.assertRaises(cli.RecommenderBuildError):
+                cli.resolve_plan(("item_knn",))
 
     def test_variant_mismatch_fails_before_build(self) -> None:
         with patch.object(cli.settings, "active_collaborative_model_variant", "wrong"):
             with self.assertRaises(cli.RecommenderBuildError):
-                cli.validate_runtime_profile()
+                cli.validate_runtime_profile(("item_knn",))
 
     def test_tfidf_preflight_does_not_require_collaborative_csvs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -86,13 +108,13 @@ class RecommenderBuildCliTests(unittest.TestCase):
             _write_ratings(paths.ratings)
             item = Mock()
             biased = Mock()
-            with patch.object(cli.settings, "active_collaborative_model_variant", ITEM_KNN_VARIANT_ID), patch.object(
-                cli.settings, "biased_matrix_factorization_model_variant", BIASED_VARIANT_ID
+            with patch.object(cli.settings, "active_collaborative_model_variant", DEFAULT_ITEM_KNN_VARIANT_ID), patch.object(
+                cli.settings, "biased_matrix_factorization_model_variant", DEFAULT_BIASED_MATRIX_FACTORIZATION_VARIANT_ID
             ), patch("pipelines.recommender_build.cli.build_item_knn_cosine_model", item), patch(
                 "pipelines.recommender_build.cli.build_biased_matrix_factorization_model", biased
             ), patch("pipelines.recommender_build.cli.validate_staged"), patch("pipelines.recommender_build.cli.promote") as promote:
                 cli.build_selected(("item_knn", "biased"), paths)
-            self.assertLess(item.call_args_list[0].args[0].top_k, 100)
+            self.assertEqual(100, item.call_args_list[0].args[0].top_k)
             self.assertNotEqual(item.call_args.kwargs["offline_context"].collaborative_model_artifact_root, paths.collaborative_root)
             self.assertEqual(["item_knn", "biased"], list(promote.call_args.args[0]))
 
