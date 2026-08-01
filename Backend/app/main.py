@@ -19,14 +19,6 @@ from app.project_paths.dataset_paths import (
 from app.api.routes.recommender_audit_routes import router as recommender_audit_router
 
 
-if not OFFLINE_DATASET_POSTERS_DIR.exists():
-    raise RuntimeError(
-        "Offline posters directory is missing. "
-        "Run python -m pipelines.dataset_generation.download_offline_movie_posters first."
-    )
-
-OFFLINE_DATASET_AUDIT_DIR.mkdir(parents=True, exist_ok=True)
-
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -54,9 +46,13 @@ app.include_router(health_router)
 app.include_router(catalog_router)
 app.include_router(recommendation_router)
 app.include_router(recommender_audit_router)
-app.mount("/offline/posters", StaticFiles(directory=OFFLINE_DATASET_POSTERS_DIR), name="offline-posters")
+app.mount(
+    "/offline/posters",
+    StaticFiles(directory=OFFLINE_DATASET_POSTERS_DIR, check_dir=False),
+    name="offline-posters",
+)
 app.mount(
     "/audit",
-    StaticFiles(directory=OFFLINE_DATASET_AUDIT_DIR, html=True),
+    StaticFiles(directory=OFFLINE_DATASET_AUDIT_DIR, html=True, check_dir=False),
     name="offline-audit",
 )

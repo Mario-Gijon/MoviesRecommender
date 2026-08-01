@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from app.core.config import settings
+
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 APP_DIR = BACKEND_DIR / "app"
-DATA_DIR = BACKEND_DIR / "data"
+DATA_DIR = settings.data_dir
 DOCS_DIR = BACKEND_DIR / "docs"
-TMP_DIR = BACKEND_DIR / "tmp"
+TMP_DIR = DATA_DIR / "tmp"
 
 RAW_MOVIELENS_DIR = DATA_DIR / "raw" / "movielens"
 PIPELINE_CACHE_DIR = DATA_DIR / "pipeline_cache"

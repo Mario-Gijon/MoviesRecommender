@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import socket
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -22,9 +24,10 @@ class HttpTestResponse:
 
 
 class LiveApiServer:
-    def __init__(self) -> None:
+    def __init__(self, *, environment: Mapping[str, str] | None = None) -> None:
         self._port: int | None = None
         self._process: subprocess.Popen[str] | None = None
+        self._environment = dict(environment or {})
 
     def start(self) -> None:
         self._port = _available_port()
@@ -42,6 +45,7 @@ class LiveApiServer:
                 "warning",
             ],
             cwd=BACKEND_DIR,
+            env={**os.environ, **self._environment},
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

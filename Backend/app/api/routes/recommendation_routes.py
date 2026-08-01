@@ -6,7 +6,10 @@ from app.api.recommendation_errors import (
     RecommendationHttpError,
     resolve_request_id,
 )
-from app.catalog.catalog_repository import catalog_repository
+from app.catalog.catalog_repository import (
+    OfflineCatalogDataUnavailableError,
+    catalog_repository,
+)
 from app.recommenders.unified.models import (
     RecommendationRating,
     RecommendationServiceError,
@@ -83,6 +86,19 @@ def _execute_recommendation(
             result=result,
             request_id=request_id,
         )
+    except OfflineCatalogDataUnavailableError as exc:
+        logger.warning(
+            "recommendation_failed requestId=%s strategy=%s algorithm=%s code=runtime_data_unavailable",
+            request_id,
+            request.strategy,
+            request.algorithm,
+        )
+        raise RecommendationHttpError(
+            request_id=request_id,
+            code="runtime_data_unavailable",
+            message="Runtime dataset or recommender artifacts are unavailable.",
+            status_code=503,
+        ) from exc
     except RecommendationServiceError as exc:
         logger.warning(
             "recommendation_failed requestId=%s strategy=%s algorithm=%s code=%s",

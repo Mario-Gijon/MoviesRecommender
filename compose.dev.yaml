@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: ./Backend
+      target: development
+    image: movies-recommender-api-dev
+    volumes:
+      - ./Backend/app:/app/app
+      - ${DATA_DIR:-./Backend/data}:/app/data
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8014", "--reload"]
+
+  dataset:
+    build:
+      context: ./Backend
+      target: dataset
+    image: movies-recommender-dataset-dev
+    volumes:
+      - ./Backend/app:/app/app
+      - ${DATA_DIR:-./Backend/data}:/app/data
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile.dev
+    image: movies-recommender-frontend-dev
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8014}
+    volumes:
+      - ./Frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: ["sh", "-c", "bun install --frozen-lockfile && bun run dev --host 0.0.0.0 --port 5173"]
+    ports: !override
+      - ${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-5173}:5173
+
+volumes:
+  frontend_node_modules:
