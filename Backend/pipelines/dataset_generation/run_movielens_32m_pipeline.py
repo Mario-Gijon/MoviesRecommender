@@ -11,7 +11,17 @@ from .movielens_source import MovieLensSourceError, prepare_source
 
 
 STAGE_ORDER = ("candidates", "enrich", "catalog", "ratings", "export", "posters", "audit")
-RAW_REQUIRED_STAGES = {"candidates", "ratings"}
+# A resumed ratings stage still reads existing raw ratings, but source preparation is
+# only needed when candidate construction starts a new raw-data pipeline.
+SOURCE_PREPARATION_STAGES = {"candidates"}
+
+
+class DatasetStageError(RuntimeError):
+    def __init__(self, stage: str, command: list[str], cause: BaseException) -> None:
+        super().__init__(f"Dataset stage failed: {stage}")
+        self.stage = stage
+        self.command = command
+        self.cause = cause
 
 
 @dataclass(frozen=True)
@@ -48,6 +58,10 @@ def select_stages(config: DatasetPipelineConfig) -> list[str]:
         if not (stage == "posters" and config.skip_posters)
         and not (stage == "audit" and not config.audit)
     ]
+
+
+def stages_require_raw_source(config: DatasetPipelineConfig) -> bool:
+    return bool(SOURCE_PREPARATION_STAGES.intersection(select_stages(config)))
 
 
 def build_stage_command(stage: str, config: DatasetPipelineConfig) -> list[str]:
@@ -103,10 +117,14 @@ def run_pipeline(
         return []
     if dry_run:
         return stages
-    if any(stage in RAW_REQUIRED_STAGES for stage in stages):
+    if stages_require_raw_source(config):
         prepare_source(source, zip_path=zip_path)
     for stage in stages:
-        runner(build_stage_command(stage, config), check=True)
+        command = build_stage_command(stage, config)
+        try:
+            runner(command, check=True)
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise DatasetStageError(stage, command, exc) from exc
     return stages
 
 
@@ -128,7 +146,9 @@ def main() -> None:
         if args.dry_run:
             return
         run_pipeline(config, source="download" if args.download_raw_movielens else "existing")
-    except (MovieLensSourceError, ValueError, subprocess.CalledProcessError) as exc:
+    except DatasetStageError as exc:
+        raise SystemExit(f"Dataset stage failed: {exc.stage}") from exc
+    except (MovieLensSourceError, ValueError) as exc:
         raise SystemExit(f"Pipeline failed: {exc}") from exc
 
 

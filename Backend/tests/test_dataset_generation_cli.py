@@ -1,6 +1,7 @@
 import io
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -9,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from pipelines.dataset_generation import cli
+from pipelines.dataset_generation import cli, download_movielens_32m
 from pipelines.dataset_generation.movielens_source import (
     MovieLensSourceError,
     MovieLensSourcePaths,
@@ -19,6 +20,7 @@ from pipelines.dataset_generation.movielens_source import (
     prepare_source,
 )
 from pipelines.dataset_generation.run_movielens_32m_pipeline import (
+    DatasetStageError,
     DatasetPipelineConfig,
     build_stage_command,
     run_pipeline,
@@ -58,6 +60,42 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         self.assertEqual(1, cli.main([
             "--non-interactive", "--yes", "--source", "zip", "--dry-run",
         ]))
+
+    def test_noninteractive_non_raw_range_does_not_require_source(self) -> None:
+        self.assertEqual(0, cli.main([
+            "--non-interactive", "--yes", "--start-at", "catalog", "--stop-after", "export", "--dry-run",
+        ]))
+        self.assertEqual(1, cli.main([
+            "--non-interactive", "--yes", "--start-at", "candidates", "--dry-run",
+        ]))
+
+    def test_interactive_non_raw_range_skips_source_and_prints_one_plan(self) -> None:
+        args = cli.build_parser().parse_args(["--start-at", "catalog", "--stop-after", "export"])
+        with patch("pipelines.dataset_generation.cli._ask_choice", return_value="recommended"), patch(
+            "pipelines.dataset_generation.cli._ask_yes_no", return_value=False
+        ), patch("pipelines.dataset_generation.cli.has_valid_extracted_files") as raw:
+            config, source, zip_path = cli._interactive_configuration(args)
+        self.assertEqual("existing", source)
+        self.assertIsNone(zip_path)
+        self.assertEqual("catalog", config.start_at)
+        raw.assert_not_called()
+        config = DatasetPipelineConfig(start_at="catalog", stop_after="export", skip_posters=True)
+        output = io.StringIO()
+        with patch("pipelines.dataset_generation.cli._interactive_configuration", return_value=(config, "existing", None)), patch(
+            "pipelines.dataset_generation.cli._resolve_token", return_value=None
+        ), patch("builtins.input", return_value="n"), redirect_stdout(output):
+            cli.main([])
+        self.assertEqual(1, output.getvalue().count("Execution summary"))
+
+    def test_custom_stop_after_uses_explicit_default(self) -> None:
+        config = DatasetPipelineConfig(stop_after="export")
+        with patch("pipelines.dataset_generation.cli._ask_integer", side_effect=lambda _q, value, **_k: value), patch(
+            "pipelines.dataset_generation.cli._ask_yes_no", return_value=False
+        ), patch("pipelines.dataset_generation.cli._ask_text", side_effect=lambda _q, default=None, **_k: default), patch(
+            "pipelines.dataset_generation.cli._ask_choice", side_effect=lambda _q, _choices, default: default
+        ) as choice:
+            cli._ask_custom_config(config)
+        self.assertEqual("export", choice.call_args_list[-1].args[2])
 
     def test_dry_run_does_not_prepare_source_or_run_commands(self) -> None:
         runner = Mock()
@@ -99,7 +137,7 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         ) as run:
             self.assertEqual(0, cli.main([]))
         run.assert_not_called()
-        with patch("pipelines.dataset_generation.cli.run_pipeline", side_effect=subprocess.CalledProcessError(1, ["stage"])), patch.object(
+        with patch("pipelines.dataset_generation.cli.run_pipeline", side_effect=DatasetStageError("catalog", ["stage"], subprocess.CalledProcessError(1, ["stage"]))), patch.object(
             cli, "settings", SimpleNamespace(tmdb_bearer_token=None)
         ):
             self.assertEqual(1, cli.main([
@@ -111,6 +149,24 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         self.assertIn("--force", command)
         self.assertNotIn("--resume", command)
 
+    def test_legacy_downloader_force_requests_fresh_source(self) -> None:
+        paths = MovieLensSourcePaths(Path("/tmp/raw/ml-32m"), Path("/tmp/raw/ml-32m.zip"))
+        with patch.object(sys, "argv", ["download_movielens_32m", "--force"]), patch(
+            "pipelines.dataset_generation.download_movielens_32m.default_paths", return_value=paths
+        ), patch(
+            "pipelines.dataset_generation.download_movielens_32m.prepare_source", return_value="downloaded official MovieLens ZIP"
+        ) as prepare:
+            download_movielens_32m.main()
+        prepare.assert_called_once_with("download", paths=paths, force=True)
+
+    def test_stage_failures_identify_the_stage(self) -> None:
+        config = DatasetPipelineConfig(start_at="catalog", stop_after="catalog")
+        for failure in (subprocess.CalledProcessError(2, ["catalog"]), OSError("cannot start")):
+            with self.subTest(failure=type(failure).__name__):
+                with self.assertRaises(DatasetStageError) as raised:
+                    run_pipeline(config, runner=Mock(side_effect=failure))
+                self.assertEqual("catalog", raised.exception.stage)
+
 
 class MovieLensSourceTests(unittest.TestCase):
     def test_valid_nested_zip_recognition_and_safe_import(self) -> None:
@@ -120,7 +176,7 @@ class MovieLensSourceTests(unittest.TestCase):
             _write_zip(archive, {f"nested/ml-32m/{name}": name.encode() for name in _required_names()})
             paths = MovieLensSourcePaths(root / "raw" / "ml-32m", root / "raw" / "ml-32m.zip")
             self.assertEqual(set(_required_names()), set(inspect_zip(archive)))
-            self.assertEqual("imported", import_zip(archive, paths=paths))
+            self.assertIsNone(import_zip(archive, paths=paths))
             self.assertTrue(has_valid_extracted_files(paths.dataset_dir))
 
     def test_zip_rejects_missing_ambiguous_traversal_and_corrupt_content(self) -> None:
@@ -169,6 +225,31 @@ class MovieLensSourceTests(unittest.TestCase):
             downloader = Mock()
             self.assertEqual("reused existing raw files", prepare_source("download", paths=paths, download=downloader))
             downloader.assert_not_called()
+
+    def test_cached_and_fresh_download_outcomes_and_force(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = MovieLensSourcePaths(root / "raw" / "ml-32m", root / "raw" / "ml-32m.zip")
+            paths.zip_path.parent.mkdir(parents=True)
+            _write_zip(paths.zip_path, {f"ml-32m/{name}": b"cached" for name in _required_names()})
+            self.assertEqual("reused cached ZIP", prepare_source("download", paths=paths))
+            downloader = Mock(side_effect=lambda _url, target: _write_zip(target, {f"ml-32m/{name}": b"fresh" for name in _required_names()}))
+            self.assertEqual("downloaded official MovieLens ZIP", prepare_source("download", paths=paths, force=True, download=downloader))
+            downloader.assert_called_once()
+
+    def test_invalid_cached_zip_replaces_only_after_valid_download(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = MovieLensSourcePaths(root / "raw" / "ml-32m", root / "raw" / "ml-32m.zip")
+            paths.zip_path.parent.mkdir(parents=True)
+            paths.zip_path.write_bytes(b"bad cached zip")
+            downloader = Mock(side_effect=lambda _url, target: _write_zip(target, {f"ml-32m/{name}": b"new" for name in _required_names()}))
+            self.assertEqual("downloaded official MovieLens ZIP", prepare_source("download", paths=paths, download=downloader))
+            self.assertEqual(set(_required_names()), set(inspect_zip(paths.zip_path)))
+            paths.zip_path.write_bytes(b"old cache")
+            with self.assertRaises(MovieLensSourceError):
+                prepare_source("download", paths=MovieLensSourcePaths(root / "other" / "ml-32m", paths.zip_path), download=Mock(side_effect=OSError("offline")))
+            self.assertEqual(b"old cache", paths.zip_path.read_bytes())
 
     def test_zip_path_is_rejected_for_unrelated_source(self) -> None:
         self.assertEqual(1, cli.main([

@@ -6,10 +6,8 @@ from .movielens_source import MovieLensSourceError, default_paths, prepare_sourc
 def main() -> None:
     args = _parse_args()
     paths = default_paths()
-    if args.force:
-        paths.zip_path.unlink(missing_ok=True)
     try:
-        summary = prepare_source("download", paths=paths)
+        summary = prepare_source("download", paths=paths, force=args.force)
     except MovieLensSourceError as exc:
         raise SystemExit(f"MovieLens source preparation failed: {exc}") from exc
     print(f"MovieLens source: {summary}")

@@ -23,10 +23,12 @@ from app.project_paths.dataset_paths import (
 )
 from .movielens_source import MovieLensSourceError, default_paths, has_valid_extracted_files
 from .run_movielens_32m_pipeline import (
+    DatasetStageError,
     DatasetPipelineConfig,
     build_stage_command,
     run_pipeline,
     select_stages,
+    stages_require_raw_source,
 )
 
 
@@ -100,20 +102,23 @@ def validate_config(config: DatasetPipelineConfig) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        plan_printed = False
         if args.non_interactive:
-            _validate_non_interactive(args)
             config = resolve_config(args)
-            source = args.source
+            _validate_non_interactive(args, config)
+            source = args.source or "existing"
             token = _resolve_token(config, interactive=False, dry_run=args.dry_run)
         else:
             config, source, zip_path = _interactive_configuration(args)
             args.zip_path = zip_path
             token = _resolve_token(config, interactive=True, dry_run=args.dry_run)
             _print_plan(config, source, args.zip_path)
+            plan_printed = True
             if not args.dry_run and not _ask_yes_no("Run this dataset pipeline now?", default=False):
                 print("Cancelled. No pipeline stages were run.")
                 return 0
-        _print_plan(config, source, args.zip_path)
+        if not plan_printed:
+            _print_plan(config, source, args.zip_path)
         if args.dry_run:
             print("Dry run complete. No files were downloaded or modified.")
             return 0
@@ -124,7 +129,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Offline dataset: {OFFLINE_DATASET_DIR}")
         print("Recommender models were not rebuilt.")
         return 0
-    except (MovieLensSourceError, ValueError, subprocess.CalledProcessError) as exc:
+    except DatasetStageError as exc:
+        print(f"Dataset stage failed: {exc.stage}", file=sys.stderr)
+        print("Completed intermediate outputs were retained; rerun with --start-at to resume.", file=sys.stderr)
+        return 1
+    except (MovieLensSourceError, ValueError) as exc:
         print(f"Dataset pipeline failed: {exc}", file=sys.stderr)
         print("Completed intermediate outputs were retained; rerun with --start-at to resume.", file=sys.stderr)
         return 1
@@ -133,8 +142,8 @@ def main(argv: list[str] | None = None) -> int:
         return 130
 
 
-def _validate_non_interactive(args: argparse.Namespace) -> None:
-    if not args.source:
+def _validate_non_interactive(args: argparse.Namespace, config: DatasetPipelineConfig) -> None:
+    if stages_require_raw_source(config) and not args.source:
         raise ValueError("--non-interactive requires --source.")
     if args.source == "zip" and args.zip_path is None:
         raise ValueError("--source zip requires --zip-path.")
@@ -147,15 +156,18 @@ def _validate_non_interactive(args: argparse.Namespace) -> None:
 def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelineConfig, str, Path | None]:
     paths = default_paths()
     print(f"Persistent data root: {DATA_DIR}")
-    raw_available = has_valid_extracted_files(paths.dataset_dir)
-    print("MovieLens raw files: " + ("available" if raw_available else "missing or incomplete"))
-    source = _ask_choice("MovieLens source", ("existing", "download", "zip"), "existing" if raw_available else "download")
-    zip_path = Path(_ask_text("Path to MovieLens ZIP", required=True)) if source == "zip" else None
     preset = _ask_choice("Parameter profile", ("recommended", "defaults", "custom"), args.preset)
     args.preset = preset
     config = resolve_config(args)
     if preset == "custom":
         config = _ask_custom_config(config)
+    source = "existing"
+    zip_path = None
+    if stages_require_raw_source(config):
+        raw_available = has_valid_extracted_files(paths.dataset_dir)
+        print("MovieLens raw files: " + ("available" if raw_available else "missing or incomplete"))
+        source = _ask_choice("MovieLens source", ("existing", "download", "zip"), "existing" if raw_available else "download")
+        zip_path = Path(_ask_text("Path to MovieLens ZIP", required=True)) if source == "zip" else None
     config = replace(
         config,
         skip_posters=not _ask_yes_no("Download missing posters?", default=not args.skip_posters),
@@ -179,7 +191,7 @@ def _ask_custom_config(config: DatasetPipelineConfig) -> DatasetPipelineConfig:
     values["family_only"] = _ask_yes_no("Family-only mode?", default=bool(values["family_only"]))
     values["display_language"] = _ask_text("Display language", default=values["display_language"], required=True)
     values["start_at"] = _ask_choice("Start stage", ("candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"), values["start_at"])
-    values["stop_after"] = _ask_choice("Stop after stage (or none)", ("none", "candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"), "none")
+    values["stop_after"] = _ask_choice("Stop after stage (or none)", ("none", "candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"), values["stop_after"] or "none")
     if values["stop_after"] == "none":
         values["stop_after"] = None
     custom = DatasetPipelineConfig(**values)
@@ -204,7 +216,7 @@ def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | Non
     stages = select_stages(config)
     print("\nExecution summary")
     print(f"Data root: {DATA_DIR}")
-    print(f"Source: {source}" + (f" ({zip_path})" if zip_path else ""))
+    print((f"Source: {source}" + (f" ({zip_path})" if zip_path else "")) if stages_require_raw_source(config) else "MovieLens source preparation: not required for selected stages")
     print("Stages: " + ", ".join(stages))
     print("Existing generated candidate, enrichment, catalog, ratings and offline CSV outputs may be regenerated.")
     print("Existing posters are reused unless a stage explicitly replaces them. Recommender models are never touched.")
