@@ -11,15 +11,6 @@ from app.infrastructure.datasets.movielens_paths import (
     OFFLINE_DATASET_POSTERS_DIR,
 )
 
-
-if not OFFLINE_DATASET_POSTERS_DIR.exists():
-    raise RuntimeError(
-        "Offline posters directory is missing. "
-        "Run python -m app.scripts.download_offline_movie_posters first."
-    )
-
-OFFLINE_DATASET_AUDIT_DIR.mkdir(parents=True, exist_ok=True)
-
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -37,9 +28,13 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(catalog_router)
 app.include_router(recommendation_router)
-app.mount("/offline/posters", StaticFiles(directory=OFFLINE_DATASET_POSTERS_DIR), name="offline-posters")
+app.mount(
+    "/offline/posters",
+    StaticFiles(directory=OFFLINE_DATASET_POSTERS_DIR, check_dir=False),
+    name="offline-posters",
+)
 app.mount(
     "/audit",
-    StaticFiles(directory=OFFLINE_DATASET_AUDIT_DIR, html=True),
+    StaticFiles(directory=OFFLINE_DATASET_AUDIT_DIR, html=True, check_dir=False),
     name="offline-audit",
 )

@@ -1,13 +1,13 @@
 from pathlib import Path
 
+from app.infrastructure.datasets.movielens_paths import (
+    OFFLINE_DATASET_CSV_DIR,
+    RECOMMENDER_MODELS_DIR,
+)
 
-APP_DIR = Path(__file__).resolve().parents[3]
-BACKEND_DIR = Path(__file__).resolve().parents[4]
-DATA_DIR = APP_DIR / "data"
-OFFLINE_DATASET_DIR = DATA_DIR / "offline_dataset"
-OFFLINE_DATASET_CSV_DIR = OFFLINE_DATASET_DIR / "csv"
+
 PUBLIC_MOVIES_CSV_PATH = OFFLINE_DATASET_CSV_DIR / "public_movies.csv"
-CONTENT_BASED_OUTPUT_DIR = OFFLINE_DATASET_DIR / "recommendations" / "content_based"
+CONTENT_BASED_OUTPUT_DIR = RECOMMENDER_MODELS_DIR / "content_based"
 CONTENT_BASED_MODULE_DIR = Path(__file__).resolve().parent
 EXPLANATION_TEMPLATES_PATH = (
     CONTENT_BASED_MODULE_DIR / "templates" / "explanation_templates.json"

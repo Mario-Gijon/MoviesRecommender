@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'http://localhost:8014'
+const DEFAULT_API_URL = import.meta.env.DEV ? 'http://localhost:8014' : '/api'
 
 const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL
 
@@ -32,11 +32,19 @@ function normalizeApiPayload(value) {
 
   const normalizedEntries = Object.entries(value).map(([key, entryValue]) => {
     if (key === 'posterUrl' && typeof entryValue === 'string' && entryValue.startsWith('/')) {
-      return [key, new URL(entryValue, API_URL).toString()]
+      return [key, normalizeRelativeUrl(entryValue)]
     }
 
     return [key, normalizeApiPayload(entryValue)]
   })
 
   return Object.fromEntries(normalizedEntries)
+}
+
+function normalizeRelativeUrl(path) {
+  if (API_URL.startsWith('http://') || API_URL.startsWith('https://')) {
+    return new URL(path, API_URL).toString()
+  }
+
+  return path
 }

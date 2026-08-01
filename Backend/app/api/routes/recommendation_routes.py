@@ -9,7 +9,10 @@ from app.domain.recommendations.content_based.schemas import (
     ContentRecommendationRequest as DomainContentRecommendationRequest,
     TemporaryMovieRating,
 )
-from app.infrastructure.catalog.offline_catalog_repository import catalog_repository
+from app.infrastructure.catalog.offline_catalog_repository import (
+    OfflineCatalogDataUnavailableError,
+    catalog_repository,
+)
 from app.domain.recommendations.recommendation_schemas import (
     ContentBasedRecommendationRequest,
     ContentBasedRecommendationResponse,
@@ -30,7 +33,10 @@ router = APIRouter(tags=["recommendations"])
 
 @router.post("/recommendations", response_model=RecommendationResponse)
 def create_recommendations(payload: RecommendationRequest) -> RecommendationResponse:
-    return build_placeholder_response(payload)
+    try:
+        return build_placeholder_response(payload)
+    except OfflineCatalogDataUnavailableError as exc:
+        raise _runtime_data_unavailable() from exc
 
 
 @router.post(
@@ -52,16 +58,16 @@ def create_content_based_recommendations(
                 templateSessionId=payload.templateSessionId,
             )
         )
+        return _to_content_recommendation_response(response)
     except ContentRecommendationDomainError as exc:
         raise HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message}) from exc
+    except OfflineCatalogDataUnavailableError as exc:
+        raise _runtime_data_unavailable() from exc
     except RuntimeError as exc:
         raise HTTPException(
             status_code=500,
             detail={"code": "internal_error", "message": "Unexpected recommendation error."},
         ) from exc
-
-    return _to_content_recommendation_response(response)
-
 
 def _to_content_recommendation_response(
     response: DomainContentRecommendationResponse,
@@ -92,4 +98,14 @@ def _to_content_recommendation_response(
         ],
         templateSessionId=response.templateSessionId,
         limit=response.limit,
+    )
+
+
+def _runtime_data_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": "runtime_data_unavailable",
+            "message": "Runtime dataset or recommender artifacts are unavailable.",
+        },
     )

@@ -46,8 +46,8 @@ function App() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [catalogError, setCatalogError] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [templateSessionId] = useState(() => `frontend-session-${Date.now()}`)
   const catalogRequestIdRef = useRef(0)
-  const templateSessionIdRef = useRef(`frontend-session-${Date.now()}`)
 
   async function loadCatalogPage({ page, append, search }) {
     const requestId = catalogRequestIdRef.current + 1
@@ -201,7 +201,7 @@ function App() {
           rating,
         })),
         limit: 10,
-        templateSessionId: templateSessionIdRef.current,
+        templateSessionId,
       })
 
       setRecommendations(response)

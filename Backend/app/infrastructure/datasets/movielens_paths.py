@@ -1,7 +1,11 @@
 from pathlib import Path
 
+from app.core.config import settings
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+DATA_DIR = settings.data_dir
+RECOMMENDER_MODELS_DIR = DATA_DIR / "recommender_models"
+RECOMMENDER_AUDIT_DIR = DATA_DIR / "recommender_audit"
+TMP_DIR = DATA_DIR / "tmp"
 RAW_MOVIELENS_DIR = DATA_DIR / "raw" / "movielens"
 PIPELINE_CACHE_DIR = DATA_DIR / "pipeline_cache"
 ML_32M_PIPELINE_CACHE_DIR = PIPELINE_CACHE_DIR / "movielens_32m"

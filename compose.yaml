@@ -1,0 +1,32 @@
+name: movies-recommender
+
+services:
+  api:
+    image: ${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/api:${APP_VERSION:-0.1.0}
+    environment:
+      MOVIES_RECOMMENDER_DATA_DIR: /app/data
+    volumes:
+      - ${DATA_DIR:-./Backend/data}:/app/data
+    ports:
+      - ${BACKEND_BIND_HOST:-127.0.0.1}:${BACKEND_PORT:-8014}:8014
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8014"]
+
+  dataset:
+    image: ${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/dataset:${APP_VERSION:-0.1.0}
+    profiles: ["dataset"]
+    environment:
+      MOVIES_RECOMMENDER_DATA_DIR: /app/data
+    volumes:
+      - ${DATA_DIR:-./Backend/data}:/app/data
+    command: ["sh", "-c", "echo 'Dataset generation is not implemented in this phase.'"]
+
+  frontend:
+    image: ${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/frontend:${APP_VERSION:-0.1.0}
+    profiles: ["frontend"]
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - ${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-5173}:80
+    restart: unless-stopped
