@@ -37,10 +37,8 @@ body {
   overflow: hidden;
   color: var(--sinbad-text);
   background:
-    radial-gradient(circle at 16% 8%, rgba(63, 83, 160, 0.48), transparent 28%),
-    radial-gradient(circle at 82% 10%, rgba(102, 126, 234, 0.28), transparent 26%),
-    radial-gradient(circle at 50% 100%, rgba(214, 173, 76, 0.13), transparent 36%),
-    linear-gradient(135deg, #050816 0%, #0a102b 44%, #141b42 100%);
+    radial-gradient(ellipse 95% 58% at 14% -18%, rgba(73, 99, 184, 0.17), transparent 72%),
+    linear-gradient(145deg, #050816 0%, #09112c 52%, #101a38 100%);
 }
 
 body::before {
@@ -49,12 +47,12 @@ body::before {
   z-index: -1;
   content: "";
   pointer-events: none;
-  opacity: 0.22;
+  opacity: 0.12;
   background-image:
-    linear-gradient(rgba(174, 188, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(174, 188, 255, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(174, 188, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(174, 188, 255, 0.045) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: radial-gradient(circle at center, black, transparent 72%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), transparent 88%);
 }
 
 body::after {
@@ -63,10 +61,10 @@ body::after {
   z-index: -1;
   content: "";
   pointer-events: none;
-  opacity: 0.42;
+  opacity: 0.24;
   background:
-    linear-gradient(115deg, transparent 0 42%, rgba(174, 188, 255, 0.08) 48%, transparent 56%),
-    radial-gradient(circle at 50% 45%, transparent 0 52%, rgba(0, 0, 0, 0.28) 100%);
+    linear-gradient(115deg, transparent 0 42%, rgba(174, 188, 255, 0.035) 49%, transparent 58%),
+    linear-gradient(to bottom, transparent 0%, rgba(2, 5, 17, 0.16) 100%);
 }
 
 button,
@@ -1585,6 +1583,126 @@ button:disabled {
   }
 }
 
+/* Recommendation card expanded details: explanations and ratings coexist. */
+.recommendation-hover-details {
+  gap: 10px;
+  padding-top: 0;
+}
+
+.recommendation-rating-only {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    max-height 620ms ease,
+    opacity 580ms ease,
+    transform 620ms ease;
+}
+
+.recommendation-rating-action {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.recommendation-rating-control {
+  gap: 5px;
+}
+
+.recommendation-rating-control .poster-star {
+  width: 100%;
+  max-width: 56px;
+  min-height: 36px;
+  height: auto;
+  font-size: clamp(1.2rem, 3.2vw, 2.5rem);
+}
+
+.recommendation-card:hover .recommendation-hover-details,
+.recommendation-card:focus-within .recommendation-hover-details,
+.recommendation-card:hover .recommendation-rating-only,
+.recommendation-card:focus-within .recommendation-rating-only {
+  max-height: 360px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.recommendation-card:hover .recommendation-headline,
+.recommendation-card:focus-within .recommendation-headline {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.recommendation-card:hover .recommendation-poster-shade,
+.recommendation-card:focus-within .recommendation-poster-shade {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.36) 34%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.95) 100%);
+}
+
+.recommendation-rating-control .poster-star:focus-visible {
+  outline: 2px solid var(--sinbad-blue-3);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .recommendation-headline {
+    max-height: 64px;
+  }
+
+  .recommendation-hover-details {
+    max-height: 360px;
+    opacity: 1;
+    transform: none;
+  }
+
+  .recommendation-rating-only {
+    max-height: 360px;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.recommendation-stale-notice,
+.local-profile-note {
+  margin: 10px 0 0;
+  color: var(--sinbad-muted);
+  font-size: 0.9rem;
+}
+
+.recommendation-stale-notice {
+  border: 1px solid rgba(174, 188, 255, 0.16);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: rgba(24, 33, 78, 0.34);
+}
+
+.recommendation-rating-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: rgba(245, 247, 255, 0.8);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.recommendation-rating-control {
+  gap: 3px;
+}
+
+.recommendation-rating-control .poster-star {
+  width: 26px;
+  height: 26px;
+  font-size: 0.95rem;
+}
+
+.clear-profile-button {
+  margin: 16px 0;
+}
+
 /* Recommendation toolbar polish */
 .compact-recommend-toolbar {
   justify-content: flex-start;
@@ -1609,12 +1727,55 @@ button:disabled {
   min-height: 44px;
   border-color: rgba(144, 175, 232, 0.3);
   border-radius: 12px;
-  background: #0b1b3a;
+  background:
+    linear-gradient(135deg, rgba(63, 83, 160, 0.42), rgba(102, 126, 234, 0.2)),
+    var(--sinbad-panel);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .recommendation-algorithm-trigger:hover {
-  background: #102653;
+  background:
+    linear-gradient(135deg, rgba(63, 83, 160, 0.54), rgba(102, 126, 234, 0.28)),
+    var(--sinbad-panel);
+}
+
+/* Keep selected strategy text dark across hover, focus, and press states. */
+.game-strategy-button:hover:not(.active):not(:disabled) {
+  color: var(--sinbad-text);
+  background: rgba(103, 126, 234, 0.14);
+  transform: translateY(-2px);
+}
+
+.game-strategy-button.active,
+.game-strategy-button.active:hover,
+.game-strategy-button.active:focus-visible,
+.game-strategy-button.active:active {
+  color: #11183c;
+  background:
+    linear-gradient(135deg, #ffffff, #cfd7ff),
+    #ffffff;
+  outline: none;
+}
+
+.game-strategy-button.active:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 30px rgba(63, 83, 160, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.26) inset;
+}
+
+.game-strategy-button.active:disabled {
+  color: #11183c;
+}
+
+.recommendation-algorithm-menu {
+  background: var(--sinbad-ink-2);
+  border-color: var(--sinbad-border);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+}
+
+.recommendation-algorithm-option.selected {
+  color: var(--sinbad-blue-3);
 }
 
 .recommendation-algorithm-trigger:focus-visible {

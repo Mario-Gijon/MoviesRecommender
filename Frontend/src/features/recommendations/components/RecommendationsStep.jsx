@@ -15,6 +15,9 @@ function RecommendationsStep({
   recommendations,
   isLoadingRecommendations,
   ratedMoviesCount,
+  ratings,
+  onRate,
+  isStale,
 }) {
   const scrollPanelRef = useRef(null)
   const canGenerate =
@@ -45,18 +48,28 @@ function RecommendationsStep({
         </button>
       </div>
 
+      {isStale ? (
+        <p className="recommendation-stale-notice">Has cambiado tus valoraciones. Vuelve a recomendar para actualizar los resultados.</p>
+      ) : null}
+
       <section ref={scrollPanelRef} className="game-catalog-panel recommendations-stage">
         {recommendations ? (
           <div className="recommendations-panel">
-            <div className="recommendation-grid">
-              {recommendations.recommendations.map((item) => (
-                <RecommendationCard
-                  key={item.movie.movieId || item.movie.id}
-                  item={item}
-                  rank={item.rank}
-                />
-              ))}
-            </div>
+            {recommendations.recommendations.length ? (
+              <div className="recommendation-grid">
+                {recommendations.recommendations.map((item, index) => (
+                  <RecommendationCard
+                    key={item.movie.movieId || item.movie.id}
+                    item={item}
+                    rank={index + 1}
+                    rating={ratings[item.movie.movieId || item.movie.id] || null}
+                    onRate={onRate}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="game-state"><strong>Ya has valorado todas las películas de esta recomendación.</strong><span>Vuelve a recomendar para obtener nuevas opciones.</span></div>
+            )}
           </div>
         ) : (
           <div className="game-state">

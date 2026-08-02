@@ -1,9 +1,25 @@
 import { getMovieDisplayTitle } from '../../movies/movieDisplay'
+import MovieRatingControl from '../../movies/components/MovieRatingControl'
 
-function RecommendationCard({ item, rank }) {
+function RecommendationCard({ item, rank, rating, onRate }) {
   const movieTitle = getMovieDisplayTitle(item.movie)
-  const scoreLabel = item.score.toFixed(3)
-  const reasons = item.explanation.reasons.slice(0, 2)
+  const scoreLabel = Number(item.score || 0).toFixed(3)
+  const explanation = item.explanation || {}
+  const summary = typeof explanation.summary === 'string' ? explanation.summary : ''
+  const reasons = Array.isArray(explanation.reasons)
+    ? explanation.reasons.filter((reason) => typeof reason === 'string').slice(0, 2)
+    : []
+  const ratingAction = (
+    <div className="recommendation-rating-action">
+      <span>¿Ya la has visto? Valórala</span>
+      <MovieRatingControl
+        movie={item.movie}
+        rating={rating}
+        onRate={onRate}
+        className="recommendation-rating-control"
+      />
+    </div>
+  )
 
   return (
     <article
@@ -31,9 +47,9 @@ function RecommendationCard({ item, rank }) {
             <strong>{scoreLabel}</strong>
           </div>
 
-          {item.explanation.summary ? (
+          {summary ? (
             <p className="recommendation-headline">
-              {item.explanation.summary}
+              {summary}
             </p>
           ) : null}
 
@@ -44,8 +60,9 @@ function RecommendationCard({ item, rank }) {
                   <li key={`${item.movie.movieId || item.movie.id}-${reason}`}>{reason}</li>
                 ))}
               </ul>
+              {ratingAction}
             </div>
-          ) : null}
+          ) : <div className="recommendation-rating-only">{ratingAction}</div>}
         </div>
 
         <div className="recommendation-rank-badge">#{rank}</div>

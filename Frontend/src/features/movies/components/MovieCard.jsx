@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { getMovieDisplayTitle } from '../movieDisplay'
+import MovieRatingControl from './MovieRatingControl'
 
 function MovieCard({ movie, rating, onRate, index = 0 }) {
   const cardRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
-  const [hoveredRating, setHoveredRating] = useState(null)
   const isRated = Boolean(rating)
-  const previewRating = hoveredRating || rating || 0
   const movieTitle = getMovieDisplayTitle(movie)
 
   useEffect(() => {
@@ -61,31 +60,10 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
           </div>
 
           <div className="poster-actions">
-            <div
-              className="poster-stars"
-              aria-label={`Rate ${movieTitle}`}
-              onMouseLeave={() => setHoveredRating(null)}
-            >
-              {[1, 2, 3, 4, 5].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={value <= previewRating ? 'poster-star active' : 'poster-star'}
-                  style={{ '--star-order': value }}
-                  aria-label={`${value} stars`}
-                  aria-pressed={rating === value}
-                  onMouseEnter={() => setHoveredRating(value)}
-                  onFocus={() => setHoveredRating(value)}
-                  onBlur={() => setHoveredRating(null)}
-                  onClick={() => onRate(movie.id, value)}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
+            <MovieRatingControl movie={movie} rating={rating} onRate={onRate} />
 
             {isRated ? (
-              <button type="button" className="poster-clear" onClick={() => onRate(movie.id, null)}>
+              <button type="button" className="poster-clear" onClick={() => onRate(movie, null)}>
                 Clear
               </button>
             ) : null}

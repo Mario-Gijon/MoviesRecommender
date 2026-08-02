@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchPublicCatalogPage } from './features/movies/movies.api'
+import {
+  canonicalMovieId,
+  clearSession,
+  createDefaultSession,
+  loadSession,
+  mergeMovieSnapshot,
+  ratingsFingerprint,
+  saveSession,
+  validateOrMigrateSession,
+} from './features/profile/session'
 import RateMoviesStep from './features/movies/components/RateMoviesStep'
 import RatedMoviesStep from './features/movies/components/RatedMoviesStep'
 import RecommendationsStep from './features/recommendations/components/RecommendationsStep'
@@ -8,7 +18,6 @@ import {
   createRecommendationRequestId,
   requestRecommendations,
 } from './features/recommendations/recommendations.api'
-import { resolveAlgorithmForStrategy } from './features/recommendations/strategies'
 import AppLayout from './shared/components/AppLayout'
 import StepNavigation from './shared/components/StepNavigation'
 import StepShell from './shared/components/StepShell'
@@ -34,6 +43,7 @@ const STEPS = [
 const CATALOG_PAGE_SIZE = 40
 
 function App() {
+  const [restoredSession] = useState(loadSession)
   const [activeStep, setActiveStep] = useState(1)
   const [movies, setMovies] = useState([])
   const [movieIndex, setMovieIndex] = useState({})
@@ -42,17 +52,56 @@ function App() {
   const [catalogTotalPages, setCatalogTotalPages] = useState(0)
   const [catalogSearch, setCatalogSearch] = useState('')
   const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState('')
-  const [ratings, setRatings] = useState({})
-  const [selectedStrategy, setSelectedStrategy] = useState('content')
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState('tfidf')
-  const [selectedCollaborativeAlgorithm, setSelectedCollaborativeAlgorithm] = useState('item_knn')
-  const [recommendations, setRecommendations] = useState(null)
+  const [ratings, setRatings] = useState(restoredSession.ratings)
+  const [ratedMovieSnapshots, setRatedMovieSnapshots] = useState(restoredSession.ratedMovieSnapshots)
+  const [selectedStrategy, setSelectedStrategy] = useState(restoredSession.selectedStrategy)
+  const [selectedCollaborativeAlgorithm, setSelectedCollaborativeAlgorithm] = useState(restoredSession.selectedCollaborativeAlgorithm)
+  const [recommendationsByAlgorithm, setRecommendationsByAlgorithm] = useState(restoredSession.recommendationsByAlgorithm)
   const [isCatalogLoading, setIsCatalogLoading] = useState(true)
   const [isCatalogLoadingMore, setIsCatalogLoadingMore] = useState(false)
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [catalogError, setCatalogError] = useState('')
   const [recommendationError, setRecommendationError] = useState(null)
   const catalogRequestIdRef = useRef(0)
+  const skipNextPersistRef = useRef(false)
+  const selectedAlgorithm = selectedStrategy === 'content' ? 'tfidf' : selectedCollaborativeAlgorithm
+  const currentRatingsFingerprint = useMemo(() => ratingsFingerprint(ratings), [ratings])
+
+  useEffect(() => {
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false
+      return
+    }
+    saveSession({
+      version: 1,
+      ratings,
+      ratedMovieSnapshots,
+      selectedStrategy,
+      selectedCollaborativeAlgorithm,
+      recommendationsByAlgorithm,
+    })
+  }, [ratings, ratedMovieSnapshots, selectedStrategy, selectedCollaborativeAlgorithm, recommendationsByAlgorithm])
+
+  useEffect(() => {
+    function syncSession(event) {
+      if (event.key !== 'sinbad2.moviesRecommender.session.v1') return
+      let session = createDefaultSession()
+      try {
+        session = event.newValue ? validateOrMigrateSession(JSON.parse(event.newValue)) : session
+      } catch {
+        // A malformed external update must not disrupt the active tab.
+      }
+      skipNextPersistRef.current = true
+      setRatings(session.ratings)
+      setRatedMovieSnapshots(session.ratedMovieSnapshots)
+      setSelectedStrategy(session.selectedStrategy)
+      setSelectedCollaborativeAlgorithm(session.selectedCollaborativeAlgorithm)
+      setRecommendationsByAlgorithm(session.recommendationsByAlgorithm)
+      setRecommendationError(null)
+    }
+    window.addEventListener('storage', syncSession)
+    return () => window.removeEventListener('storage', syncSession)
+  }, [])
 
   async function loadCatalogPage({ page, append, search }) {
     const requestId = catalogRequestIdRef.current + 1
@@ -105,6 +154,18 @@ function App() {
         })
 
         return nextIndex
+      })
+      setRatedMovieSnapshots((currentSnapshots) => {
+        let changed = false
+        const nextSnapshots = { ...currentSnapshots }
+        response.items.forEach((movie) => {
+          const movieId = canonicalMovieId(movie)
+          if (movieId && ratings[movieId]) {
+            nextSnapshots[movieId] = mergeMovieSnapshot(nextSnapshots[movieId], movie)
+            changed = true
+          }
+        })
+        return changed ? nextSnapshots : currentSnapshots
       })
 
       setCatalogPage(response.page)
@@ -173,7 +234,9 @@ function App() {
     })
   }
 
-  function handleRate(movieId, rating) {
+  function handleRate(movie, rating) {
+    const movieId = canonicalMovieId(movie)
+    if (!movieId) return
     setRatings((currentRatings) => {
       const nextRatings = { ...currentRatings }
 
@@ -185,25 +248,23 @@ function App() {
 
       return nextRatings
     })
+    setRatedMovieSnapshots((currentSnapshots) => {
+      const nextSnapshots = { ...currentSnapshots }
+      if (rating === null) delete nextSnapshots[movieId]
+      else nextSnapshots[movieId] = mergeMovieSnapshot(nextSnapshots[movieId], movie)
+      return nextSnapshots
+    })
   }
 
   function handleSelectStrategy(strategy) {
     setSelectedStrategy(strategy)
-    setSelectedAlgorithm(
-      strategy === 'content'
-        ? resolveAlgorithmForStrategy(strategy, 'tfidf')
-        : selectedCollaborativeAlgorithm,
-    )
-    setRecommendations(null)
     setRecommendationError(null)
   }
 
   function handleSelectAlgorithm(algorithm) {
-    setSelectedAlgorithm(algorithm)
     if (selectedStrategy === 'collaborative') {
       setSelectedCollaborativeAlgorithm(algorithm)
     }
-    setRecommendations(null)
     setRecommendationError(null)
   }
 
@@ -231,7 +292,14 @@ function App() {
         limit: 10,
       })
 
-      setRecommendations(response)
+      setRecommendationsByAlgorithm((current) => ({
+        ...current,
+        [selectedAlgorithm]: {
+          response,
+          ratingsFingerprint: currentRatingsFingerprint,
+          generatedAt: new Date().toISOString(),
+        },
+      }))
     } catch (error) {
       setRecommendationError(
         error instanceof Error
@@ -247,12 +315,40 @@ function App() {
     () =>
       Object.entries(ratings)
         .map(([movieId, rating]) => {
-          const movie = movieIndex[Number(movieId)]
+          const movie = movieIndex[Number(movieId)] || ratedMovieSnapshots[Number(movieId)]
           return movie ? { ...movie, rating } : null
         })
         .filter(Boolean),
-    [movieIndex, ratings],
+    [movieIndex, ratedMovieSnapshots, ratings],
   )
+
+  const cachedRecommendation = recommendationsByAlgorithm[selectedAlgorithm]
+  const visibleRecommendations = useMemo(() => {
+    if (!cachedRecommendation?.response) return null
+    return {
+      ...cachedRecommendation.response,
+      recommendations: cachedRecommendation.response.recommendations.filter(
+        (item) => !ratings[canonicalMovieId(item.movie)],
+      ),
+    }
+  }, [cachedRecommendation, ratings])
+  const recommendationsAreStale = Boolean(
+    cachedRecommendation && cachedRecommendation.ratingsFingerprint !== currentRatingsFingerprint,
+  )
+
+  function handleClearProfile() {
+    if (!window.confirm('¿Quieres borrar todas tus valoraciones y recomendaciones guardadas?\n\nEsta acción reiniciará tu perfil local y no se puede deshacer.')) return
+    const session = createDefaultSession()
+    skipNextPersistRef.current = true
+    clearSession()
+    setRatings(session.ratings)
+    setRatedMovieSnapshots(session.ratedMovieSnapshots)
+    setSelectedStrategy(session.selectedStrategy)
+    setSelectedCollaborativeAlgorithm(session.selectedCollaborativeAlgorithm)
+    setRecommendationsByAlgorithm(session.recommendationsByAlgorithm)
+    setRecommendationError(null)
+    setActiveStep(1)
+  }
 
   const ratedMoviesCount = ratedMovies.length
   const hasMoreCatalogPages = catalogPage < catalogTotalPages
@@ -290,8 +386,9 @@ function App() {
           <RatedMoviesStep
             ratedMovies={ratedMovies}
             ratings={ratings}
-            profileChips={[]}
             onRate={handleRate}
+            onClearProfile={handleClearProfile}
+            canClearProfile={Boolean(ratedMovies.length || Object.keys(recommendationsByAlgorithm).length)}
           />
         ) : null}
 
@@ -302,9 +399,12 @@ function App() {
             selectedAlgorithm={selectedAlgorithm}
             onSelectAlgorithm={handleSelectAlgorithm}
             onGenerateRecommendations={handleGenerateRecommendations}
-            recommendations={recommendations}
+            recommendations={visibleRecommendations}
             isLoadingRecommendations={isLoadingRecommendations}
             ratedMoviesCount={ratedMoviesCount}
+            ratings={ratings}
+            onRate={handleRate}
+            isStale={recommendationsAreStale}
           />
         ) : null}
       </StepShell>
