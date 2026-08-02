@@ -29,6 +29,28 @@ from pipelines.dataset_generation.run_movielens_32m_pipeline import (
 
 
 class DatasetCliConfigurationTests(unittest.TestCase):
+    def test_interactive_action_routes_before_generation_configuration(self) -> None:
+        args = cli.build_parser().parse_args(["--start-at", "catalog", "--stop-after", "catalog"])
+        with patch("pipelines.dataset_generation.cli._ask_action", return_value="generate") as action, patch(
+            "pipelines.dataset_generation.cli._ask_choice", return_value="recommended"
+        ), patch("pipelines.dataset_generation.cli._ask_yes_no", return_value=False):
+            cli._interactive_configuration(args)
+        action.assert_not_called()
+
+    def test_interactive_reconfigure_skips_generation_questions(self) -> None:
+        args = cli.build_parser().parse_args([])
+        with patch("pipelines.dataset_generation.cli._ask_action", return_value="reconfigure"), patch(
+            "pipelines.dataset_generation.cli._ask_public_audience_policy", return_value="family_only"
+        ), patch("pipelines.dataset_generation.cli._ask_configuration_mode") as mode, patch(
+            "pipelines.dataset_generation.cli._ask_source"
+        ) as source, patch("pipelines.dataset_generation.cli._ask_cleanup") as cleanup:
+            config, selected_source, zip_path = cli._interactive_configuration(args)
+        self.assertEqual("reconfigure", selected_source)
+        self.assertIsNone(zip_path)
+        self.assertEqual("family_only", args.public_audience_policy)
+        self.assertEqual(DatasetPipelineConfig(), config)
+        mode.assert_not_called(); source.assert_not_called(); cleanup.assert_not_called()
+
     def test_recommended_preset_values(self) -> None:
         config = cli.resolve_config(cli.build_parser().parse_args(["--preset", "recommended"]))
         self.assertEqual(15000, config.candidate_limit)

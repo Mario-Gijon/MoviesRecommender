@@ -57,6 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate the portable MovieLens/TMDB offline dataset.")
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Skip final confirmation.")
+    parser.add_argument("--action", choices=("generate", "reconfigure"))
     parser.add_argument("--source", choices=("existing", "download", "zip", "reconfigure"))
     parser.add_argument("--public-audience-policy", choices=tuple(POLICIES))
     parser.add_argument("--zip-path", type=Path)
@@ -117,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.non_interactive:
             config = resolve_config(args)
             _validate_non_interactive(args, config)
-            source = args.source or "existing"
+            source = "reconfigure" if (args.action == "reconfigure" or args.source == "reconfigure" or args.public_audience_policy) else (args.source or "existing")
             if source == "reconfigure":
                 return _run_offline_reconfiguration(args)
             token = _resolve_token(config, interactive=False, dry_run=args.dry_run)
@@ -166,7 +167,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _validate_non_interactive(args: argparse.Namespace, config: DatasetPipelineConfig) -> None:
-    if args.source == "reconfigure":
+    reconfigure_requested = args.action == "reconfigure" or args.source == "reconfigure" or bool(args.public_audience_policy)
+    if args.action == "generate" and reconfigure_requested:
+        raise ValueError("Generation action cannot be combined with reconfiguration options.")
+    if reconfigure_requested:
         if not args.public_audience_policy:
             raise ValueError("--source reconfigure requires --public-audience-policy.")
         if args.zip_path is not None:
@@ -185,7 +189,17 @@ def _validate_non_interactive(args: argparse.Namespace, config: DatasetPipelineC
 def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelineConfig, str, Path | None]:
     paths = default_paths()
     print(f"Persistent data root: {DATA_DIR}")
-    mode = _ask_configuration_mode()
+    selected_action = _resolve_interactive_action(args)
+    # Keep direct callers of the pre-action helper compatible: older tests and
+    # integrations may supply a configuration-mode value as the first choice.
+    legacy_mode = selected_action if selected_action in {"recommended", "custom", "advanced"} else None
+    action = "generate" if legacy_mode else selected_action
+    args.configuration_action = action
+    if action == "reconfigure":
+        args.public_audience_policy = args.public_audience_policy or _ask_public_audience_policy()
+        return DatasetPipelineConfig(), "reconfigure", None
+
+    mode = legacy_mode or _ask_configuration_mode()
     args.configuration_mode = mode
     args.preset = "recommended" if mode in {"recommended", "custom"} else "defaults"
     config = resolve_config(args)
@@ -199,9 +213,6 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
     zip_path = None
     if stages_require_raw_source(config):
         source = _ask_source("existing")
-        if source == "reconfigure":
-            args.public_audience_policy = _ask_public_audience_policy()
-            return config, source, None
         raw_available = has_valid_extracted_files(paths.dataset_dir)
         print("MovieLens raw files: " + ("available" if raw_available else "missing or incomplete"))
         zip_path = Path(_ask_text("Path to MovieLens ZIP", required=True)) if source == "zip" else None
@@ -314,8 +325,24 @@ def _ask_configuration_mode() -> str:
 
 
 def _ask_source(default: str) -> str:
-    print("Choose how MovieLens data will be obtained:\n\n1. Download automatically\n   Downloads the official MovieLens 32M archive.\n\n2. Reuse existing files\n   Uses valid files already stored in the persistent data directory.\n\n3. Import a local ZIP\n   Imports an existing MovieLens 32M ZIP from this computer.\n\n4. Reconfigure an existing offline dataset\n   Updates the public catalogue policy using an already-generated dataset.\n   Does not require MovieLens raw files or pipeline cache.")
-    return _ask_choice("MovieLens source", ("download", "existing", "zip", "reconfigure"), default)
+    print("Choose how MovieLens data will be obtained:\n\n1. Download automatically\n   Downloads the official MovieLens 32M archive.\n\n2. Reuse existing files\n   Uses valid files already stored in the persistent data directory.\n\n3. Import a local ZIP\n   Imports an existing MovieLens 32M ZIP from this computer.")
+    return _ask_choice("MovieLens source", ("download", "existing", "zip"), default)
+
+
+def _resolve_interactive_action(args: argparse.Namespace) -> str:
+    """Resolve explicit automation flags before asking the interactive action."""
+    if args.action:
+        return args.action
+    if args.source == "reconfigure" or args.public_audience_policy:
+        return "reconfigure"
+    if args.source in {"download", "existing", "zip"} or args.start_at or args.stop_after:
+        return "generate"
+    return _ask_action()
+
+
+def _ask_action() -> str:
+    print("What would you like to do?\n\n1. Generate or rebuild an offline dataset\n   Configures and runs the MovieLens dataset pipeline.\n\n2. Reconfigure an existing offline dataset\n   Changes the public audience policy without rebuilding the dataset.")
+    return _ask_choice("Action", ("generate", "reconfigure"), "generate")
 
 
 def _ask_public_audience_policy() -> str:
