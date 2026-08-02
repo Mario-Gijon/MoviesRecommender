@@ -16,6 +16,7 @@ from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_POSTERS_DIR,
     OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH,
 )
+from app.catalog.constants import PUBLIC_MIN_RUNTIME_MINUTES
 
 
 LIST_SEPARATOR = "|"
@@ -175,7 +176,7 @@ def main() -> None:
         excluded_movies_count=len(excluded_rows),
         collaborative_ratings_count=collaborative_ratings_written,
         public_audience_policy=catalog.get("summary", {}).get("publicAudiencePolicy", "family_and_teen"),
-        public_min_runtime=catalog.get("summary", {}).get("publicMinRuntime", 60),
+        minimum_runtime_minutes=PUBLIC_MIN_RUNTIME_MINUTES,
     )
     OFFLINE_DATASET_MANIFEST_PATH.write_text(
         json.dumps(manifest, indent=2),
@@ -570,7 +571,7 @@ def _build_manifest(
     excluded_movies_count: int,
     collaborative_ratings_count: int,
     public_audience_policy: str,
-    public_min_runtime: int,
+    minimum_runtime_minutes: int,
 ) -> dict:
     return {
         "datasetName": "movies_recommender_offline_dataset",
@@ -583,7 +584,7 @@ def _build_manifest(
         "publicAudiencePolicy": public_audience_policy,
         "publicCataloguePolicy": {
             "excludeDocumentaries": True,
-            "publicMinRuntime": public_min_runtime,
+            "minimumRuntimeMinutes": minimum_runtime_minutes,
         },
         "listSeparator": LIST_SEPARATOR,
         "counts": {

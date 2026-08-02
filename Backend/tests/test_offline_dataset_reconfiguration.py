@@ -54,7 +54,7 @@ class OfflineDatasetReconfigurationTests(unittest.TestCase):
             root = Path(temporary) / "offline_dataset"; csv_dir = root / "csv"; csv_dir.mkdir(parents=True)
             documentary = _row("1", "family_friendly"); documentary.update(genres="Documentary", runtime="90")
             short = _row("2", "family_friendly"); short.update(genres="Drama", runtime="59")
-            regular = _row("3", "family_friendly"); regular.update(genres="Drama", runtime="60")
+            regular = _row("3", "family_friendly"); regular.update(genres="Drama", runtime="70")
             _write(csv_dir / "public_movies.csv", PUBLIC_MOVIE_COLUMNS, [documentary, short, regular])
             _write(csv_dir / "collaborative_support_movies.csv", SUPPORT_MOVIE_COLUMNS, [])
             _write(csv_dir / "excluded_movies.csv", SUPPORT_MOVIE_COLUMNS + ["exclusionCategory", "exclusionReasons"], [])

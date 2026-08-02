@@ -1585,6 +1585,56 @@ button:disabled {
   }
 }
 
+/* Recommendation toolbar polish */
+.compact-recommend-toolbar {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.compact-recommend-toolbar .game-strategy-tabs {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.compact-recommend-toolbar .recommendation-algorithm-selector {
+  flex: 0 1 220px;
+  min-width: 180px;
+}
+
+.compact-recommend-toolbar .generate-button {
+  flex: 0 0 auto;
+}
+
+.recommendation-algorithm-trigger {
+  min-height: 44px;
+  border-color: rgba(144, 175, 232, 0.3);
+  border-radius: 12px;
+  background: #0b1b3a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.recommendation-algorithm-trigger:hover {
+  background: #102653;
+}
+
+.recommendation-algorithm-trigger:focus-visible {
+  border-color: var(--sinbad-blue-3);
+  box-shadow: 0 0 0 3px rgba(103, 217, 255, 0.16);
+}
+
+@media (max-width: 640px) {
+  .compact-recommend-toolbar {
+    gap: 8px;
+  }
+
+  .compact-recommend-toolbar .game-strategy-tabs,
+  .compact-recommend-toolbar .recommendation-algorithm-selector,
+  .compact-recommend-toolbar .generate-button {
+    width: 100%;
+    flex-basis: 100%;
+  }
+}
+
 @media (max-width: 760px) {
   .game-shell {
     grid-template-rows: auto minmax(0, 1fr) auto;

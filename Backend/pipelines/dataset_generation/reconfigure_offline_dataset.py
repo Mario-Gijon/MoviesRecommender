@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from app.catalog import collaborative_sort_key, public_sort_key
+from app.catalog.constants import PUBLIC_MIN_RUNTIME_MINUTES
 from .export_offline_dataset_from_movielens_32m import (
     PUBLIC_MOVIE_COLUMNS,
     SUPPORT_MOVIE_COLUMNS,
@@ -55,7 +56,7 @@ class ReconfigurationSummary:
 
 def preview(dataset_dir: Path, policy: str) -> ReconfigurationSummary:
     canonical, current_public, current_support, manifest = _load_catalogue(dataset_dir)
-    public_rows, support_rows = _partition(canonical, policy, _public_min_runtime(manifest))
+    public_rows, support_rows = _partition(canonical, policy)
     return ReconfigurationSummary(
         dataset_dir=dataset_dir,
         current_policy=str(manifest.get("publicAudiencePolicy") or "family_and_teen"),
@@ -70,7 +71,7 @@ def preview(dataset_dir: Path, policy: str) -> ReconfigurationSummary:
 def reconfigure(dataset_dir: Path, policy: str, *, regenerate_audit: Callable[[], None] | None = None) -> ReconfigurationSummary:
     canonical, current_public, current_support, manifest = _load_catalogue(dataset_dir)
     current_policy = str(manifest.get("publicAudiencePolicy") or "family_and_teen")
-    public_rows, support_rows = _partition(canonical, policy, _public_min_runtime(manifest))
+    public_rows, support_rows = _partition(canonical, policy)
     _validate_partition(canonical, public_rows, support_rows, policy)
     manifest = dict(manifest)
     counts = dict(manifest.get("counts") or {})
@@ -146,13 +147,13 @@ def _migrate_legacy(public: list[dict[str, str]], support: list[dict[str, str]])
     return list(by_id.values())
 
 
-def _partition(canonical: list[dict[str, str]], policy: str, public_min_runtime: int) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+def _partition(canonical: list[dict[str, str]], policy: str) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     if policy not in POLICIES:
         raise OfflineDatasetReconfigurationError(f"Unsupported public audience policy: {policy}.")
     public: list[dict[str, str]] = []
     support: list[dict[str, str]] = []
     for row in canonical:
-        policy_reasons = _catalogue_policy_reasons(row, public_min_runtime)
+        policy_reasons = _catalogue_policy_reasons(row)
         base_reasons = _split(row.get("basePublicExclusionReasons"))
         for reason in policy_reasons:
             if reason not in base_reasons:
@@ -224,15 +225,12 @@ def _validate_unique(rows: list[dict[str, str]], label: str) -> None:
 
 
 def _split(value: str | None) -> list[str]: return [part for part in (value or "").split("|") if part]
-def _public_min_runtime(manifest: dict) -> int:
-    try: return int((manifest.get("publicCataloguePolicy") or {}).get("publicMinRuntime", 60))
-    except (TypeError, ValueError): return 60
-def _catalogue_policy_reasons(row: dict[str, str], public_min_runtime: int) -> list[str]:
+def _catalogue_policy_reasons(row: dict[str, str]) -> list[str]:
     genres = {value.strip().casefold() for value in _split(row.get("genres"))}
     reasons = ["documentary"] if "documentary" in genres else []
     try: runtime = float(row.get("runtime") or "")
     except ValueError: runtime = None
-    if runtime is not None and runtime < public_min_runtime: reasons.append("short_runtime")
+    if runtime is not None and runtime < PUBLIC_MIN_RUNTIME_MINUTES: reasons.append("short_runtime")
     return reasons
 def _join(values: list[str]) -> str: return "|".join(dict.fromkeys(values))
 def _public_row_sort_key(row: dict[str, str]) -> tuple:

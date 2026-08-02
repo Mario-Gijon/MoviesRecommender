@@ -1,12 +1,13 @@
 from argparse import Namespace
 import unittest
 
+from app.catalog.constants import PUBLIC_MIN_RUNTIME_MINUTES
 from app.catalog.filtering import build_public_exclusion_reasons, is_collaborative_candidate, is_public_candidate
-from pipelines.dataset_generation.export_offline_dataset_from_movielens_32m import _build_catalog_index
+from pipelines.dataset_generation.export_offline_dataset_from_movielens_32m import _build_catalog_index, _build_manifest
 
 
 def _args(**overrides):
-    values = dict(min_ratings=100, public_min_year=2000, collaborative_min_year=1990, family_only=False, public_min_runtime=60)
+    values = dict(min_ratings=100, public_min_year=2000, collaborative_min_year=1990, family_only=False)
     values.update(overrides)
     return Namespace(**values)
 
@@ -44,11 +45,25 @@ class PublicCataloguePolicyTests(unittest.TestCase):
         self.assertEqual(["documentary", "short_runtime"], reasons)
 
     def test_runtime_boundary_and_missing_runtime_remain_eligible(self):
-        for runtime in (60, None):
+        for runtime in (70, None):
             with self.subTest(runtime=runtime):
                 movie = _movie(genres=["Drama"], runtime=runtime)
                 self.assertNotIn("short_runtime", build_public_exclusion_reasons(movie, args=_args()))
                 self.assertTrue(is_public_candidate(movie, args=_args()))
+
+    def test_runtime_constant_is_fixed_at_70_minutes(self):
+        self.assertEqual(70, PUBLIC_MIN_RUNTIME_MINUTES)
+
+    def test_manifest_records_minimum_runtime_minutes(self):
+        manifest = _build_manifest(
+            public_movies_count=1,
+            collaborative_support_movies_count=1,
+            excluded_movies_count=1,
+            collaborative_ratings_count=1,
+            public_audience_policy="family_and_teen",
+            minimum_runtime_minutes=PUBLIC_MIN_RUNTIME_MINUTES,
+        )
+        self.assertEqual(70, manifest["publicCataloguePolicy"]["minimumRuntimeMinutes"])
 
     def test_existing_reasons_are_preserved(self):
         movie = _movie(genres=["Documentary"], runtime=90)
