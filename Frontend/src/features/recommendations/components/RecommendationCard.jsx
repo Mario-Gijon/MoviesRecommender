@@ -1,45 +1,110 @@
-import { getMovieDisplayTitle } from '../../movies/movieDisplay'
-import MovieRatingControl from '../../movies/components/MovieRatingControl'
+import { useEffect, useRef, useState } from 'react'
 
-function RecommendationCard({ item, rank, rating, onRate }) {
-  const movieTitle = getMovieDisplayTitle(item.movie)
-  const scoreLabel = Number(item.score || 0).toFixed(3)
+import MovieRatingControl from '../../movies/components/MovieRatingControl'
+import { getMovieDisplayTitle } from '../../movies/movieDisplay'
+
+const EXIT_ANIMATION_MS = 520
+
+function RecommendationCard({
+  item,
+  rank,
+  rating,
+  onRate,
+}) {
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [exitRating, setExitRating] = useState(null)
+  const exitTimeoutRef = useRef(null)
+
+  const movie = item.movie
+  const movieTitle = getMovieDisplayTitle(movie)
+
+  const numericScore = Number(item.score)
+  const scoreLabel = Number.isFinite(numericScore)
+    ? numericScore.toFixed(3)
+    : '0.000'
+
   const explanation = item.explanation || {}
-  const summary = typeof explanation.summary === 'string' ? explanation.summary : ''
+
+  const summary = typeof explanation.summary === 'string'
+    ? explanation.summary.trim()
+    : ''
+
   const reasons = Array.isArray(explanation.reasons)
-    ? explanation.reasons.filter((reason) => typeof reason === 'string').slice(0, 2)
+    ? explanation.reasons
+        .filter((reason) => typeof reason === 'string' && reason.trim())
+        .slice(0, 2)
     : []
-  const ratingAction = (
-    <div className="recommendation-rating-action">
-      <span>¿Ya la has visto? Valórala</span>
-      <MovieRatingControl
-        movie={item.movie}
-        rating={rating}
-        onRate={onRate}
-        className="recommendation-rating-control"
-      />
-    </div>
-  )
+
+  const hasReasons = reasons.length > 0
+
+  useEffect(() => {
+    return () => {
+      if (exitTimeoutRef.current !== null) {
+        window.clearTimeout(exitTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  function handleRateRecommendedMovie(ratedMovie, selectedRating) {
+    if (isLeaving) return
+
+    setExitRating(selectedRating)
+    setIsLeaving(true)
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+    exitTimeoutRef.current = window.setTimeout(
+      () => {
+        onRate(ratedMovie, selectedRating)
+      },
+      prefersReducedMotion ? 30 : EXIT_ANIMATION_MS,
+    )
+  }
+
+  const cardClassName = [
+    'poster-card',
+    'recommendation-card',
+    'visible',
+    isLeaving ? 'recommendation-card--leaving' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <article
-      className="poster-card recommendation-card visible"
+      className={cardClassName}
       style={{ '--card-order': rank % 16 }}
+      tabIndex={0}
     >
       <div className="poster-frame recommendation-frame">
-        {item.movie.posterUrl ? (
-          <img src={item.movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
+        {movie.posterUrl ? (
+          <img
+            src={movie.posterUrl}
+            alt={`${movieTitle} poster`}
+            loading="lazy"
+          />
         ) : (
-          <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
+          <span className="poster-fallback">
+            {movieTitle.slice(0, 1)}
+          </span>
         )}
 
-        <div className="poster-shade recommendation-poster-shade" aria-hidden="true" />
+        <div
+          className="poster-shade recommendation-poster-shade"
+          aria-hidden="true"
+        />
+
         <div className="poster-light" aria-hidden="true" />
 
         <div className="poster-overlay recommendation-overlay">
           <div className="poster-title-block">
             <h3>{movieTitle}</h3>
-            {item.movie.year ? <span>{item.movie.year}</span> : null}
+
+            {movie.year ? (
+              <span>{movie.year}</span>
+            ) : null}
           </div>
 
           <div className="recommendation-score-line">
@@ -53,19 +118,52 @@ function RecommendationCard({ item, rank, rating, onRate }) {
             </p>
           ) : null}
 
-          {reasons.length ? (
-            <div className="recommendation-hover-details">
-              <ul>
+          <div
+            className={[
+              'recommendation-interaction-panel',
+              hasReasons ? 'has-reasons' : 'rating-only',
+            ].join(' ')}
+          >
+            {hasReasons ? (
+              <ul className="recommendation-reasons">
                 {reasons.map((reason) => (
-                  <li key={`${item.movie.movieId || item.movie.id}-${reason}`}>{reason}</li>
+                  <li
+                    key={`${movie.movieId || movie.id}-${reason}`}
+                  >
+                    {reason}
+                  </li>
                 ))}
               </ul>
-              {ratingAction}
+            ) : null}
+
+            <div className="recommendation-rating-action">
+              <span>¿Ya la has visto? Valórala</span>
+
+              <MovieRatingControl
+                movie={movie}
+                rating={rating}
+                onRate={handleRateRecommendedMovie}
+                className="recommendation-rating-control"
+                disabled={isLeaving}
+              />
             </div>
-          ) : <div className="recommendation-rating-only">{ratingAction}</div>}
+          </div>
         </div>
 
-        <div className="recommendation-rank-badge">#{rank}</div>
+        <div className="recommendation-rank-badge">
+          #{rank}
+        </div>
+
+        {isLeaving ? (
+          <div
+            className="recommendation-rating-confirmation"
+            role="status"
+            aria-live="polite"
+          >
+            <strong>{exitRating}★</strong>
+            <span>¡Valorada!</span>
+          </div>
+        ) : null}
       </div>
     </article>
   )

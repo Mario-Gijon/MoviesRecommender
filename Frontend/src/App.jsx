@@ -12,8 +12,11 @@ import {
   validateOrMigrateSession,
 } from './features/profile/session'
 import RateMoviesStep from './features/movies/components/RateMoviesStep'
+import RateMoviesControls from './features/movies/components/RateMoviesControls'
 import RatedMoviesStep from './features/movies/components/RatedMoviesStep'
+import RatedMoviesControls from './features/movies/components/RatedMoviesControls'
 import RecommendationsStep from './features/recommendations/components/RecommendationsStep'
+import RecommendationControls from './features/recommendations/components/RecommendationControls'
 import {
   createRecommendationRequestId,
   requestRecommendations,
@@ -361,22 +364,48 @@ function App() {
       ? recommendationError?.message || ''
       : ''
 
+  const sectionControls = activeStep === 1 ? (
+    <RateMoviesControls
+      catalogSearch={catalogSearch}
+      ratedMoviesCount={ratedMoviesCount}
+      onSearchChange={setCatalogSearch}
+    />
+  ) : activeStep === 2 ? (
+    <RatedMoviesControls
+      ratedMoviesCount={ratedMoviesCount}
+      onClearProfile={handleClearProfile}
+      canClearProfile={Boolean(ratedMovies.length || Object.keys(recommendationsByAlgorithm).length)}
+    />
+  ) : (
+    <RecommendationControls
+      selectedStrategy={selectedStrategy}
+      onSelectStrategy={handleSelectStrategy}
+      selectedAlgorithm={selectedAlgorithm}
+      onSelectAlgorithm={handleSelectAlgorithm}
+      onGenerateRecommendations={handleGenerateRecommendations}
+      isLoadingRecommendations={isLoadingRecommendations}
+      ratedMoviesCount={ratedMoviesCount}
+    />
+  )
+
   return (
-    <AppLayout activeStep={activeStep} steps={STEPS} onStepSelect={setActiveStep}>
+    <AppLayout
+      activeStep={activeStep}
+      steps={STEPS}
+      onStepSelect={setActiveStep}
+      sectionControls={sectionControls}
+    >
       <StepShell errorMessage={stepErrorMessage}>
         {activeStep === 1 ? (
           <RateMoviesStep
             movies={movies}
             ratings={ratings}
-            ratedMoviesCount={ratedMoviesCount}
-            catalogSearch={catalogSearch}
             isCatalogLoading={isCatalogLoading}
             isCatalogLoadingMore={isCatalogLoadingMore}
             catalogHasLoaded={catalogPage > 0 || movies.length > 0}
             hasMoreCatalogPages={hasMoreCatalogPages}
             catalogError={catalogError}
             onRate={handleRate}
-            onSearchChange={setCatalogSearch}
             onLoadMore={handleLoadMoreMovies}
             onRetryLoadMovies={handleRetryLoadMovies}
           />
@@ -387,17 +416,12 @@ function App() {
             ratedMovies={ratedMovies}
             ratings={ratings}
             onRate={handleRate}
-            onClearProfile={handleClearProfile}
-            canClearProfile={Boolean(ratedMovies.length || Object.keys(recommendationsByAlgorithm).length)}
           />
         ) : null}
 
         {activeStep === 3 ? (
           <RecommendationsStep
             selectedStrategy={selectedStrategy}
-            onSelectStrategy={handleSelectStrategy}
-            selectedAlgorithm={selectedAlgorithm}
-            onSelectAlgorithm={handleSelectAlgorithm}
             onGenerateRecommendations={handleGenerateRecommendations}
             recommendations={visibleRecommendations}
             isLoadingRecommendations={isLoadingRecommendations}

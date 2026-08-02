@@ -109,16 +109,20 @@ button:disabled {
   height: 100vh;
   height: 100dvh;
   margin: 0 auto;
-  padding: 14px 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 14px;
+  padding: 0 0 14px;
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(102, 126, 234, 0.9) rgba(255, 255, 255, 0.06);
 }
 
 .game-header {
   display: grid;
-  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 14px;
   align-items: end;
 }
 
@@ -126,7 +130,8 @@ button:disabled {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding-bottom: 2px;
+  width: max-content;
+  padding-bottom: 0;
 }
 
 .game-brand-mark {
@@ -146,7 +151,7 @@ button:disabled {
 }
 
 .game-brand-logo {
-  width: clamp(170px, 10vw, 230px);
+  width: clamp(160px, 9vw, 210px);
   height: auto;
   display: block;
   flex: 0 0 auto;
@@ -262,14 +267,13 @@ button:disabled {
 }
 
 .game-main {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  min-height: calc(100dvh - 180px);
+  display: block;
 }
 
 .game-step-shell {
   min-height: 0;
-  display: grid;
+  display: block;
   position: relative;
 }
 
@@ -294,9 +298,7 @@ button:disabled {
 .review-game-step,
 .recommend-game-step {
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
+  display: block;
 }
 
 .compact-step {
@@ -402,30 +404,10 @@ button:disabled {
 .game-catalog-panel,
 .scroll-panel {
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: visible;
+  overscroll-behavior: auto;
   border-radius: 38px;
-  padding: 26px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(102, 126, 234, 0.9) rgba(255, 255, 255, 0.06);
-}
-
-.game-catalog-panel::-webkit-scrollbar,
-.scroll-panel::-webkit-scrollbar {
-  width: 10px;
-}
-
-.game-catalog-panel::-webkit-scrollbar-track,
-.scroll-panel::-webkit-scrollbar-track {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.game-catalog-panel::-webkit-scrollbar-thumb,
-.scroll-panel::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(102, 126, 234, 0.9), rgba(214, 173, 76, 0.78));
+  padding: 0 0 26px;
 }
 
 .game-state {
@@ -1453,8 +1435,7 @@ button:disabled {
 @media (max-width: 1200px) {
   .game-shell {
     width: min(100% - 20px, 1200px);
-    padding: 10px 0;
-    gap: 10px;
+    padding: 0 0 10px;
   }
 
   .game-header {
@@ -1797,10 +1778,6 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
-  .game-shell {
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
   .game-navigation {
     display: flex;
   }
@@ -1820,8 +1797,7 @@ button:disabled {
 
   .game-shell {
     width: min(100% - 14px, 640px);
-    padding: 8px 0;
-    gap: 8px;
+    padding: 0 0 8px;
   }
 
   .game-header {
@@ -2483,5 +2459,807 @@ button:disabled {
   .recommendation-grid {
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
     gap: 18px;
+  }
+}
+
+/* =========================================================
+   Recommendation interaction final overrides
+   Keep this block at the end of global.css
+   ========================================================= */
+
+.recommendation-top-area {
+  display: grid;
+  gap: 12px;
+}
+
+/* ---------- Improved recommendation refresh notice ---------- */
+
+.recommendation-refresh-banner {
+  width: min(100%, 880px);
+  justify-self: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(174, 188, 255, 0.32);
+  border-radius: 20px;
+  padding: 12px 14px;
+  color: var(--sinbad-text);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(63, 83, 160, 0.34),
+      rgba(102, 126, 234, 0.16)
+    ),
+    rgba(15, 23, 57, 0.82);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.22),
+    0 0 34px rgba(102, 126, 234, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  animation:
+    recommendation-refresh-enter
+    420ms
+    cubic-bezier(0.2, 1.15, 0.32, 1)
+    both;
+}
+
+.recommendation-refresh-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  color: var(--sinbad-gold-soft);
+  font-size: 1.35rem;
+  background:
+    radial-gradient(
+      circle at 50% 30%,
+      rgba(255, 241, 184, 0.28),
+      transparent 62%
+    ),
+    rgba(214, 173, 76, 0.12);
+  box-shadow:
+    0 0 22px rgba(214, 173, 76, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.recommendation-refresh-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.recommendation-refresh-copy strong {
+  color: #ffffff;
+  font-size: clamp(0.98rem, 1.2vw, 1.12rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.recommendation-refresh-copy span {
+  color: rgba(245, 247, 255, 0.72);
+  font-size: clamp(0.78rem, 0.95vw, 0.9rem);
+  font-weight: 720;
+  line-height: 1.2;
+}
+
+.recommendation-refresh-button {
+  min-width: 112px;
+  min-height: 42px;
+  border: 1px solid rgba(174, 188, 255, 0.58);
+  border-radius: 14px;
+  padding: 9px 16px;
+  color: #ffffff;
+  font-weight: 950;
+  background:
+    linear-gradient(
+      135deg,
+      var(--sinbad-blue),
+      var(--sinbad-blue-2)
+    );
+  box-shadow:
+    0 12px 28px rgba(63, 83, 160, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.recommendation-refresh-button:hover:not(:disabled),
+.recommendation-refresh-button:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  outline: none;
+  box-shadow:
+    0 16px 34px rgba(63, 83, 160, 0.38),
+    0 0 0 3px rgba(174, 188, 255, 0.16);
+}
+
+/* Disable the obsolete thin stale-message presentation. */
+.recommendation-stale-notice {
+  display: none;
+}
+
+/* ---------- Recommendation hover interaction ---------- */
+
+.recommendation-interaction-panel {
+  max-height: 0;
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    max-height 520ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 320ms ease,
+    transform 460ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.recommendation-card:hover .recommendation-interaction-panel,
+.recommendation-card:focus-within .recommendation-interaction-panel {
+  max-height: 360px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.recommendation-reasons {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recommendation-reasons li {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: rgba(245, 247, 255, 0.9);
+  font-size: clamp(0.78rem, 0.9vw, 0.88rem);
+  font-weight: 760;
+  line-height: 1.28;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.09),
+      rgba(255, 255, 255, 0.03)
+    ),
+    rgba(5, 8, 22, 0.58);
+  backdrop-filter: blur(12px);
+}
+
+/* Override every earlier recommendation-rating-action rule. */
+.recommendation-card .recommendation-rating-action {
+  width: 100%;
+  display: grid;
+  align-items: stretch;
+  gap: 8px;
+  color: rgba(245, 247, 255, 0.86);
+  font-size: clamp(0.78rem, 0.9vw, 0.9rem);
+  font-weight: 850;
+}
+
+/* Divider exists only when detailed reasons actually exist. */
+.recommendation-interaction-panel.has-reasons
+  .recommendation-rating-action {
+  margin-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  padding-top: 10px;
+}
+
+/* Item KNN and other algorithms without reasons get no ghost gap. */
+.recommendation-interaction-panel.rating-only
+  .recommendation-rating-action {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.recommendation-rating-action > span {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(0.78rem, 0.9vw, 0.9rem);
+  font-weight: 900;
+  line-height: 1.1;
+  text-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.72),
+    0 0 18px rgba(0, 0, 0, 0.34);
+}
+
+/* Override the old 26px / 0.95rem rules. */
+.recommendation-card .recommendation-rating-control {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: clamp(3px, 0.5vw, 8px);
+  padding: 2px 0 0;
+}
+
+.recommendation-card
+  .recommendation-rating-control
+  .poster-star {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: clamp(38px, 3vw, 48px);
+  height: auto;
+  border: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: clamp(1.75rem, 2.2vw, 2.45rem);
+  line-height: 1;
+  background: transparent;
+  text-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.72),
+    0 0 14px rgba(0, 0, 0, 0.28);
+}
+
+.recommendation-card
+  .recommendation-rating-control
+  .poster-star.active {
+  color: var(--sinbad-gold-soft);
+  text-shadow:
+    0 0 16px rgba(214, 173, 76, 0.92),
+    0 0 36px rgba(214, 173, 76, 0.46),
+    0 5px 18px rgba(0, 0, 0, 0.72);
+}
+
+.recommendation-card
+  .recommendation-rating-control
+  .poster-star:hover,
+.recommendation-card
+  .recommendation-rating-control
+  .poster-star:focus-visible {
+  transform: translateY(-3px) scale(1.15);
+  color: var(--sinbad-gold-soft);
+  outline: none;
+  text-shadow:
+    0 0 18px rgba(214, 173, 76, 0.98),
+    0 0 42px rgba(214, 173, 76, 0.5),
+    0 5px 18px rgba(0, 0, 0, 0.74);
+}
+
+/* ---------- Rating confirmation and exit animation ---------- */
+
+.recommendation-rating-confirmation {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  color: #ffffff;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(214, 173, 76, 0.28),
+      rgba(63, 83, 160, 0.25) 42%,
+      rgba(5, 8, 22, 0.84) 100%
+    );
+  backdrop-filter: blur(6px);
+  animation:
+    recommendation-rating-confirmation-enter
+    360ms
+    cubic-bezier(0.2, 1.25, 0.32, 1)
+    both;
+}
+
+.recommendation-rating-confirmation strong {
+  color: var(--sinbad-gold-soft);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1;
+  text-shadow:
+    0 0 22px rgba(214, 173, 76, 0.95),
+    0 0 56px rgba(214, 173, 76, 0.52);
+}
+
+.recommendation-rating-confirmation span {
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  font-weight: 950;
+  letter-spacing: -0.025em;
+  text-shadow: 0 5px 20px rgba(0, 0, 0, 0.72);
+}
+
+.recommendation-card--leaving {
+  z-index: 6;
+  pointer-events: none;
+  animation:
+    recommendation-card-rated-away
+    520ms
+    cubic-bezier(0.4, 0, 0.2, 1)
+    forwards;
+}
+
+.recommendation-card--leaving .recommendation-frame {
+  border-color: rgba(255, 241, 184, 0.72);
+  box-shadow:
+    0 0 0 2px rgba(255, 241, 184, 0.24),
+    0 0 54px rgba(214, 173, 76, 0.34),
+    0 32px 84px rgba(0, 0, 0, 0.46);
+}
+
+/* ---------- Keyboard ---------- */
+
+.recommendation-card:focus-visible {
+  outline: none;
+}
+
+.recommendation-card:focus-visible .recommendation-frame {
+  border-color: rgba(174, 188, 255, 0.7);
+  box-shadow:
+    0 0 0 3px rgba(174, 188, 255, 0.16),
+    0 28px 70px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .recommendation-refresh-banner {
+    width: 100%;
+  }
+
+  .recommendation-card
+    .recommendation-rating-control
+    .poster-star {
+    min-height: 38px;
+    font-size: clamp(1.6rem, 5vw, 2.15rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .recommendation-refresh-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .recommendation-refresh-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .recommendation-refresh-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .recommendation-card
+    .recommendation-rating-control
+    .poster-star {
+    min-height: 36px;
+    font-size: clamp(1.5rem, 8vw, 2rem);
+  }
+}
+
+/*
+ * Touch devices cannot depend on hover.
+ * Explanation and rating interaction remain directly available.
+ */
+@media (hover: none) {
+  .recommendation-interaction-panel {
+    max-height: 380px;
+    opacity: 1;
+    transform: none;
+  }
+
+  .recommendation-card .recommendation-headline {
+    max-height: 72px;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes recommendation-refresh-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.005);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes recommendation-rating-confirmation-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  65% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes recommendation-card-rated-away {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+    filter: blur(0);
+  }
+
+  34% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.025) rotate(0);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-42px) scale(0.84) rotate(-1deg);
+    filter: blur(2px);
+  }
+}
+
+/* =========================================================
+   Review profile toolbar
+   ========================================================= */
+
+.review-profile-toolbar {
+  position: static;
+
+  width: min(100%, 760px);
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  margin: 0 auto;
+  padding: 9px 10px 9px 15px;
+
+  border: 1px solid rgba(174, 188, 255, 0.26);
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(63, 83, 160, 0.27),
+      rgba(102, 126, 234, 0.1)
+    ),
+    rgba(11, 17, 43, 0.88);
+
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.28),
+    0 0 32px rgba(102, 126, 234, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  backdrop-filter: blur(18px);
+  animation:
+    review-profile-toolbar-enter
+    380ms
+    cubic-bezier(0.2, 1.15, 0.32, 1)
+    both;
+}
+
+.review-profile-summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.review-profile-summary-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+
+  border: 1px solid rgba(255, 241, 184, 0.22);
+  border-radius: 12px;
+
+  color: var(--sinbad-gold-soft);
+  font-size: 1.05rem;
+
+  background:
+    radial-gradient(
+      circle at 50% 25%,
+      rgba(255, 241, 184, 0.25),
+      transparent 65%
+    ),
+    rgba(214, 173, 76, 0.1);
+
+  box-shadow:
+    0 0 20px rgba(214, 173, 76, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.review-profile-summary strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: clamp(0.9rem, 1.1vw, 1.02rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clear-profile-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+
+  margin: 0;
+  border: 1px solid rgba(255, 132, 132, 0.3);
+  border-radius: 13px;
+  padding: 9px 13px;
+
+  color: rgba(255, 215, 215, 0.88);
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.01em;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(126, 32, 45, 0.22),
+      rgba(91, 21, 34, 0.1)
+    ),
+    rgba(255, 255, 255, 0.035);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  transition:
+    transform 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.clear-profile-button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.clear-profile-button:hover,
+.clear-profile-button:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255, 140, 140, 0.65);
+  color: #ffffff;
+  outline: none;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(164, 46, 60, 0.48),
+      rgba(112, 26, 40, 0.3)
+    ),
+    rgba(255, 255, 255, 0.05);
+
+  box-shadow:
+    0 12px 28px rgba(90, 16, 30, 0.25),
+    0 0 0 3px rgba(255, 120, 120, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.clear-profile-button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+@media (max-width: 640px) {
+  .review-profile-toolbar {
+    min-height: 52px;
+    gap: 8px;
+    margin-bottom: 0;
+    padding: 7px 8px 7px 11px;
+    border-radius: 16px;
+  }
+
+  .review-profile-summary {
+    gap: 8px;
+  }
+
+  .review-profile-summary-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 0.92rem;
+  }
+
+  .review-profile-summary strong {
+    font-size: 0.78rem;
+  }
+
+  .clear-profile-button {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+
+  .clear-profile-button svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@media (max-width: 420px) {
+  .clear-profile-button span {
+    display: none;
+  }
+
+  .clear-profile-button {
+    width: 38px;
+    padding: 0;
+  }
+}
+
+@keyframes review-profile-toolbar-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.005);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* One document-like scroll surface for the active SINBAD² view. */
+:root {
+  --app-header-row-gap: 10px;
+}
+
+.game-shell::-webkit-scrollbar {
+  width: 10px;
+}
+
+.game-shell::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.game-shell::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(102, 126, 234, 0.9), rgba(214, 173, 76, 0.78));
+}
+
+.app-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 16;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid rgba(174, 188, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(9, 15, 40, 0.98), rgba(6, 10, 27, 0.95)),
+    rgba(5, 8, 22, 0.94);
+  box-shadow: 0 12px 24px rgba(2, 6, 22, 0.24);
+  backdrop-filter: blur(18px);
+}
+
+.game-header {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.active-section-controls {
+  min-width: 0;
+  margin-top: var(--app-header-row-gap);
+}
+
+.recommendation-top-area {
+  margin: var(--app-header-row-gap) 0;
+}
+
+.game-state {
+  min-height: max(52vh, calc(100dvh - 220px));
+}
+
+.section-top-button {
+  position: fixed;
+  z-index: 20;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(174, 208, 255, 0.5);
+  border-radius: 50%;
+  padding: 0;
+  color: #edf4ff;
+  font-size: 1.65rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px) scale(0.92);
+  background: linear-gradient(145deg, rgba(56, 101, 183, 0.88), rgba(25, 53, 117, 0.82));
+  box-shadow: 0 14px 30px rgba(3, 11, 35, 0.38), 0 0 24px rgba(102, 158, 255, 0.18);
+  backdrop-filter: blur(14px);
+  transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.section-top-button.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.section-top-button:hover,
+.section-top-button:focus-visible {
+  transform: translateY(-3px) scale(1.04);
+  border-color: rgba(220, 235, 255, 0.9);
+  box-shadow: 0 18px 38px rgba(3, 11, 35, 0.46), 0 0 28px rgba(117, 173, 255, 0.32);
+  outline: none;
+}
+
+.section-top-button:focus-visible {
+  outline: 3px solid rgba(191, 219, 255, 0.58);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --app-header-row-gap: 8px;
+  }
+
+  .app-sticky-header {
+    padding-top: 8px;
+    padding-bottom: 10px;
+  }
+
+  .game-catalog-panel,
+  .scroll-panel {
+    padding-bottom: 18px;
+  }
+
+  .section-top-button {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(70px, env(safe-area-inset-bottom));
+    width: 52px;
+    height: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-shell {
+    scroll-behavior: auto;
+  }
+
+  .section-top-button {
+    transition: none;
   }
 }
