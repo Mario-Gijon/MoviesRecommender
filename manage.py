@@ -32,17 +32,18 @@ def parser() -> argparse.ArgumentParser:
     dataset = subs.add_parser("dataset", help="Generate an offline dataset")
     common(dataset); dataset.add_argument("--source", choices=("existing", "download", "zip")); dataset.add_argument("--zip-path", type=Path); dataset.add_argument("--preset", choices=("recommended", "defaults", "custom"), default="recommended"); dataset.add_argument("--cleanup", choices=("none", "standard", "minimal"), default="none"); dataset.add_argument("--skip-posters", action="store_true"); dataset.add_argument("--audit", action="store_true"); dataset.add_argument("--yes", action="store_true")
     for name in ("candidate-limit", "candidate-min-ratings", "candidate-min-year", "candidate-max-year", "candidate-min-tags", "max-tags-per-movie", "public-limit", "collaborative-core-limit", "catalog-min-ratings", "public-min-year", "collaborative-min-year"): dataset.add_argument("--" + name, type=int)
-    for name, help_text in (("install", "Build recommender models and start the API"), ("rebuild-models", "Rebuild selected recommender models")):
+    for name, help_text in (("install", "Build recommender models and start the API"), ("rebuild-models", "Rebuild selected recommender models"), ("backend-install", "Build recommender models and start the API")):
         build = subs.add_parser(name, help=help_text)
         common(build); build.add_argument("--algorithms", default="all"); build.add_argument("--item-knn-variant"); build.add_argument("--bmf-variant"); clean = build.add_mutually_exclusive_group(); clean.add_argument("--clean", action="store_true"); clean.add_argument("--no-clean", action="store_true"); build.add_argument("--audit", action="store_true"); build.add_argument("--yes", action="store_true")
-    for name, help_text in (("start", "Start the API using existing recommender artifacts"), ("deploy", "Alias for start")):
+    for name, help_text in (("start", "Start the API using existing recommender artifacts"), ("deploy", "Alias for start"), ("backend-start", "Start only the API using existing artifacts")):
         start = subs.add_parser(name, help=help_text); common(start)
+    start_all = subs.add_parser("start-all", help="Explicitly start the API and optional frontend")
+    common(start_all)
     audit = subs.add_parser("audit-models", help="Audit existing recommender artifacts without rebuilding")
     common(audit)
-    for name in ("restart", "status", "stop"):
+    for name in ("restart", "status", "stop", "backend-restart", "backend-stop", "frontend-install", "frontend-start", "frontend-restart", "frontend-stop", "frontend-status"):
         p = subs.add_parser(name); common(p)
-        if name == "restart": p.add_argument("--frontend", action="store_true")
-    subs.add_parser("backend", help=argparse.SUPPRESS)
+    subs.add_parser("backend", help=argparse.SUPPRESS); subs.add_parser("frontend", help=argparse.SUPPRESS)
     return root
 
 
@@ -175,7 +176,7 @@ def rebuild_models(args) -> int:
     if run(command): return 1
     _write_model_dataset_state(data)
     if args.audit and audit_models(args): return 1
-    if run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "--force-recreate", "api", "frontend"]): return 1
+    if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
     if not wait_ready(read_env().get("BACKEND_PORT", "8014")): return 1
     return 0
 
@@ -206,13 +207,97 @@ def start_backend(args) -> int:
         print("Run `python manage.py rebuild-models` to construct compatible artifacts.", file=sys.stderr)
         return 1
     if not ensure_docker(args.dev): return 1
-    if run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "--force-recreate", "api", "frontend"]): return 1
+    if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
     return 0 if wait_ready(read_env().get("BACKEND_PORT", "8014")) else 1
 
 
 def deploy(args) -> int:
     """Backward-compatible explicit alias for a non-rebuilding backend start."""
     return start_backend(args)
+
+
+def start_all(args) -> int:
+    if start_backend(args): return 1
+    return frontend_start(args, pull=False)
+
+
+def frontend_install(args) -> int:
+    if not wait_ready(read_env().get("BACKEND_PORT", "18014")):
+        print("The backend API is not running or is not ready. Install or start the backend before starting the frontend.", file=sys.stderr)
+        return 1
+    if not ensure_docker(args.dev): return 1
+    if run(compose_args(args.dev) + ["--profile", "frontend", "pull", "frontend"]): return 1
+    return frontend_start(args, pull=False)
+
+
+def frontend_start(args, *, pull: bool = False) -> int:
+    if not wait_ready(read_env().get("BACKEND_PORT", "18014")):
+        print("The backend API is not running or is not ready. Install or start the backend before starting the frontend.", file=sys.stderr)
+        return 1
+    if not ensure_docker(args.dev): return 1
+    if pull and run(compose_args(args.dev) + ["--profile", "frontend", "pull", "frontend"]): return 1
+    return run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "frontend"])
+
+
+def frontend_restart(args) -> int:
+    return run(compose_args(args.dev) + ["--profile", "frontend", "restart", "frontend"])
+
+
+def frontend_stop(args) -> int:
+    return run(compose_args(args.dev) + ["--profile", "frontend", "stop", "frontend"])
+
+
+def backend_restart(args) -> int:
+    if run(compose_args(args.dev) + ["restart", "api"]): return 1
+    return 0 if wait_ready(read_env().get("BACKEND_PORT", "18014")) else 1
+
+
+def backend_stop(args) -> int:
+    return run(compose_args(args.dev) + ["stop", "api"])
+
+
+def service_is_installed(args, service: str) -> bool:
+    command = compose_args(args.dev) + (["--profile", "frontend"] if service == "frontend" else []) + ["ps", "-q", "--all", service]
+    try:
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, shell=False)
+    except OSError:
+        return False
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def restart_installed_services(args) -> int:
+    api = service_is_installed(args, "api"); frontend = service_is_installed(args, "frontend")
+    if not api and not frontend:
+        print("No installed services were found. Start the backend or frontend explicitly.")
+        return 0
+    if api and backend_restart(args): return 1
+    if frontend and frontend_restart(args): return 1
+    return 0
+
+
+def stop_installed_services(args) -> int:
+    if not service_is_installed(args, "api") and not service_is_installed(args, "frontend"):
+        print("No installed services were found.")
+        return 0
+    code = run(compose_args(args.dev) + ["--profile", "frontend", "down", "--remove-orphans"])
+    if code == 0: print("Persistent DATA_DIR contents were not deleted.")
+    return code
+
+
+def _configured_url(host_key: str, port_key: str, default_port: str) -> str:
+    values = read_env(); host = values.get(host_key, "127.0.0.1"); port = values.get(port_key, default_port)
+    shown_host = "127.0.0.1" if host == "0.0.0.0" else host
+    suffix = " (externally bound)" if host == "0.0.0.0" else ""
+    return f"http://{shown_host}:{port}{suffix}"
+
+
+def frontend_status(args) -> int:
+    installed = service_is_installed(args, "frontend")
+    api_ready = wait_ready(read_env().get("BACKEND_PORT", "18014"))
+    print("Frontend: " + ("running" if installed else "not installed"))
+    print("Frontend URL: " + _configured_url("FRONTEND_BIND_HOST", "FRONTEND_PORT", "15173"))
+    print("API connectivity: " + ("ready" if api_ready else "unavailable"))
+    return 0
 
 
 def audit_models(args) -> int:
@@ -273,34 +358,48 @@ def main(argv=None) -> int:
     args = parser().parse_args(argv)
     if not args.command: return menu()
     if args.command == "backend": return backend_management()
+    if args.command == "frontend": return frontend_management()
     if args.command == "dataset": return dataset(args)
-    if args.command == "install": return install(args)
+    if args.command in {"install", "backend-install"}: return install(args)
     if args.command == "rebuild-models": return rebuild_models(args)
-    if args.command in {"start", "deploy"}: return start_backend(args)
+    if args.command in {"start", "deploy", "backend-start"}: return start_backend(args)
+    if args.command == "start-all": return start_all(args)
     if args.command == "audit-models": return audit_models(args)
-    if args.command == "restart":
-        if run(compose_args(args.dev) + ["restart", "api"]) or not wait_ready(read_env().get("BACKEND_PORT", "8014")): return 1
-        if args.frontend:
-            if run(compose_args(args.dev) + ["restart", "frontend"]): return 1
-            print("Frontend: http://127.0.0.1:" + read_env().get("FRONTEND_PORT", "5173"))
-        return 0
+    if args.command in {"restart"}: return restart_installed_services(args)
+    if args.command == "backend-restart": return backend_restart(args)
+    if args.command == "backend-stop": return backend_stop(args)
+    if args.command == "frontend-install": return frontend_install(args)
+    if args.command == "frontend-start": return frontend_start(args)
+    if args.command == "frontend-restart": return frontend_restart(args)
+    if args.command == "frontend-stop": return frontend_stop(args)
+    if args.command == "frontend-status": return frontend_status(args)
     if args.command == "status":
         run(compose_args(args.dev) + ["ps"])
-        for endpoint in ("health", "ready"):
-            try:
-                with urlopen(f"http://127.0.0.1:{read_env().get('BACKEND_PORT', '8014')}/{endpoint}", timeout=2) as response: print(f"/{endpoint}: HTTP {response.status}")
-            except (URLError, OSError) as exc: print(f"/{endpoint}: unavailable ({exc})")
+        data = configured_data_dir(args); dataset_ok, _ = validate_dataset(data); models_ok, _ = validate_active_models(data) if dataset_ok else (False, "dataset missing")
+        print("Dataset:   " + ("ready" if dataset_ok else "missing / invalid"))
+        print("Models:    " + ("ready" if models_ok else "missing / incompatible"))
+        print("API:       " + ("running" if service_is_installed(args, "api") and wait_ready(read_env().get("BACKEND_PORT", "18014")) else "stopped / unhealthy"))
+        print("API URL: " + _configured_url("BACKEND_BIND_HOST", "BACKEND_PORT", "18014"))
+        print("Frontend:  " + ("running" if service_is_installed(args, "frontend") else "not installed"))
+        print("Frontend URL: " + _configured_url("FRONTEND_BIND_HOST", "FRONTEND_PORT", "15173"))
         return 0
-    if args.command == "stop":
-        code = run(compose_args(args.dev) + ["down"]); print("Persistent DATA_DIR contents were not deleted."); return code
+    if args.command == "stop": return stop_installed_services(args)
     return 1
 
 
 def backend_management() -> int:
-    print("Backend management\n\n1. Install backend\n   Builds recommender models and starts the API.\n\n2. Start or update backend\n   Starts the API using existing compatible model artifacts.\n\n3. Rebuild recommender models\n   Rebuilds selected models and reloads the API.\n\n4. Generate recommender audit\n   Audits existing model artifacts without rebuilding them.\n\n5. Restart backend\n   Restarts the running API container.\n\n0. Back")
+    print("Backend management\n\n1. Install backend\n   Builds recommender models and starts only the API.\n\n2. Start or update backend\n   Starts only the API using existing compatible model artifacts.\n\n3. Rebuild recommender models\n   Rebuilds selected models and reloads only the API.\n\n4. Generate recommender audit\n   Audits existing model artifacts without rebuilding them.\n\n5. Restart backend\n   Restarts only the API container.\n\n6. Stop backend\n   Stops only the API container.\n\n0. Back")
     try: choice = input("Select an option: ").strip()
     except (EOFError, KeyboardInterrupt): return 0
-    command = {"1": "install", "2": "start", "3": "rebuild-models", "4": "audit-models", "5": "restart"}.get(choice)
+    command = {"1": "backend-install", "2": "backend-start", "3": "rebuild-models", "4": "audit-models", "5": "backend-restart", "6": "backend-stop"}.get(choice)
+    return 0 if choice == "0" else main([command]) if command else 1
+
+
+def frontend_management() -> int:
+    print("Frontend management (optional)\n\n1. Install frontend\n   Pulls and starts the frontend after checking that the API is available.\n\n2. Start frontend\n   Starts the existing frontend service.\n\n3. Restart frontend\n   Restarts only the frontend container.\n\n4. Stop frontend\n   Stops only the frontend container.\n\n5. Show frontend status\n   Shows container state, configured URL, and API connectivity.\n\n0. Back")
+    try: choice = input("Select an option: ").strip()
+    except (EOFError, KeyboardInterrupt): return 0
+    command = {"1": "frontend-install", "2": "frontend-start", "3": "frontend-restart", "4": "frontend-stop", "5": "frontend-status"}.get(choice)
     return 0 if choice == "0" else main([command]) if command else 1
 
 
@@ -337,10 +436,10 @@ def _choose_profile(title: str, values: list[dict], default: str | None) -> str 
 
 
 def menu() -> int:
-    print("Movies Recommender\n\n1. Generate or update dataset\n2. Backend management\n3. Restart services\n4. Show status\n5. Stop services\n0. Exit")
+    print("Movies Recommender\n\n1. Generate or update dataset\n2. Backend management\n3. Frontend management (optional)\n4. Restart installed services\n5. Show status\n6. Stop installed services\n0. Exit")
     try: choice = input("Select an option: ").strip()
     except (EOFError, KeyboardInterrupt): print("Cancelled."); return 0
-    mapping = {"1": "dataset", "2": "backend", "3": "restart", "4": "status", "5": "stop"}
+    mapping = {"1": "dataset", "2": "backend", "3": "frontend", "4": "restart", "5": "status", "6": "stop"}
     return 0 if choice == "0" else main([mapping[choice]]) if choice in mapping else 1
 
 

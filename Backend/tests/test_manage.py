@@ -34,7 +34,7 @@ class ManageTests(unittest.TestCase):
             self.assertEqual("./data", manage.configured_data_env_value(args, data))
 
     def test_stop_command_never_uses_volumes(self) -> None:
-        with patch.object(manage, "run", return_value=0) as run:
+        with patch.object(manage, "service_is_installed", return_value=True), patch.object(manage, "run", return_value=0) as run:
             self.assertEqual(0, manage.main(["stop", "--non-interactive"]))
         self.assertNotIn("--volumes", run.call_args.args[0])
 
@@ -52,6 +52,22 @@ class ManageTests(unittest.TestCase):
             self.assertEqual(0, manage.start_backend(args))
         rebuild.assert_not_called()
         self.assertIn("--force-recreate", run.call_args.args[0])
+        self.assertNotIn("frontend", run.call_args.args[0])
+
+    def test_frontend_install_requires_ready_api_and_uses_profile(self) -> None:
+        args = manage.parser().parse_args(["frontend-install"])
+        with patch.object(manage, "wait_ready", return_value=True), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "run", return_value=0) as run:
+            self.assertEqual(0, manage.frontend_install(args))
+        self.assertEqual("pull", run.call_args_list[0].args[0][-2])
+        self.assertIn("frontend", run.call_args_list[0].args[0])
+        self.assertIn("--profile", run.call_args_list[1].args[0])
+
+    def test_start_all_is_explicit_frontend_opt_in(self) -> None:
+        args = manage.parser().parse_args(["start-all"])
+        with patch.object(manage, "start_backend", return_value=0) as backend, patch.object(manage, "frontend_start", return_value=0) as frontend:
+            self.assertEqual(0, manage.start_all(args))
+        backend.assert_called_once_with(args)
+        frontend.assert_called_once_with(args, pull=False)
 
     def test_menu_exit_and_dataset_route(self) -> None:
         with patch("builtins.input", return_value="0"), patch.object(manage, "run") as run:

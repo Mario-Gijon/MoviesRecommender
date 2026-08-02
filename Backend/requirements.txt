@@ -3,7 +3,7 @@ httpx==0.28.1
 uvicorn[standard]==0.35.0
 pydantic-settings==2.11.0
 pandas
-numpy
+numpy==2.3.5
 scipy
 scikit-learn
 stopwordsiso
