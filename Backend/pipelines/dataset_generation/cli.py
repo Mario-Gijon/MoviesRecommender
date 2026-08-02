@@ -43,13 +43,13 @@ RECOMMENDED_VALUES = {
     "candidate_limit": 15000, "candidate_min_ratings": 100, "candidate_min_year": 1990,
     "candidate_max_year": None, "candidate_min_tags": 0, "max_tags_per_movie": 35, "public_limit": None,
     "collaborative_core_limit": 15000, "catalog_min_ratings": 100,
-    "public_min_year": 2000, "collaborative_min_year": 1990, "family_only": False,
+    "public_min_year": 2000, "public_min_runtime": 60, "collaborative_min_year": 1990, "family_only": False,
 }
 PRESETS = {"defaults": {}, "recommended": RECOMMENDED_VALUES, "custom": {}}
 NUMERIC_FIELDS = (
     "candidate_limit", "candidate_min_ratings", "candidate_min_year", "candidate_max_year", "candidate_min_tags",
     "max_tags_per_movie", "public_limit", "collaborative_core_limit", "catalog_min_ratings",
-    "public_min_year", "collaborative_min_year",
+    "public_min_year", "public_min_runtime", "collaborative_min_year",
 )
 
 
@@ -270,7 +270,7 @@ def _resolve_token(config: DatasetPipelineConfig, *, interactive: bool, dry_run:
 
 def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | None, *, mode: str | None = None, cleanup: str = "none") -> None:
     print("\nDataset installation summary")
-    print(f"Persistent data directory: {DATA_DIR}\nConfiguration mode: {_preset_label(mode)}\nMovieLens source: {_source_label(source)}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nDownload posters: {'No' if config.skip_posters else 'Yes'}\nGenerate audit: {'Yes' if config.audit else 'No'}\nTMDB behavior: {'Fresh enrichment' if config.force_tmdb else 'Resume completed enrichment'}\nCleanup mode: {_cleanup_label(cleanup)}\nCleanup effect: {_cleanup_effect(cleanup)}")
+    print(f"Persistent data directory: {DATA_DIR}\nConfiguration mode: {_preset_label(mode)}\nMovieLens source: {_source_label(source)}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nPublic minimum runtime: {config.public_min_runtime} minutes\nPublic documentaries: Excluded\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nDownload posters: {'No' if config.skip_posters else 'Yes'}\nGenerate audit: {'Yes' if config.audit else 'No'}\nTMDB behavior: {'Fresh enrichment' if config.force_tmdb else 'Resume completed enrichment'}\nCleanup mode: {_cleanup_label(cleanup)}\nCleanup effect: {_cleanup_effect(cleanup)}")
 
 
 def _print_recommended_settings(config: DatasetPipelineConfig) -> None:

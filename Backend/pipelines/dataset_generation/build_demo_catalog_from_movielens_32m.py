@@ -38,6 +38,9 @@ def main() -> None:
     print(f"Public limit applied: {catalog['summary']['publicLimitApplied']}")
     print(f"Collaborative core written: {len(catalog['collaborativeCore'])}")
     print(f"Excluded/sensitive written: {len(catalog['excludedOrSensitive'])}")
+    print(f"Movies excluded as documentaries: {catalog['summary']['publicDocumentaryExclusions']}")
+    print(f"Movies excluded for runtime below {args.public_min_runtime} minutes: {catalog['summary']['publicShortRuntimeExclusions']}")
+    print(f"Movies matching both conditions: {catalog['summary']['publicDocumentaryAndShortRuntimeExclusions']}")
     print("Top 25 public catalog movies:")
     for item in catalog["publicCatalog"][:25]:
         print(
@@ -55,6 +58,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--collaborative-core-limit", type=int, default=2000)
     parser.add_argument("--min-ratings", type=int, default=100)
     parser.add_argument("--public-min-year", type=int, default=2000)
+    parser.add_argument("--public-min-runtime", type=int, default=60)
     parser.add_argument("--collaborative-min-year", type=int, default=2000)
     parser.add_argument("--family-only", action="store_true")
     return parser.parse_args()
@@ -134,6 +138,10 @@ def _build_catalog(*, items: list[dict], args: argparse.Namespace) -> dict:
             "publicCatalog": len(public_catalog),
             "publicLimitApplied": args.public_limit is not None,
             "publicAudiencePolicy": "family_only" if args.family_only else "family_and_teen",
+            "publicMinRuntime": args.public_min_runtime,
+            "publicDocumentaryExclusions": sum("documentary" in item["publicExclusionReasons"] for item in analyzed_items),
+            "publicShortRuntimeExclusions": sum("short_runtime" in item["publicExclusionReasons"] for item in analyzed_items),
+            "publicDocumentaryAndShortRuntimeExclusions": sum({"documentary", "short_runtime"}.issubset(item["publicExclusionReasons"]) for item in analyzed_items),
             "collaborativeCore": len(collaborative_core),
             "excludedOrSensitive": len(excluded_or_sensitive),
             **suitability_counts,

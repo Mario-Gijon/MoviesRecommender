@@ -24,6 +24,7 @@ from app.catalog.constants import (
     PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_TMDB_POPULARITY,
     SENSITIVE_GENRES,
 )
+from app.catalog.filtering import PUBLIC_EXCLUSION_REASON_LABELS
 from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_AUDIT_CHARTS_DIR,
     OFFLINE_DATASET_AUDIT_DASHBOARD_PATH,
@@ -770,6 +771,11 @@ def _build_summary_tables(
         combined_df,
         field_name="publicExclusionReasons",
         value_column="publicExclusionReason",
+    )
+    public_exclusion_reasons_by_partition["publicExclusionReason"] = (
+        public_exclusion_reasons_by_partition["publicExclusionReason"].replace(
+            PUBLIC_EXCLUSION_REASON_LABELS
+        )
     )
     excluded_reasons = _explode_pipe_field(
         excluded_df,

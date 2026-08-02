@@ -49,6 +49,27 @@ class OfflineDatasetReconfigurationTests(unittest.TestCase):
                 reconfigure(root, "family_only")
             self.assertEqual(before, (csv_dir / "public_movies.csv").read_bytes())
 
+    def test_documentaries_and_short_movies_move_to_support_without_raw_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "offline_dataset"; csv_dir = root / "csv"; csv_dir.mkdir(parents=True)
+            documentary = _row("1", "family_friendly"); documentary.update(genres="Documentary", runtime="90")
+            short = _row("2", "family_friendly"); short.update(genres="Drama", runtime="59")
+            regular = _row("3", "family_friendly"); regular.update(genres="Drama", runtime="60")
+            _write(csv_dir / "public_movies.csv", PUBLIC_MOVIE_COLUMNS, [documentary, short, regular])
+            _write(csv_dir / "collaborative_support_movies.csv", SUPPORT_MOVIE_COLUMNS, [])
+            _write(csv_dir / "excluded_movies.csv", SUPPORT_MOVIE_COLUMNS + ["exclusionCategory", "exclusionReasons"], [])
+            _write(csv_dir / "movie_ratings_summary.csv", ["movieId"], [])
+            _write(csv_dir / "collaborative_ratings.csv", ["movieId"], [])
+            (root / "manifest.json").write_text(json.dumps({"counts": {}}), encoding="utf-8")
+
+            reconfigure(root, "family_and_teen")
+
+            self.assertEqual({"3"}, _ids(csv_dir / "public_movies.csv"))
+            self.assertEqual({"1", "2"}, _ids(csv_dir / "collaborative_support_movies.csv"))
+            support_rows = _read_rows(csv_dir / "collaborative_support_movies.csv")
+            self.assertEqual("documentary", support_rows["1"]["publicExclusionReasons"])
+            self.assertEqual("short_runtime", support_rows["2"]["publicExclusionReasons"])
+
 
 def _row(movie_id, suitability, reason=""):
     row = {column: "" for column in SUPPORT_MOVIE_COLUMNS}
@@ -64,3 +85,8 @@ def _write(path, fields, rows):
 def _ids(path):
     with path.open(encoding="utf-8", newline="") as file:
         return {row["movieId"] for row in csv.DictReader(file)}
+
+
+def _read_rows(path):
+    with path.open(encoding="utf-8", newline="") as file:
+        return {row["movieId"]: row for row in csv.DictReader(file)}

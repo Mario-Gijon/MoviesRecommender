@@ -34,6 +34,7 @@ class DatasetPipelineConfig:
     collaborative_core_limit: int = 8000
     catalog_min_ratings: int = 100
     public_min_year: int = 2000
+    public_min_runtime: int = 60
     collaborative_min_year: int = 1995
     family_only: bool = False
     display_language: str = "es-ES"
@@ -85,6 +86,7 @@ def build_stage_command(stage: str, config: DatasetPipelineConfig) -> list[str]:
             "pipelines.dataset_generation.build_demo_catalog_from_movielens_32m",
             "--collaborative-core-limit", str(config.collaborative_core_limit),
             "--min-ratings", str(config.catalog_min_ratings), "--public-min-year", str(config.public_min_year),
+            "--public-min-runtime", str(config.public_min_runtime),
             "--collaborative-min-year", str(config.collaborative_min_year),
         ]
         if config.public_limit is not None:
@@ -136,6 +138,7 @@ def main() -> None:
         max_tags_per_movie=args.max_tags_per_movie, public_limit=args.public_limit,
         collaborative_core_limit=args.collaborative_core_limit, catalog_min_ratings=args.catalog_min_ratings,
         public_min_year=args.public_min_year, collaborative_min_year=args.collaborative_min_year,
+        public_min_runtime=args.public_min_runtime,
         family_only=args.family_only, display_language=args.display_language,
         resume_tmdb=args.resume_tmdb, force_tmdb=args.force_tmdb,
         skip_posters=args.skip_posters, audit=args.audit, start_at=args.start_at, stop_after=args.stop_after,
@@ -171,6 +174,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--collaborative-core-limit", type=int, default=8000)
     parser.add_argument("--catalog-min-ratings", type=int, default=100)
     parser.add_argument("--public-min-year", type=int, default=2000)
+    parser.add_argument("--public-min-runtime", type=int, default=60)
     parser.add_argument("--collaborative-min-year", type=int, default=1995)
     parser.add_argument("--family-only", action="store_true")
     parser.add_argument("--display-language", default="es-ES")

@@ -55,7 +55,7 @@ class ReconfigurationSummary:
 
 def preview(dataset_dir: Path, policy: str) -> ReconfigurationSummary:
     canonical, current_public, current_support, manifest = _load_catalogue(dataset_dir)
-    public_rows, support_rows = _partition(canonical, policy)
+    public_rows, support_rows = _partition(canonical, policy, _public_min_runtime(manifest))
     return ReconfigurationSummary(
         dataset_dir=dataset_dir,
         current_policy=str(manifest.get("publicAudiencePolicy") or "family_and_teen"),
@@ -70,7 +70,7 @@ def preview(dataset_dir: Path, policy: str) -> ReconfigurationSummary:
 def reconfigure(dataset_dir: Path, policy: str, *, regenerate_audit: Callable[[], None] | None = None) -> ReconfigurationSummary:
     canonical, current_public, current_support, manifest = _load_catalogue(dataset_dir)
     current_policy = str(manifest.get("publicAudiencePolicy") or "family_and_teen")
-    public_rows, support_rows = _partition(canonical, policy)
+    public_rows, support_rows = _partition(canonical, policy, _public_min_runtime(manifest))
     _validate_partition(canonical, public_rows, support_rows, policy)
     manifest = dict(manifest)
     counts = dict(manifest.get("counts") or {})
@@ -146,13 +146,19 @@ def _migrate_legacy(public: list[dict[str, str]], support: list[dict[str, str]])
     return list(by_id.values())
 
 
-def _partition(canonical: list[dict[str, str]], policy: str) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+def _partition(canonical: list[dict[str, str]], policy: str, public_min_runtime: int) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     if policy not in POLICIES:
         raise OfflineDatasetReconfigurationError(f"Unsupported public audience policy: {policy}.")
     public: list[dict[str, str]] = []
     support: list[dict[str, str]] = []
     for row in canonical:
-        eligible = row.get("basePublicEligible") == "true"
+        policy_reasons = _catalogue_policy_reasons(row, public_min_runtime)
+        base_reasons = _split(row.get("basePublicExclusionReasons"))
+        for reason in policy_reasons:
+            if reason not in base_reasons:
+                base_reasons.append(reason)
+        row["basePublicExclusionReasons"] = _join(base_reasons)
+        eligible = row.get("basePublicEligible") == "true" and not policy_reasons
         allowed = row.get("suitabilityCategory") in POLICIES[policy]
         if eligible and allowed:
             row["audiencePolicyExclusionReason"] = ""
@@ -162,7 +168,7 @@ def _partition(canonical: list[dict[str, str]], policy: str) -> tuple[list[dict[
             "audience_policy_excludes_category" if not allowed else ""
         )
         support_row = {key: row.get(key, "") for key in SUPPORT_MOVIE_COLUMNS}
-        reasons = _split(row.get("basePublicExclusionReasons"))
+        reasons = base_reasons
         if row["audiencePolicyExclusionReason"]:
             reasons.append("audience_policy_excludes_category")
         support_row["publicExclusionReasons"] = _join(reasons)
@@ -218,6 +224,16 @@ def _validate_unique(rows: list[dict[str, str]], label: str) -> None:
 
 
 def _split(value: str | None) -> list[str]: return [part for part in (value or "").split("|") if part]
+def _public_min_runtime(manifest: dict) -> int:
+    try: return int((manifest.get("publicCataloguePolicy") or {}).get("publicMinRuntime", 60))
+    except (TypeError, ValueError): return 60
+def _catalogue_policy_reasons(row: dict[str, str], public_min_runtime: int) -> list[str]:
+    genres = {value.strip().casefold() for value in _split(row.get("genres"))}
+    reasons = ["documentary"] if "documentary" in genres else []
+    try: runtime = float(row.get("runtime") or "")
+    except ValueError: runtime = None
+    if runtime is not None and runtime < public_min_runtime: reasons.append("short_runtime")
+    return reasons
 def _join(values: list[str]) -> str: return "|".join(dict.fromkeys(values))
 def _public_row_sort_key(row: dict[str, str]) -> tuple:
     item = dict(row); item["tmdb"] = {"popularity": row.get("tmdbPopularity")}

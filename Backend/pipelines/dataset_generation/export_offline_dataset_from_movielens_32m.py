@@ -175,6 +175,7 @@ def main() -> None:
         excluded_movies_count=len(excluded_rows),
         collaborative_ratings_count=collaborative_ratings_written,
         public_audience_policy=catalog.get("summary", {}).get("publicAudiencePolicy", "family_and_teen"),
+        public_min_runtime=catalog.get("summary", {}).get("publicMinRuntime", 60),
     )
     OFFLINE_DATASET_MANIFEST_PATH.write_text(
         json.dumps(manifest, indent=2),
@@ -263,7 +264,12 @@ def _build_catalog_index(
             excluded_items.append(invalid_items[entry_value])
             continue
 
-        if entry_value in public_ids or entry_value in collaborative_support_id_set:
+        if entry_value in public_ids:
+            continue
+        if (
+            entry_value in collaborative_support_id_set
+            and not _has_public_catalogue_policy_exclusion(merged_items_by_id[entry_value])
+        ):
             continue
         excluded_items.append(merged_items_by_id[entry_value])
 
@@ -564,6 +570,7 @@ def _build_manifest(
     excluded_movies_count: int,
     collaborative_ratings_count: int,
     public_audience_policy: str,
+    public_min_runtime: int,
 ) -> dict:
     return {
         "datasetName": "movies_recommender_offline_dataset",
@@ -574,6 +581,10 @@ def _build_manifest(
         "canonicalLanguage": "en-US",
         "displayLanguage": "es-ES",
         "publicAudiencePolicy": public_audience_policy,
+        "publicCataloguePolicy": {
+            "excludeDocumentaries": True,
+            "publicMinRuntime": public_min_runtime,
+        },
         "listSeparator": LIST_SEPARATOR,
         "counts": {
             "publicMovies": public_movies_count,
@@ -659,6 +670,17 @@ def _has_enrichment_error(item: dict) -> bool:
         if reason
     }
     return "enrichment_error" in public_exclusion_reasons
+
+
+def _has_public_catalogue_policy_exclusion(item: dict) -> bool:
+    return bool(
+        {"documentary", "short_runtime"}
+        & {
+            _normalize_reason(reason)
+            for reason in item.get("publicExclusionReasons", [])
+            if reason
+        }
+    )
 
 
 def _string_or_empty(value: object) -> str:
