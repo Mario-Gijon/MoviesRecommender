@@ -141,6 +141,20 @@ def main() -> None:
         SUPPORT_MOVIE_COLUMNS,
         support_rows,
     )
+    # Preserve the original non-audience eligibility decision for later offline
+    # audience-policy reconfiguration.  Import locally to avoid a module cycle.
+    from .reconfigure_offline_dataset import CATALOG_COLUMNS
+    catalog_rows = []
+    for row in public_rows + support_rows:
+        reasons = [part for part in row.get("publicExclusionReasons", "").split(LIST_SEPARATOR) if part]
+        base_reasons = [reason for reason in reasons if reason not in {"adult_or_sensitive", "unknown_suitability", "family_only_excludes_teen"}]
+        catalog_rows.append({
+            **{column: row.get(column, "") for column in SUPPORT_MOVIE_COLUMNS},
+            "basePublicEligible": "true" if row in public_rows or not base_reasons else "false",
+            "basePublicExclusionReasons": LIST_SEPARATOR.join(base_reasons),
+            "audiencePolicyExclusionReason": "",
+        })
+    _write_csv(OFFLINE_DATASET_CSV_DIR / "catalog_movies.csv", CATALOG_COLUMNS, catalog_rows)
     _write_csv(
         OFFLINE_DATASET_EXCLUDED_MOVIES_CSV_PATH,
         EXCLUDED_MOVIE_COLUMNS,
@@ -160,6 +174,7 @@ def main() -> None:
         collaborative_support_movies_count=len(support_rows),
         excluded_movies_count=len(excluded_rows),
         collaborative_ratings_count=collaborative_ratings_written,
+        public_audience_policy=catalog.get("summary", {}).get("publicAudiencePolicy", "family_and_teen"),
     )
     OFFLINE_DATASET_MANIFEST_PATH.write_text(
         json.dumps(manifest, indent=2),
@@ -548,6 +563,7 @@ def _build_manifest(
     collaborative_support_movies_count: int,
     excluded_movies_count: int,
     collaborative_ratings_count: int,
+    public_audience_policy: str,
 ) -> dict:
     return {
         "datasetName": "movies_recommender_offline_dataset",
@@ -557,6 +573,7 @@ def _build_manifest(
         "metadataSource": "TMDB",
         "canonicalLanguage": "en-US",
         "displayLanguage": "es-ES",
+        "publicAudiencePolicy": public_audience_policy,
         "listSeparator": LIST_SEPARATOR,
         "counts": {
             "publicMovies": public_movies_count,
@@ -570,6 +587,7 @@ def _build_manifest(
             "excludedMovies": "csv/excluded_movies.csv",
             "movieRatingsSummary": "csv/movie_ratings_summary.csv",
             "collaborativeRatings": "csv/collaborative_ratings.csv",
+            "catalogMovies": "csv/catalog_movies.csv",
         },
         "images": {
             "postersDir": "images/posters",

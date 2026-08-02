@@ -1,4 +1,5 @@
 import json
+import shutil
 from collections import defaultdict
 from html import escape
 from pathlib import Path
@@ -174,6 +175,11 @@ EXPLANATIONS = {
 
 def main() -> None:
     _ensure_required_inputs()
+    # Audit outputs are a derived view of the two catalogue partitions.  Clear
+    # stale tables/charts before rebuilding so a policy reconfiguration cannot
+    # leave files that describe the previous public catalogue.
+    if OFFLINE_DATASET_AUDIT_DIR.exists():
+        shutil.rmtree(OFFLINE_DATASET_AUDIT_DIR)
     _ensure_output_dirs()
 
     manifest = json.loads(OFFLINE_DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))

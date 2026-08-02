@@ -31,6 +31,12 @@ from .run_movielens_32m_pipeline import (
     select_stages,
     stages_require_raw_source,
 )
+from .reconfigure_offline_dataset import (
+    POLICIES,
+    OfflineDatasetReconfigurationError,
+    preview as preview_offline_reconfiguration,
+    reconfigure as reconfigure_offline_dataset,
+)
 
 
 RECOMMENDED_VALUES = {
@@ -51,7 +57,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate the portable MovieLens/TMDB offline dataset.")
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Skip final confirmation.")
-    parser.add_argument("--source", choices=("existing", "download", "zip"))
+    parser.add_argument("--source", choices=("existing", "download", "zip", "reconfigure"))
+    parser.add_argument("--public-audience-policy", choices=tuple(POLICIES))
     parser.add_argument("--zip-path", type=Path)
     parser.add_argument("--preset", choices=tuple(PRESETS), default="recommended")
     parser.add_argument("--dry-run", action="store_true")
@@ -111,16 +118,22 @@ def main(argv: list[str] | None = None) -> int:
             config = resolve_config(args)
             _validate_non_interactive(args, config)
             source = args.source or "existing"
+            if source == "reconfigure":
+                return _run_offline_reconfiguration(args)
             token = _resolve_token(config, interactive=False, dry_run=args.dry_run)
         else:
             config, source, zip_path = _interactive_configuration(args)
             args.zip_path = zip_path
+            if source == "reconfigure":
+                return _run_offline_reconfiguration(args)
             token = _resolve_token(config, interactive=True, dry_run=args.dry_run)
             _print_plan(config, source, args.zip_path, mode=getattr(args, "configuration_mode", None), cleanup=args.cleanup)
             plan_printed = True
             if not args.dry_run and not _ask_yes_no("Start generating the dataset with these settings?", default=False):
                 print("Cancelled. No pipeline stages were run.")
                 return 0
+        if source == "reconfigure":
+            return _run_offline_reconfiguration(args)
         if not plan_printed:
             _print_plan(config, source, args.zip_path, mode=args.preset, cleanup=args.cleanup)
         _print_cleanup_preview(args.cleanup, DatasetPaths(DATA_DIR))
@@ -143,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     except DatasetCleanupError as exc:
         print(f"Dataset generation completed, but cleanup failed: {exc}", file=sys.stderr)
         return 1
-    except (MovieLensSourceError, ValueError) as exc:
+    except (MovieLensSourceError, OfflineDatasetReconfigurationError, ValueError) as exc:
         print(f"Dataset pipeline failed: {exc}", file=sys.stderr)
         print("Completed intermediate outputs were retained; rerun with --start-at to resume.", file=sys.stderr)
         return 1
@@ -153,6 +166,12 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _validate_non_interactive(args: argparse.Namespace, config: DatasetPipelineConfig) -> None:
+    if args.source == "reconfigure":
+        if not args.public_audience_policy:
+            raise ValueError("--source reconfigure requires --public-audience-policy.")
+        if args.zip_path is not None:
+            raise ValueError("--zip-path is not valid with --source reconfigure.")
+        return
     if stages_require_raw_source(config) and not args.source:
         raise ValueError("--non-interactive requires --source.")
     if args.source == "zip" and args.zip_path is None:
@@ -179,9 +198,12 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
     source = "existing"
     zip_path = None
     if stages_require_raw_source(config):
+        source = _ask_source("existing")
+        if source == "reconfigure":
+            args.public_audience_policy = _ask_public_audience_policy()
+            return config, source, None
         raw_available = has_valid_extracted_files(paths.dataset_dir)
         print("MovieLens raw files: " + ("available" if raw_available else "missing or incomplete"))
-        source = _ask_source("existing" if raw_available else "download")
         zip_path = Path(_ask_text("Path to MovieLens ZIP", required=True)) if source == "zip" else None
     config = replace(
         config,
@@ -292,8 +314,36 @@ def _ask_configuration_mode() -> str:
 
 
 def _ask_source(default: str) -> str:
-    print("Choose how MovieLens data will be obtained:\n\n1. Download automatically\n   Downloads the official MovieLens 32M archive.\n\n2. Reuse existing files\n   Uses valid files already stored in the persistent data directory.\n\n3. Import a local ZIP\n   Imports an existing MovieLens 32M ZIP from this computer.")
-    return _ask_choice("MovieLens source", ("download", "existing", "zip"), default)
+    print("Choose how MovieLens data will be obtained:\n\n1. Download automatically\n   Downloads the official MovieLens 32M archive.\n\n2. Reuse existing files\n   Uses valid files already stored in the persistent data directory.\n\n3. Import a local ZIP\n   Imports an existing MovieLens 32M ZIP from this computer.\n\n4. Reconfigure an existing offline dataset\n   Updates the public catalogue policy using an already-generated dataset.\n   Does not require MovieLens raw files or pipeline cache.")
+    return _ask_choice("MovieLens source", ("download", "existing", "zip", "reconfigure"), default)
+
+
+def _ask_public_audience_policy() -> str:
+    print("Select the public audience policy:\n\n1. Family friendly only\n   Public suitability categories: family_friendly\n\n2. Family friendly and teen\n   Public suitability categories: family_friendly, teen\n\n3. All classified categories\n   Public suitability categories: family_friendly, teen, adult_or_sensitive")
+    return _ask_choice("Public audience policy", ("family_only", "family_and_teen", "all_classified"), "family_and_teen")
+
+
+def _run_offline_reconfiguration(args: argparse.Namespace) -> int:
+    policy = args.public_audience_policy
+    if not policy:
+        raise ValueError("A public audience policy is required for offline dataset reconfiguration.")
+    summary = preview_offline_reconfiguration(OFFLINE_DATASET_DIR, policy)
+    print("\nOffline dataset reconfiguration summary\n\n"
+          f"Dataset directory: {summary.dataset_dir}\nCurrent policy: {summary.current_policy}\nNew policy: {summary.new_policy}\n\n"
+          f"Current public movies: {summary.current_public_movies}\nNew public movies: {summary.new_public_movies}\nMoved to collaborative support: {summary.moved_to_support}\n"
+          f"Current collaborative support movies: {summary.current_support_movies}\nNew collaborative support movies: {summary.new_support_movies}\nTotal collaborative catalogue: {summary.total_movies}\n\n"
+          "Collaborative ratings: unchanged\nPosters: unchanged\nRecommender models: unchanged\nAudit: will be regenerated")
+    if args.dry_run:
+        print("Dry run complete. No files were modified.")
+        return 0
+    if not args.yes and not _ask_yes_no("Apply this reconfiguration?", default=False):
+        print("Cancelled. No dataset files were modified.")
+        return 0
+    from . import audit_offline_dataset
+    final = reconfigure_offline_dataset(OFFLINE_DATASET_DIR, policy, regenerate_audit=audit_offline_dataset.main)
+    print(f"Offline dataset reconfigured: {final.new_public_movies} public, {final.new_support_movies} collaborative support.")
+    print(f"Offline dataset: {final.dataset_dir}")
+    return 0
 
 
 def _ask_cleanup() -> str:
@@ -311,7 +361,7 @@ def _preset_label(value: str | None) -> str:
 
 
 def _source_label(value: str) -> str:
-    return {"download": "Download automatically", "existing": "Reuse existing files", "zip": "Import local ZIP"}.get(value, value)
+    return {"download": "Download automatically", "existing": "Reuse existing files", "zip": "Import local ZIP", "reconfigure": "Reconfigure existing offline dataset"}.get(value, value)
 
 
 def _cleanup_label(value: str) -> str:

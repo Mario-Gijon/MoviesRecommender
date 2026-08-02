@@ -133,6 +133,7 @@ def _build_catalog(*, items: list[dict], args: argparse.Namespace) -> dict:
             "publicEligibleMovies": len(public_candidates),
             "publicCatalog": len(public_catalog),
             "publicLimitApplied": args.public_limit is not None,
+            "publicAudiencePolicy": "family_only" if args.family_only else "family_and_teen",
             "collaborativeCore": len(collaborative_core),
             "excludedOrSensitive": len(excluded_or_sensitive),
             **suitability_counts,
