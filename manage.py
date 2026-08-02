@@ -92,7 +92,15 @@ def validate_dataset(data_dir: Path) -> tuple[bool, str]:
 
 
 def configured_data_dir(args) -> Path:
-    return Path(args.data_dir or read_env().get("DATA_DIR", ROOT / "Backend" / "data")).expanduser().resolve()
+    configured = Path(args.data_dir or read_env().get("DATA_DIR", "./data")).expanduser()
+    return (configured if configured.is_absolute() else ROOT / configured).resolve()
+
+
+def configured_data_env_value(args, data: Path) -> str:
+    """Keep deployment-relative DATA_DIR stable unless an external path was supplied."""
+    if args.data_dir is not None:
+        return absolute_path(data)
+    return read_env().get("DATA_DIR", "./data")
 
 
 def ensure_docker(dev: bool) -> bool:
@@ -100,7 +108,7 @@ def ensure_docker(dev: bool) -> bool:
 
 
 def dataset(args) -> int:
-    data = configured_data_dir(args); updates = {"DATA_DIR": absolute_path(data)}
+    data = configured_data_dir(args); updates = {"DATA_DIR": configured_data_env_value(args, data)}
     if args.source == "zip" and (not args.zip_path or not args.zip_path.is_file()): print("--source zip requires an existing regular --zip-path.", file=sys.stderr); return 1
     if args.source != "zip" and args.zip_path: print("--zip-path is only valid with --source zip.", file=sys.stderr); return 1
     if args.non_interactive and not args.source: print("--non-interactive dataset requires --source.", file=sys.stderr); return 1
@@ -138,7 +146,7 @@ def profiles(args) -> dict:
 
 
 def rebuild_models(args) -> int:
-    data = configured_data_dir(args); update_env({"DATA_DIR": absolute_path(data)}); valid, message = validate_dataset(data)
+    data = configured_data_dir(args); update_env({"DATA_DIR": configured_data_env_value(args, data)}); valid, message = validate_dataset(data)
     if not valid: print(message, file=sys.stderr); return 1
     print(message)
     if not ensure_docker(args.dev): return 1
@@ -159,7 +167,7 @@ def rebuild_models(args) -> int:
     if args.non_interactive and not args.yes: print("--non-interactive deploy requires --yes.", file=sys.stderr); return 1
     _print_deploy_summary(data, selected, item, bmf, clean_enabled, False, args.dev)
     if not args.non_interactive and not _ask_yes_no("Build selected recommender models?", True): return 0
-    update_env({"DATA_DIR": absolute_path(data), "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": item, "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": bmf})
+    update_env({"DATA_DIR": configured_data_env_value(args, data), "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": item, "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": bmf})
     command = compose_args(args.dev) + ["--profile", "maintenance", "run", "--rm", "recommender-build"]
     for algorithm in selected: command += ["--algorithm", algorithm]
     if clean_enabled: command.append("--clean")
@@ -167,7 +175,7 @@ def rebuild_models(args) -> int:
     if run(command): return 1
     _write_model_dataset_state(data)
     if args.audit and audit_models(args): return 1
-    if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
+    if run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "--force-recreate", "api", "frontend"]): return 1
     if not wait_ready(read_env().get("BACKEND_PORT", "8014")): return 1
     return 0
 
@@ -175,7 +183,7 @@ def rebuild_models(args) -> int:
 def install(args) -> int:
     """Build only when required; otherwise explicitly choose reuse or rebuild."""
     data = configured_data_dir(args)
-    update_env({"DATA_DIR": absolute_path(data)})
+    update_env({"DATA_DIR": configured_data_env_value(args, data)})
     valid, message = validate_dataset(data)
     if not valid: print(message, file=sys.stderr); return 1
     compatible, reason = validate_active_models(data)
@@ -189,7 +197,7 @@ def install(args) -> int:
 
 
 def start_backend(args) -> int:
-    data = configured_data_dir(args); update_env({"DATA_DIR": absolute_path(data)})
+    data = configured_data_dir(args); update_env({"DATA_DIR": configured_data_env_value(args, data)})
     valid, message = validate_dataset(data)
     if not valid: print(message, file=sys.stderr); return 1
     compatible, reason = validate_active_models(data)
@@ -198,7 +206,7 @@ def start_backend(args) -> int:
         print("Run `python manage.py rebuild-models` to construct compatible artifacts.", file=sys.stderr)
         return 1
     if not ensure_docker(args.dev): return 1
-    if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
+    if run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "--force-recreate", "api", "frontend"]): return 1
     return 0 if wait_ready(read_env().get("BACKEND_PORT", "8014")) else 1
 
 

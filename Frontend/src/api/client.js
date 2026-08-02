@@ -1,6 +1,4 @@
-const DEFAULT_API_URL = import.meta.env.DEV ? 'http://localhost:8014' : '/api'
-
-const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 export async function apiRequest(path, options = {}) {
   const { errorNormalizer, ...requestOptions } = options

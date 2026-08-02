@@ -26,6 +26,13 @@ class ManageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             valid, _ = manage.validate_dataset(Path(temporary)); self.assertFalse(valid)
 
+    def test_relative_data_dir_is_preserved_for_compose_and_resolved_from_root(self) -> None:
+        args = manage.parser().parse_args(["start"])
+        with patch.object(manage, "read_env", return_value={"DATA_DIR": "./data"}):
+            data = manage.configured_data_dir(args)
+            self.assertEqual(manage.ROOT / "data", data)
+            self.assertEqual("./data", manage.configured_data_env_value(args, data))
+
     def test_stop_command_never_uses_volumes(self) -> None:
         with patch.object(manage, "run", return_value=0) as run:
             self.assertEqual(0, manage.main(["stop", "--non-interactive"]))

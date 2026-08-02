@@ -2,59 +2,65 @@ name: movies-recommender
 
 services:
   api:
-    image: ${API_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/api:${APP_VERSION:-0.1.0}}
+    image: mariogijon/movies-recommender-api:latest
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
       MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT: ${MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT:-top_k_100_min_support_25}
       MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT: ${MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT:-factors_128_epochs_100_lr_0_005_reg_0_02}
     volumes:
-      - ${DATA_DIR:-./Backend/data}:/app/data
+      - ${DATA_DIR:-./data}:/app/data
     ports:
-      - ${BACKEND_BIND_HOST:-127.0.0.1}:${BACKEND_PORT:-8014}:8014
+      - ${BACKEND_BIND_HOST:-127.0.0.1}:${BACKEND_PORT:-18014}:8014
     restart: unless-stopped
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8014"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8014/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
 
   dataset:
-    image: ${DATASET_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/dataset:${APP_VERSION:-0.1.0}}
+    image: mariogijon/movies-recommender-dataset:latest
     profiles: ["dataset"]
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
       MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN: ${MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN:-}
     volumes:
-      - ${DATA_DIR:-./Backend/data}:/app/data
+      - ${DATA_DIR:-./data}:/app/data
     stdin_open: true
     tty: true
 
   recommender-build:
-    image: ${API_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/api:${APP_VERSION:-0.1.0}}
+    image: mariogijon/movies-recommender-api:latest
     profiles: ["maintenance"]
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
       MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT: ${MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT:-top_k_100_min_support_25}
       MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT: ${MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT:-factors_128_epochs_100_lr_0_005_reg_0_02}
     volumes:
-      - ${DATA_DIR:-./Backend/data}:/app/data
+      - ${DATA_DIR:-./data}:/app/data
     entrypoint: ["python", "-m", "pipelines.recommender_build.cli"]
     stdin_open: true
     tty: true
 
   recommender-audit:
-    image: ${API_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/api:${APP_VERSION:-0.1.0}}
+    image: mariogijon/movies-recommender-api:latest
     profiles: ["maintenance"]
     environment:
       MOVIES_RECOMMENDER_DATA_DIR: /app/data
       MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT: ${MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT:-top_k_100_min_support_25}
       MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT: ${MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT:-factors_128_epochs_100_lr_0_005_reg_0_02}
     volumes:
-      - ${DATA_DIR:-./Backend/data}:/app/data
+      - ${DATA_DIR:-./data}:/app/data
     entrypoint: ["python", "-m", "pipelines.recommender_evaluation.compare_collaborative_recommenders"]
 
   frontend:
-    image: ${FRONTEND_IMAGE:-${DOCKER_REGISTRY:-local}/${DOCKER_NAMESPACE:-movies-recommender}/frontend:${APP_VERSION:-0.1.0}}
+    image: mariogijon/movies-recommender-frontend:latest
     profiles: ["frontend"]
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     ports:
-      - ${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-5173}:80
+      - ${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-15173}:80
     restart: unless-stopped
