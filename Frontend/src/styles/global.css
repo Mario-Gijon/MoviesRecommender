@@ -3263,3 +3263,298 @@ button:disabled {
     transition: none;
   }
 }
+
+/* =========================================================
+   Final header alignment and shared control surfaces
+   ========================================================= */
+
+/*
+ * .game-shell sigue siendo el único elemento con scroll,
+ * pero ocupa toda la ventana para que la barra quede pegada
+ * al borde derecho.
+ *
+ * El padding conserva exactamente el margen visual interior.
+ */
+.game-shell {
+  width: 100%;
+  margin: 0;
+  padding-right: max(12px, calc((100vw - 2560px) / 2));
+  padding-left: max(12px, calc((100vw - 2560px) / 2));
+}
+
+/*
+ * Ya no existe el contador de valoradas en esta fila.
+ * Eliminamos la columna vacía y el gap que quedaba a la derecha.
+ */
+.game-search-row {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.game-search {
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Misma superficie visual que utiliza el buscador.
+ */
+.review-profile-toolbar {
+  border-color: rgba(174, 188, 255, 0.2);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.095),
+      rgba(255, 255, 255, 0.04)
+    ),
+    rgba(10, 16, 43, 0.52);
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * El selector cerrado utiliza también la superficie del buscador,
+ * en lugar del azul más intenso que tenía hasta ahora.
+ */
+.recommendation-algorithm-trigger {
+  border-color: rgba(174, 188, 255, 0.2);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.095),
+      rgba(255, 255, 255, 0.04)
+    ),
+    rgba(10, 16, 43, 0.52);
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.recommendation-algorithm-trigger:hover,
+.recommendation-algorithm-trigger:focus-visible,
+.recommendation-algorithm-trigger[aria-expanded="true"] {
+  border-color: rgba(174, 188, 255, 0.58);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.13),
+      rgba(255, 255, 255, 0.055)
+    ),
+    rgba(18, 26, 62, 0.62);
+
+  outline: none;
+
+  box-shadow:
+    0 18px 42px rgba(63, 83, 160, 0.2),
+    0 0 0 3px rgba(102, 126, 234, 0.13),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+/*
+ * En tablet y móvil mantenemos aproximadamente los márgenes
+ * que ya tenía la aplicación.
+ */
+@media (max-width: 1200px) {
+  .game-shell {
+    width: 100%;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-shell {
+    width: 100%;
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+}
+
+/* Ancho completo para que el scrollbar quede pegado al navegador */
+.game-shell {
+  --app-inline-gutter: max(12px, calc((100vw - 2560px) / 2));
+
+  width: 100%;
+  margin: 0;
+  padding-right: var(--app-inline-gutter);
+  padding-left: var(--app-inline-gutter);
+}
+
+/*
+ * El contenido del header conserva el mismo margen que el grid,
+ * pero su fondo y borde llegan hasta ambos extremos del scroll.
+ */
+.app-sticky-header {
+  width: auto;
+  margin-right: calc(-1 * var(--app-inline-gutter));
+  margin-left: calc(-1 * var(--app-inline-gutter));
+  padding-right: var(--app-inline-gutter);
+  padding-left: var(--app-inline-gutter);
+}
+
+@media (max-width: 1200px) {
+  .game-shell {
+    --app-inline-gutter: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-shell {
+    --app-inline-gutter: 7px;
+  }
+}
+
+/* =========================================================
+   Auto-hide sticky application header
+   ========================================================= */
+
+.app-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 16;
+
+  transform: translateY(0);
+  will-change: transform;
+
+  transition:
+    transform 250ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    box-shadow 180ms ease;
+}
+
+.app-sticky-header.is-hidden {
+  transform: translateY(calc(-100% - 2px));
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sticky-header {
+    transition-duration: 0.001ms;
+  }
+}
+
+/* =========================================================
+   Predictable responsive grids and centred responsive logo
+   ========================================================= */
+
+/*
+ * Catálogo y Review Profile:
+ *
+ * ≥ 2200px      6 columnas
+ * 1501–2199px   5 columnas
+ * 821–1500px    4 columnas
+ * 641–820px     3 columnas
+ * ≤ 640px       2 columnas
+ */
+
+.grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(16px, 1.5vw, 30px);
+}
+
+@media (min-width: 2200px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1500px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(16px, 1.7vw, 24px);
+  }
+}
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+/*
+ * Las recomendaciones necesitan algo más de anchura porque
+ * muestran puntuación, explicación, razones y valoración.
+ *
+ * ≥ 2200px      5 columnas
+ * 1201–2199px   4 columnas
+ * 821–1200px    3 columnas
+ * 641–820px     2 columnas
+ * ≤ 640px       1 columna
+ */
+
+.recommendation-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(18px, 1.5vw, 28px);
+}
+
+@media (min-width: 2200px) {
+  .recommendation-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .recommendation-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (max-width: 820px) {
+  .recommendation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .recommendation-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+}
+
+/* ---------- Logo ---------- */
+
+/* Algo más compacto también en escritorio. */
+.game-brand-logo {
+  width: clamp(135px, 8vw, 180px);
+}
+
+/*
+ * Cuando el header pasa a una columna, game-brand todavía heredaba
+ * width: max-content. Por eso justify-content: center no lo centraba
+ * realmente respecto a toda la aplicación.
+ */
+@media (max-width: 1200px) {
+  .game-brand {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: center;
+  }
+
+  .game-brand-logo {
+    width: clamp(125px, 16vw, 155px);
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-brand-logo {
+    width: clamp(105px, 25vw, 125px);
+  }
+}
