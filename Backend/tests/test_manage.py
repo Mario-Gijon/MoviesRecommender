@@ -31,6 +31,21 @@ class ManageTests(unittest.TestCase):
             self.assertEqual(0, manage.main(["stop", "--non-interactive"]))
         self.assertNotIn("--volumes", run.call_args.args[0])
 
+    def test_start_reuses_compatible_models_without_rebuild(self) -> None:
+        args = manage.parser().parse_args(["start"])
+        with patch.object(manage, "configured_data_dir", return_value=Path("/tmp/data")), patch.object(
+            manage, "update_env"
+        ), patch.object(manage, "validate_dataset", return_value=(True, "ok")), patch.object(
+            manage, "validate_active_models", return_value=(True, "compatible")
+        ), patch.object(manage, "ensure_docker", return_value=True), patch.object(
+            manage, "run", return_value=0
+        ) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(
+            manage, "rebuild_models"
+        ) as rebuild:
+            self.assertEqual(0, manage.start_backend(args))
+        rebuild.assert_not_called()
+        self.assertIn("--force-recreate", run.call_args.args[0])
+
     def test_menu_exit_and_dataset_route(self) -> None:
         with patch("builtins.input", return_value="0"), patch.object(manage, "run") as run:
             self.assertEqual(0, manage.menu()); run.assert_not_called()
@@ -61,12 +76,12 @@ class ManageTests(unittest.TestCase):
             data = Path(temporary)
             def execute(arguments):
                 args = manage.parser().parse_args(arguments)
-                with patch.object(manage, "configured_data_dir", return_value=data), patch.object(manage, "validate_dataset", return_value=(True, "ok")), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "profiles", return_value=self.CATALOGUE), patch.object(manage, "update_env"), patch.object(manage, "run", return_value=0) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(manage, "_choose_profile", side_effect=lambda _t, _v, default: default), patch.object(manage, "_ask_yes_no", side_effect=[False, False, True]), patch("builtins.input", return_value="all"):
-                    self.assertEqual(0, manage.deploy(args))
+                with patch.object(manage, "configured_data_dir", return_value=data), patch.object(manage, "validate_dataset", return_value=(True, "ok")), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "profiles", return_value=self.CATALOGUE), patch.object(manage, "update_env"), patch.object(manage, "_write_model_dataset_state"), patch.object(manage, "run", return_value=0) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(manage, "_choose_profile", side_effect=lambda _t, _v, default: default), patch.object(manage, "_ask_yes_no", side_effect=[False, True]), patch("builtins.input", return_value="all"):
+                    self.assertEqual(0, manage.rebuild_models(args))
                 return run.call_args_list[0].args[0]
-            self.assertNotIn("--clean", execute(["deploy"]))
-            self.assertIn("--clean", execute(["deploy", "--non-interactive", "--yes"]))
-            self.assertNotIn("--clean", execute(["deploy", "--non-interactive", "--yes", "--no-clean"]))
+            self.assertNotIn("--clean", execute(["rebuild-models"]))
+            self.assertIn("--clean", execute(["rebuild-models", "--non-interactive", "--yes"]))
+            self.assertNotIn("--clean", execute(["rebuild-models", "--non-interactive", "--yes", "--no-clean"]))
 
     def test_explicit_clean_does_not_prompt_and_zip_errors_precede_compose(self) -> None:
         args = manage.parser().parse_args(["dataset", "--source", "zip"])

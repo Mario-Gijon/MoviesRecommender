@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import getpass
 import json
 import os
@@ -31,11 +32,17 @@ def parser() -> argparse.ArgumentParser:
     dataset = subs.add_parser("dataset", help="Generate an offline dataset")
     common(dataset); dataset.add_argument("--source", choices=("existing", "download", "zip")); dataset.add_argument("--zip-path", type=Path); dataset.add_argument("--preset", choices=("recommended", "defaults", "custom"), default="recommended"); dataset.add_argument("--cleanup", choices=("none", "standard", "minimal"), default="none"); dataset.add_argument("--skip-posters", action="store_true"); dataset.add_argument("--audit", action="store_true"); dataset.add_argument("--yes", action="store_true")
     for name in ("candidate-limit", "candidate-min-ratings", "candidate-min-year", "candidate-max-year", "candidate-min-tags", "max-tags-per-movie", "public-limit", "collaborative-core-limit", "catalog-min-ratings", "public-min-year", "collaborative-min-year"): dataset.add_argument("--" + name, type=int)
-    deploy = subs.add_parser("deploy", help="Build recommenders and start the API")
-    common(deploy); deploy.add_argument("--algorithms", default="all"); deploy.add_argument("--item-knn-variant"); deploy.add_argument("--bmf-variant"); clean = deploy.add_mutually_exclusive_group(); clean.add_argument("--clean", action="store_true"); clean.add_argument("--no-clean", action="store_true"); front = deploy.add_mutually_exclusive_group(); front.add_argument("--frontend", action="store_true"); front.add_argument("--no-frontend", action="store_true"); deploy.add_argument("--yes", action="store_true")
+    for name, help_text in (("install", "Build recommender models and start the API"), ("rebuild-models", "Rebuild selected recommender models")):
+        build = subs.add_parser(name, help=help_text)
+        common(build); build.add_argument("--algorithms", default="all"); build.add_argument("--item-knn-variant"); build.add_argument("--bmf-variant"); clean = build.add_mutually_exclusive_group(); clean.add_argument("--clean", action="store_true"); clean.add_argument("--no-clean", action="store_true"); build.add_argument("--audit", action="store_true"); build.add_argument("--yes", action="store_true")
+    for name, help_text in (("start", "Start the API using existing recommender artifacts"), ("deploy", "Alias for start")):
+        start = subs.add_parser(name, help=help_text); common(start)
+    audit = subs.add_parser("audit-models", help="Audit existing recommender artifacts without rebuilding")
+    common(audit)
     for name in ("restart", "status", "stop"):
         p = subs.add_parser(name); common(p)
         if name == "restart": p.add_argument("--frontend", action="store_true")
+    subs.add_parser("backend", help=argparse.SUPPRESS)
     return root
 
 
@@ -130,7 +137,7 @@ def profiles(args) -> dict:
     return payload
 
 
-def deploy(args) -> int:
+def rebuild_models(args) -> int:
     data = configured_data_dir(args); update_env({"DATA_DIR": absolute_path(data)}); valid, message = validate_dataset(data)
     if not valid: print(message, file=sys.stderr); return 1
     print(message)
@@ -145,13 +152,12 @@ def deploy(args) -> int:
         bmf = _choose_profile("Select BMF variant", catalogue["biasedMatrixFactorization"], bmf)
         raw_algorithms = input("Algorithms [all]: ").strip() or "all"
         args.algorithms = raw_algorithms
-        if not args.no_frontend and not args.frontend: args.frontend = _ask_yes_no("Start frontend?", True)
     requested = ALGORITHMS if args.algorithms == "all" else tuple(args.algorithms.split(","))
     if not requested or any(name not in ALGORITHMS for name in requested): print("Algorithms must be a non-empty comma-separated selection of supported names.", file=sys.stderr); return 1
     if item not in {p.get("variantId") for p in catalogue["itemKnn"]} or bmf not in {p.get("variantId") for p in catalogue["biasedMatrixFactorization"]}: print("Unsupported recommender variant.", file=sys.stderr); return 1
     selected = requested
     if args.non_interactive and not args.yes: print("--non-interactive deploy requires --yes.", file=sys.stderr); return 1
-    _print_deploy_summary(data, selected, item, bmf, clean_enabled, args.frontend, args.dev)
+    _print_deploy_summary(data, selected, item, bmf, clean_enabled, False, args.dev)
     if not args.non_interactive and not _ask_yes_no("Build selected recommender models?", True): return 0
     update_env({"DATA_DIR": absolute_path(data), "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": item, "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": bmf})
     command = compose_args(args.dev) + ["--profile", "maintenance", "run", "--rm", "recommender-build"]
@@ -159,10 +165,88 @@ def deploy(args) -> int:
     if clean_enabled: command.append("--clean")
     command.append("--yes")
     if run(command): return 1
+    _write_model_dataset_state(data)
+    if args.audit and audit_models(args): return 1
     if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
     if not wait_ready(read_env().get("BACKEND_PORT", "8014")): return 1
-    if args.frontend and run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "frontend"]): return 1
     return 0
+
+
+def install(args) -> int:
+    """Build only when required; otherwise explicitly choose reuse or rebuild."""
+    data = configured_data_dir(args)
+    update_env({"DATA_DIR": absolute_path(data)})
+    valid, message = validate_dataset(data)
+    if not valid: print(message, file=sys.stderr); return 1
+    compatible, reason = validate_active_models(data)
+    if compatible:
+        if args.non_interactive or _ask_yes_no("Compatible recommender models exist. Reuse them?", True):
+            return start_backend(args)
+        if not _ask_yes_no("Rebuild recommender models?", False): return 0
+    elif not args.non_interactive:
+        print("Model construction is required: " + reason)
+    return rebuild_models(args)
+
+
+def start_backend(args) -> int:
+    data = configured_data_dir(args); update_env({"DATA_DIR": absolute_path(data)})
+    valid, message = validate_dataset(data)
+    if not valid: print(message, file=sys.stderr); return 1
+    compatible, reason = validate_active_models(data)
+    if not compatible:
+        print("Cannot start backend with existing recommender artifacts: " + reason, file=sys.stderr)
+        print("Run `python manage.py rebuild-models` to construct compatible artifacts.", file=sys.stderr)
+        return 1
+    if not ensure_docker(args.dev): return 1
+    if run(compose_args(args.dev) + ["up", "-d", "--force-recreate", "api"]): return 1
+    return 0 if wait_ready(read_env().get("BACKEND_PORT", "8014")) else 1
+
+
+def deploy(args) -> int:
+    """Backward-compatible explicit alias for a non-rebuilding backend start."""
+    return start_backend(args)
+
+
+def audit_models(args) -> int:
+    data = configured_data_dir(args); valid, message = validate_dataset(data)
+    if not valid: print(message, file=sys.stderr); return 1
+    compatible, reason = validate_active_models(data)
+    if not compatible: print("Cannot audit incompatible recommender artifacts: " + reason, file=sys.stderr); return 1
+    if not ensure_docker(args.dev): return 1
+    command = compose_args(args.dev) + ["--profile", "maintenance", "run", "--rm", "recommender-audit"]
+    return run(command)
+
+
+def validate_active_models(data: Path) -> tuple[bool, str]:
+    state = data / "recommender_models" / "dataset_compatibility.json"
+    if not state.is_file(): return False, "model compatibility state is missing"
+    try: payload = json.loads(state.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError): return False, "model compatibility state is unreadable"
+    if payload.get("datasetFingerprint") != _dataset_fingerprint(data): return False, "model artifacts are stale for the current offline dataset"
+    variants = read_env()
+    required = (
+        data / "recommender_models" / "content_based" / "content_feature_metadata.json",
+        data / "recommender_models" / "collaborative" / "popularity_baseline" / "default" / "model_manifest.json",
+        data / "recommender_models" / "collaborative" / "item_knn_cosine" / variants.get("MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT", "top_k_100_min_support_25") / "model_manifest.json",
+        data / "recommender_models" / "collaborative" / "user_knn_pearson_shrinkage" / "default" / "model_manifest.json",
+        data / "recommender_models" / "collaborative" / "biased_matrix_factorization" / variants.get("MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT", "factors_128_epochs_100_lr_0_005_reg_0_02") / "model_manifest.json",
+    )
+    missing = [str(path) for path in required if not path.is_file() or path.stat().st_size == 0]
+    return (False, "required active artifacts are missing: " + ", ".join(missing)) if missing else (True, "compatible")
+
+
+def _dataset_fingerprint(data: Path) -> str:
+    dataset = data / "offline_dataset"
+    digest = hashlib.sha256()
+    for path in (dataset / "manifest.json", dataset / "csv" / "public_movies.csv", dataset / "csv" / "collaborative_support_movies.csv", dataset / "csv" / "collaborative_ratings.csv"):
+        with path.open("rb") as file:
+            for block in iter(lambda: file.read(1024 * 1024), b""): digest.update(block)
+    return digest.hexdigest()
+
+
+def _write_model_dataset_state(data: Path) -> None:
+    state = data / "recommender_models" / "dataset_compatibility.json"; state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(json.dumps({"datasetFingerprint": _dataset_fingerprint(data), "datasetManifest": "offline_dataset/manifest.json"}, indent=2) + "\n", encoding="utf-8")
 
 
 def wait_ready(port: str) -> bool:
@@ -180,8 +264,12 @@ def wait_ready(port: str) -> bool:
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
     if not args.command: return menu()
+    if args.command == "backend": return backend_management()
     if args.command == "dataset": return dataset(args)
-    if args.command == "deploy": return deploy(args)
+    if args.command == "install": return install(args)
+    if args.command == "rebuild-models": return rebuild_models(args)
+    if args.command in {"start", "deploy"}: return start_backend(args)
+    if args.command == "audit-models": return audit_models(args)
     if args.command == "restart":
         if run(compose_args(args.dev) + ["restart", "api"]) or not wait_ready(read_env().get("BACKEND_PORT", "8014")): return 1
         if args.frontend:
@@ -198,6 +286,14 @@ def main(argv=None) -> int:
     if args.command == "stop":
         code = run(compose_args(args.dev) + ["down"]); print("Persistent DATA_DIR contents were not deleted."); return code
     return 1
+
+
+def backend_management() -> int:
+    print("Backend management\n\n1. Install backend\n   Builds recommender models and starts the API.\n\n2. Start or update backend\n   Starts the API using existing compatible model artifacts.\n\n3. Rebuild recommender models\n   Rebuilds selected models and reloads the API.\n\n4. Generate recommender audit\n   Audits existing model artifacts without rebuilding them.\n\n5. Restart backend\n   Restarts the running API container.\n\n0. Back")
+    try: choice = input("Select an option: ").strip()
+    except (EOFError, KeyboardInterrupt): return 0
+    command = {"1": "install", "2": "start", "3": "rebuild-models", "4": "audit-models", "5": "restart"}.get(choice)
+    return 0 if choice == "0" else main([command]) if command else 1
 
 
 def _ask_yes_no(question: str, default: bool) -> bool:
@@ -233,10 +329,10 @@ def _choose_profile(title: str, values: list[dict], default: str | None) -> str 
 
 
 def menu() -> int:
-    print("Movies Recommender\n\n1. Generate or update dataset\n2. Deploy or rebuild backend\n3. Restart services\n4. Show status\n5. Stop services\n0. Exit")
+    print("Movies Recommender\n\n1. Generate or update dataset\n2. Backend management\n3. Restart services\n4. Show status\n5. Stop services\n0. Exit")
     try: choice = input("Select an option: ").strip()
     except (EOFError, KeyboardInterrupt): print("Cancelled."); return 0
-    mapping = {"1": "dataset", "2": "deploy", "3": "restart", "4": "status", "5": "stop"}
+    mapping = {"1": "dataset", "2": "backend", "3": "restart", "4": "status", "5": "stop"}
     return 0 if choice == "0" else main([mapping[choice]]) if choice in mapping else 1
 
 
