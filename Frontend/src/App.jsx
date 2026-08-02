@@ -45,6 +45,7 @@ function App() {
   const [ratings, setRatings] = useState({})
   const [selectedStrategy, setSelectedStrategy] = useState('content')
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('tfidf')
+  const [selectedCollaborativeAlgorithm, setSelectedCollaborativeAlgorithm] = useState('item_knn')
   const [recommendations, setRecommendations] = useState(null)
   const [isCatalogLoading, setIsCatalogLoading] = useState(true)
   const [isCatalogLoadingMore, setIsCatalogLoadingMore] = useState(false)
@@ -188,8 +189,10 @@ function App() {
 
   function handleSelectStrategy(strategy) {
     setSelectedStrategy(strategy)
-    setSelectedAlgorithm((currentAlgorithm) =>
-      resolveAlgorithmForStrategy(strategy, currentAlgorithm),
+    setSelectedAlgorithm(
+      strategy === 'content'
+        ? resolveAlgorithmForStrategy(strategy, 'tfidf')
+        : selectedCollaborativeAlgorithm,
     )
     setRecommendations(null)
     setRecommendationError(null)
@@ -197,6 +200,9 @@ function App() {
 
   function handleSelectAlgorithm(algorithm) {
     setSelectedAlgorithm(algorithm)
+    if (selectedStrategy === 'collaborative') {
+      setSelectedCollaborativeAlgorithm(algorithm)
+    }
     setRecommendations(null)
     setRecommendationError(null)
   }

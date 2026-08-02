@@ -11,7 +11,6 @@ function StrategySelector({ value, onChange }) {
           onClick={() => onChange(strategy.value)}
         >
           <span>{strategy.label}</span>
-          <small>{strategy.status}</small>
         </button>
       ))}
     </div>

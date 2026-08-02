@@ -28,11 +28,13 @@ function RecommendationsStep({
     <div className="recommend-game-step compact-recommend-step">
       <div className="recommend-toolbar compact-recommend-toolbar">
         <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
-        <AlgorithmSelector
-          strategy={selectedStrategy}
-          value={selectedAlgorithm}
-          onChange={onSelectAlgorithm}
-        />
+        {selectedStrategy === 'collaborative' ? (
+          <AlgorithmSelector
+            strategy={selectedStrategy}
+            value={selectedAlgorithm}
+            onChange={onSelectAlgorithm}
+          />
+        ) : null}
         <button
           type="button"
           className="game-nav-button primary generate-button"

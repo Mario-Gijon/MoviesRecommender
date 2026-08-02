@@ -996,21 +996,13 @@ button:disabled {
   padding: 10px 14px;
   color: var(--sinbad-muted);
   background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
+  min-height: 44px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .game-strategy-button:hover {
   color: var(--sinbad-text);
-}
-
-.game-strategy-button small {
-  color: rgba(245, 247, 255, 0.58);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .game-strategy-button.active {
@@ -1025,6 +1017,87 @@ button:disabled {
 
 .compact-recommend-toolbar .game-strategy-tabs {
   min-width: min(100%, 460px);
+}
+
+.recommendation-algorithm-selector {
+  position: relative;
+  min-width: 190px;
+  z-index: 5;
+}
+
+.recommendation-algorithm-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(174, 188, 255, 0.22);
+  border-radius: 12px;
+  color: var(--sinbad-text);
+  background: rgba(10, 24, 54, 0.86);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.recommendation-algorithm-trigger:hover,
+.recommendation-algorithm-trigger:focus-visible {
+  border-color: rgba(103, 217, 255, 0.72);
+  background: rgba(19, 40, 82, 0.96);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(103, 217, 255, 0.14);
+}
+
+.recommendation-algorithm-chevron {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-right: 2px solid var(--sinbad-blue-3);
+  border-bottom: 2px solid var(--sinbad-blue-3);
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.recommendation-algorithm-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max(100%, 230px);
+  padding: 6px;
+  border: 1px solid rgba(174, 188, 255, 0.24);
+  border-radius: 14px;
+  background: #0b1835;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
+  z-index: 20;
+}
+
+.recommendation-algorithm-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--sinbad-muted);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recommendation-algorithm-option:hover,
+.recommendation-algorithm-option.highlighted,
+.recommendation-algorithm-option.selected {
+  color: var(--sinbad-text);
+  background: rgba(103, 217, 255, 0.13);
+}
+
+.recommendation-algorithm-option.selected {
+  color: var(--sinbad-blue-3);
 }
 
 .compact-recommend-toolbar .generate-button {
@@ -1506,6 +1579,10 @@ button:disabled {
   .compact-recommend-toolbar {
     justify-content: stretch;
   }
+
+  .recommendation-algorithm-selector {
+    flex: 1 1 190px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1521,6 +1598,13 @@ button:disabled {
 @media (max-width: 640px) {
   body {
     overflow: hidden;
+  }
+
+  .compact-recommend-toolbar .game-strategy-tabs,
+  .compact-recommend-toolbar .recommendation-algorithm-selector,
+  .compact-recommend-toolbar .generate-button {
+    width: 100%;
+    min-width: 0;
   }
 
   .game-shell {
