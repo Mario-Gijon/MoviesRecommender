@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -43,13 +44,21 @@ def parser() -> argparse.ArgumentParser:
     common(audit)
     for name in ("restart", "status", "stop", "backend-restart", "backend-stop", "frontend-install", "frontend-start", "frontend-restart", "frontend-stop", "frontend-status"):
         p = subs.add_parser(name); common(p)
+    subs.add_parser("dev", help="Start the local development API and frontend")
+    subs.add_parser("dev-stop", help="Stop the local development API and frontend")
+    subs.add_parser("dev-status", help="Show local development service status")
+    dev_logs = subs.add_parser("dev-logs", help="Follow local development logs")
+    dev_logs.add_argument("service", nargs="?", choices=("api", "frontend"))
+    dev_rebuild = subs.add_parser("dev-rebuild", help="Rebuild a development service after dependency changes")
+    dev_rebuild.add_argument("service", choices=("frontend", "backend", "all"))
     subs.add_parser("backend", help=argparse.SUPPRESS); subs.add_parser("frontend", help=argparse.SUPPRESS)
     return root
 
 
 def compose_args(dev: bool) -> list[str]:
-    args = ["docker", "compose", "-f", "compose.yaml"]
-    return args + (["-f", "compose.dev.yaml"] if dev else [])
+    if dev:
+        return ["docker", "compose", "-p", "movies-recommender-dev", "-f", "compose.dev.yaml"]
+    return ["docker", "compose", "-p", "movies-recommender-local", "-f", "compose.yaml"]
 
 
 def run(args: list[str], *, env: dict[str, str] | None = None) -> int:
@@ -106,6 +115,64 @@ def configured_data_env_value(args, data: Path) -> str:
 
 def ensure_docker(dev: bool) -> bool:
     return run(compose_args(dev) + ["config", "--quiet"]) == 0
+
+
+def dev(args) -> int:
+    """Start the isolated source-mounted development project."""
+    if not ensure_docker(True):
+        return 1
+    if run(compose_args(True) + ["up", "-d", "api", "frontend"]):
+        print("Could not start development services. If a configured port is in use, stop the conflicting published service first.", file=sys.stderr)
+        return 1
+    ready = wait_ready(read_env().get("BACKEND_PORT", "18014"))
+    if not ready:
+        print("The development frontend remains running; inspect `python manage.py dev-logs api`.", file=sys.stderr)
+        return 1
+    print("\nDevelopment environment started")
+    print("Frontend: " + _configured_url("FRONTEND_BIND_HOST", "FRONTEND_PORT", "5173"))
+    print("Backend:  " + _configured_url("BACKEND_BIND_HOST", "BACKEND_PORT", "18014"))
+    print("\nFrontend source changes use Vite HMR.")
+    print("Backend source changes use Uvicorn reload.")
+    print("No restart is required for normal code changes.")
+    return 0
+
+
+def dev_stop(args) -> int:
+    code = run(compose_args(True) + ["stop", "api", "frontend"])
+    if code == 0:
+        print("Development API and frontend stopped. Persistent data and dependency volumes were preserved.")
+    return code
+
+
+def dev_status(args) -> int:
+    run(compose_args(True) + ["ps", "api", "frontend"])
+    api_running = service_is_running(SimpleNamespace(dev=True), "api")
+    frontend_running = service_is_running(SimpleNamespace(dev=True), "frontend")
+    api_ready = api_running and wait_ready(read_env().get("BACKEND_PORT", "18014"))
+    print("Development API: " + ("running" if api_ready else "stopped / unhealthy"))
+    print("Development frontend: " + ("running" if frontend_running else "stopped"))
+    print("Frontend URL: " + _configured_url("FRONTEND_BIND_HOST", "FRONTEND_PORT", "5173"))
+    print("Backend URL: " + _configured_url("BACKEND_BIND_HOST", "BACKEND_PORT", "18014"))
+    return 0
+
+
+def dev_logs(args) -> int:
+    command = compose_args(True) + ["logs", "--follow"]
+    if args.service:
+        command.append(args.service)
+    return run(command)
+
+
+def dev_rebuild(args) -> int:
+    services = ("api", "frontend") if args.service == "all" else (("api",) if args.service == "backend" else ("frontend",))
+    if not ensure_docker(True):
+        return 1
+    for service in services:
+        if run(compose_args(True) + ["build", service]):
+            return 1
+        if run(compose_args(True) + ["up", "-d", "--force-recreate", service]):
+            return 1
+    return 0
 
 
 def dataset(args) -> int:
@@ -222,18 +289,12 @@ def start_all(args) -> int:
 
 
 def frontend_install(args) -> int:
-    if not wait_ready(read_env().get("BACKEND_PORT", "18014")):
-        print("The backend API is not running or is not ready. Install or start the backend before starting the frontend.", file=sys.stderr)
-        return 1
     if not ensure_docker(args.dev): return 1
     if run(compose_args(args.dev) + ["--profile", "frontend", "pull", "frontend"]): return 1
     return frontend_start(args, pull=False)
 
 
 def frontend_start(args, *, pull: bool = False) -> int:
-    if not wait_ready(read_env().get("BACKEND_PORT", "18014")):
-        print("The backend API is not running or is not ready. Install or start the backend before starting the frontend.", file=sys.stderr)
-        return 1
     if not ensure_docker(args.dev): return 1
     if pull and run(compose_args(args.dev) + ["--profile", "frontend", "pull", "frontend"]): return 1
     return run(compose_args(args.dev) + ["--profile", "frontend", "up", "-d", "frontend"])
@@ -258,6 +319,15 @@ def backend_stop(args) -> int:
 
 def service_is_installed(args, service: str) -> bool:
     command = compose_args(args.dev) + (["--profile", "frontend"] if service == "frontend" else []) + ["ps", "-q", "--all", service]
+    try:
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, shell=False)
+    except OSError:
+        return False
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def service_is_running(args, service: str) -> bool:
+    command = compose_args(args.dev) + (["--profile", "frontend"] if service == "frontend" else []) + ["ps", "-q", service]
     try:
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, shell=False)
     except OSError:
@@ -356,7 +426,18 @@ def wait_ready(port: str) -> bool:
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
+    return dispatch(args)
+
+
+def dispatch(args) -> int:
     if not args.command: return menu()
+    if getattr(args, "dev", False):
+        print("--dev is deprecated; use `python manage.py dev` for normal local development.", file=sys.stderr)
+    if args.command == "dev": return dev(args)
+    if args.command == "dev-stop": return dev_stop(args)
+    if args.command == "dev-status": return dev_status(args)
+    if args.command == "dev-logs": return dev_logs(args)
+    if args.command == "dev-rebuild": return dev_rebuild(args)
     if args.command == "backend": return backend_management()
     if args.command == "frontend": return frontend_management()
     if args.command == "dataset": return dataset(args)
@@ -392,15 +473,15 @@ def backend_management() -> int:
     try: choice = input("Select an option: ").strip()
     except (EOFError, KeyboardInterrupt): return 0
     command = {"1": "backend-install", "2": "backend-start", "3": "rebuild-models", "4": "audit-models", "5": "backend-restart", "6": "backend-stop"}.get(choice)
-    return 0 if choice == "0" else main([command]) if command else 1
+    return 0 if choice == "0" else dispatch(parser().parse_args([command])) if command else 1
 
 
 def frontend_management() -> int:
-    print("Frontend management (optional)\n\n1. Install frontend\n   Pulls and starts the frontend after checking that the API is available.\n\n2. Start frontend\n   Starts the existing frontend service.\n\n3. Restart frontend\n   Restarts only the frontend container.\n\n4. Stop frontend\n   Stops only the frontend container.\n\n5. Show frontend status\n   Shows container state, configured URL, and API connectivity.\n\n0. Back")
+    print("Frontend management\n\n1. Install frontend\n   Pulls and starts the published frontend.\n\n2. Start frontend\n   Starts the published frontend service.\n\n3. Restart frontend\n   Restarts only the published frontend container.\n\n4. Stop frontend\n   Stops only the published frontend container.\n\n5. Show frontend status\n   Shows container state and configured URL.\n\n0. Back")
     try: choice = input("Select an option: ").strip()
     except (EOFError, KeyboardInterrupt): return 0
     command = {"1": "frontend-install", "2": "frontend-start", "3": "frontend-restart", "4": "frontend-stop", "5": "frontend-status"}.get(choice)
-    return 0 if choice == "0" else main([command]) if command else 1
+    return 0 if choice == "0" else dispatch(parser().parse_args([command])) if command else 1
 
 
 def _ask_yes_no(question: str, default: bool) -> bool:
@@ -436,11 +517,16 @@ def _choose_profile(title: str, values: list[dict], default: str | None) -> str 
 
 
 def menu() -> int:
-    print("Movies Recommender\n\n1. Generate or update dataset\n2. Backend management\n3. Frontend management (optional)\n4. Restart installed services\n5. Show status\n6. Stop installed services\n0. Exit")
-    try: choice = input("Select an option: ").strip()
-    except (EOFError, KeyboardInterrupt): print("Cancelled."); return 0
-    mapping = {"1": "dataset", "2": "backend", "3": "frontend", "4": "restart", "5": "status", "6": "stop"}
-    return 0 if choice == "0" else main([mapping[choice]]) if choice in mapping else 1
+    mapping = {"1": "dataset", "2": "backend", "3": "frontend"}
+    while True:
+        print("Movies Recommender\n\n1. Generate or update dataset\n2. Backend management\n3. Frontend management\n0. Exit")
+        try: choice = input("Select an option: ").strip()
+        except (EOFError, KeyboardInterrupt): print("Cancelled."); return 0
+        if choice == "0": return 0
+        if choice in mapping:
+            dispatch(parser().parse_args([mapping[choice]]))
+            continue
+        print("Invalid option.", file=sys.stderr)
 
 
 if __name__ == "__main__": raise SystemExit(main())

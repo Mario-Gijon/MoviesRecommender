@@ -1,4 +1,4 @@
-name: movies-recommender
+name: movies-recommender-local
 
 services:
   api:
@@ -58,9 +58,6 @@ services:
   frontend:
     image: mariogijon/movies-recommender-frontend:latest
     profiles: ["frontend"]
-    depends_on:
-      api:
-        condition: service_healthy
     ports:
       - ${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-15173}:80
     restart: unless-stopped

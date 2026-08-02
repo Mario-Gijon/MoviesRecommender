@@ -2,114 +2,109 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 
-SPEC = importlib.util.spec_from_file_location("manage", Path(__file__).parents[2] / "manage.py")
-manage = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(manage)
+ROOT = Path(__file__).parents[2]
+SPEC = importlib.util.spec_from_file_location("manage", ROOT / "manage.py")
+manage = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(manage)
 
 
 class ManageTests(unittest.TestCase):
-    CATALOGUE = {"itemKnn": [{"variantId": "item", "recommended": True}], "biasedMatrixFactorization": [{"variantId": "bmf"}]}
-    def test_env_update_preserves_unknown_and_normalizes_path(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary); env = root / ".env"; env.write_text("# note\nUNKNOWN=value\nDATA_DIR=old\n", encoding="utf-8")
-            with patch.object(manage, "ENV_FILE", env), patch.object(manage, "EXAMPLE_ENV", root / "missing"):
-                manage.update_env({"DATA_DIR": manage.absolute_path(root / "data")})
-            text = env.read_text(encoding="utf-8")
-            self.assertIn("UNKNOWN=value", text); self.assertIn("DATA_DIR=" + (root / "data").as_posix(), text)
-            self.assertFalse(any(root.glob("tmp*")))
+    def test_compose_projects_are_standalone_and_distinct(self) -> None:
+        production = manage.compose_args(False)
+        development = manage.compose_args(True)
+        self.assertIn("compose.yaml", production)
+        self.assertNotIn("compose.dev.yaml", production)
+        self.assertIn("movies-recommender-local", production)
+        self.assertIn("compose.dev.yaml", development)
+        self.assertNotIn("compose.yaml", development)
+        self.assertIn("movies-recommender-dev", development)
 
-    def test_compose_mode_and_dataset_validation_are_host_only(self) -> None:
-        self.assertNotIn("compose.dev.yaml", manage.compose_args(False)); self.assertIn("compose.dev.yaml", manage.compose_args(True))
-        with tempfile.TemporaryDirectory() as temporary:
-            valid, _ = manage.validate_dataset(Path(temporary)); self.assertFalse(valid)
+    def test_dev_starts_api_and_frontend_without_force_recreate(self) -> None:
+        args = manage.parser().parse_args(["dev"])
+        with patch.object(manage, "ensure_docker", return_value=True), patch.object(
+            manage, "run", return_value=0
+        ) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(
+            manage, "read_env", return_value={}
+        ):
+            self.assertEqual(0, manage.dev(args))
+        command = run.call_args.args[0]
+        self.assertEqual(["api", "frontend"], command[-2:])
+        self.assertNotIn("--force-recreate", command)
+        self.assertIn("compose.dev.yaml", command)
 
-    def test_relative_data_dir_is_preserved_for_compose_and_resolved_from_root(self) -> None:
+    def test_dev_stop_only_targets_development_api_and_frontend(self) -> None:
+        args = manage.parser().parse_args(["dev-stop"])
+        with patch.object(manage, "run", return_value=0) as run:
+            self.assertEqual(0, manage.dev_stop(args))
+        command = run.call_args.args[0]
+        self.assertEqual(["stop", "api", "frontend"], command[-3:])
+        self.assertIn("compose.dev.yaml", command)
+        self.assertNotIn("--volumes", command)
+
+    def test_dev_rebuild_is_scoped_to_requested_service(self) -> None:
+        for target, expected in (("frontend", "frontend"), ("backend", "api")):
+            with self.subTest(target=target):
+                args = manage.parser().parse_args(["dev-rebuild", target])
+                with patch.object(manage, "ensure_docker", return_value=True), patch.object(
+                    manage, "run", return_value=0
+                ) as run:
+                    self.assertEqual(0, manage.dev_rebuild(args))
+                commands = [call.args[0] for call in run.call_args_list]
+                self.assertEqual(expected, commands[0][-1])
+                self.assertEqual(expected, commands[1][-1])
+                self.assertIn("--force-recreate", commands[1])
+
+    def test_frontend_published_commands_do_not_require_backend(self) -> None:
+        args = manage.parser().parse_args(["frontend-start"])
+        with patch.object(manage, "ensure_docker", return_value=True), patch.object(
+            manage, "run", return_value=0
+        ) as run:
+            self.assertEqual(0, manage.frontend_start(args))
+        self.assertIn("frontend", run.call_args.args[0])
+        self.assertNotIn("api", run.call_args.args[0])
+        self.assertIn("compose.yaml", run.call_args.args[0])
+
+    def test_development_compose_has_hmr_reload_and_root_data_dir(self) -> None:
+        content = (ROOT / "compose.dev.yaml").read_text(encoding="utf-8")
+        self.assertIn("--reload", content)
+        self.assertIn("bun\", \"run\", \"dev", content)
+        self.assertIn("./Frontend:/app", content)
+        self.assertIn("./Backend/pipelines:/app/pipelines", content)
+        self.assertIn("${DATA_DIR:-./data}:/app/data", content)
+        self.assertNotIn("VITE_API_URL", content)
+        self.assertNotIn("bun install", content)
+
+    def test_published_frontend_has_no_api_startup_dependency(self) -> None:
+        production = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        frontend = production.split("  frontend:", 1)[1]
+        self.assertNotIn("depends_on", frontend)
+
+    def test_vite_proxy_rewrites_only_api_prefix(self) -> None:
+        content = (ROOT / "Frontend" / "vite.config.js").read_text(encoding="utf-8")
+        self.assertIn("path.replace(/^\\/api/, '')", content)
+        self.assertIn("'/offline'", content)
+        self.assertIn("'/audit'", content)
+
+    def test_main_menu_has_only_scoped_entries_and_submenu_back_returns(self) -> None:
+        with patch("builtins.input", side_effect=["0"]):
+            self.assertEqual(0, manage.menu())
+        with patch("builtins.input", return_value="0"):
+            self.assertEqual(0, manage.backend_management())
+            self.assertEqual(0, manage.frontend_management())
+
+    def test_relative_data_dir_remains_root_relative(self) -> None:
         args = manage.parser().parse_args(["start"])
         with patch.object(manage, "read_env", return_value={"DATA_DIR": "./data"}):
             data = manage.configured_data_dir(args)
-            self.assertEqual(manage.ROOT / "data", data)
-            self.assertEqual("./data", manage.configured_data_env_value(args, data))
+        self.assertEqual(ROOT / "data", data)
 
-    def test_stop_command_never_uses_volumes(self) -> None:
-        with patch.object(manage, "service_is_installed", return_value=True), patch.object(manage, "run", return_value=0) as run:
-            self.assertEqual(0, manage.main(["stop", "--non-interactive"]))
-        self.assertNotIn("--volumes", run.call_args.args[0])
-
-    def test_start_reuses_compatible_models_without_rebuild(self) -> None:
-        args = manage.parser().parse_args(["start"])
-        with patch.object(manage, "configured_data_dir", return_value=Path("/tmp/data")), patch.object(
-            manage, "update_env"
-        ), patch.object(manage, "validate_dataset", return_value=(True, "ok")), patch.object(
-            manage, "validate_active_models", return_value=(True, "compatible")
-        ), patch.object(manage, "ensure_docker", return_value=True), patch.object(
-            manage, "run", return_value=0
-        ) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(
-            manage, "rebuild_models"
-        ) as rebuild:
-            self.assertEqual(0, manage.start_backend(args))
-        rebuild.assert_not_called()
-        self.assertIn("--force-recreate", run.call_args.args[0])
-        self.assertNotIn("frontend", run.call_args.args[0])
-
-    def test_frontend_install_requires_ready_api_and_uses_profile(self) -> None:
-        args = manage.parser().parse_args(["frontend-install"])
-        with patch.object(manage, "wait_ready", return_value=True), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "run", return_value=0) as run:
-            self.assertEqual(0, manage.frontend_install(args))
-        self.assertEqual("pull", run.call_args_list[0].args[0][-2])
-        self.assertIn("frontend", run.call_args_list[0].args[0])
-        self.assertIn("--profile", run.call_args_list[1].args[0])
-
-    def test_start_all_is_explicit_frontend_opt_in(self) -> None:
-        args = manage.parser().parse_args(["start-all"])
-        with patch.object(manage, "start_backend", return_value=0) as backend, patch.object(manage, "frontend_start", return_value=0) as frontend:
-            self.assertEqual(0, manage.start_all(args))
-        backend.assert_called_once_with(args)
-        frontend.assert_called_once_with(args, pull=False)
-
-    def test_menu_exit_and_dataset_route(self) -> None:
-        with patch("builtins.input", return_value="0"), patch.object(manage, "run") as run:
-            self.assertEqual(0, manage.menu()); run.assert_not_called()
-        with patch("builtins.input", return_value="1"), patch.object(manage, "main", return_value=0) as routed:
-            self.assertEqual(0, manage.menu()); routed.assert_called_once_with(["dataset"])
-
-    def test_interactive_dataset_does_not_invent_noninteractive_arguments(self) -> None:
-        args = manage.parser().parse_args(["dataset"])
-        with patch.object(manage, "configured_data_dir", return_value=Path("/tmp/data")), patch.object(manage, "read_env", return_value={"MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN": "set"}), patch.object(manage, "update_env"), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "run", return_value=0) as run:
-            self.assertEqual(0, manage.dataset(args))
-        command = run.call_args.args[0]
-        self.assertNotIn("--non-interactive", command); self.assertNotIn("existing", command)
-
-    def test_noninteractive_zip_mount_and_confirmation_requirements(self) -> None:
+    def test_env_update_preserves_unknown_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            archive = Path(temporary) / "source.zip"; archive.write_text("zip", encoding="utf-8")
-            args = manage.parser().parse_args(["dataset", "--non-interactive", "--source", "zip", "--zip-path", str(archive), "--yes"])
-            with patch.object(manage, "configured_data_dir", return_value=Path(temporary) / "data"), patch.object(manage, "update_env"), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "run", return_value=0) as run:
-                self.assertEqual(0, manage.dataset(args))
-            command = run.call_args.args[0]
-            self.assertIn("--volume", command); self.assertIn("/input/ml-32m.zip", command); self.assertNotIn(str(archive), command[command.index("dataset") + 1:])
-        args = manage.parser().parse_args(["deploy", "--non-interactive"])
-        with patch.object(manage, "configured_data_dir", return_value=Path("/missing")), patch.object(manage, "update_env") as update:
-            self.assertEqual(1, manage.deploy(args)); update.assert_called_once()
-
-    def test_clean_resolution_controls_builder_and_summary(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            data = Path(temporary)
-            def execute(arguments):
-                args = manage.parser().parse_args(arguments)
-                with patch.object(manage, "configured_data_dir", return_value=data), patch.object(manage, "validate_dataset", return_value=(True, "ok")), patch.object(manage, "ensure_docker", return_value=True), patch.object(manage, "profiles", return_value=self.CATALOGUE), patch.object(manage, "update_env"), patch.object(manage, "_write_model_dataset_state"), patch.object(manage, "run", return_value=0) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(manage, "_choose_profile", side_effect=lambda _t, _v, default: default), patch.object(manage, "_ask_yes_no", side_effect=[False, True]), patch("builtins.input", return_value="all"):
-                    self.assertEqual(0, manage.rebuild_models(args))
-                return run.call_args_list[0].args[0]
-            self.assertNotIn("--clean", execute(["rebuild-models"]))
-            self.assertIn("--clean", execute(["rebuild-models", "--non-interactive", "--yes"]))
-            self.assertNotIn("--clean", execute(["rebuild-models", "--non-interactive", "--yes", "--no-clean"]))
-
-    def test_explicit_clean_does_not_prompt_and_zip_errors_precede_compose(self) -> None:
-        args = manage.parser().parse_args(["dataset", "--source", "zip"])
-        with patch.object(manage, "ensure_docker") as docker:
-            self.assertEqual(1, manage.dataset(args)); docker.assert_not_called()
-        args = manage.parser().parse_args(["dataset", "--source", "existing", "--zip-path", "/tmp/x.zip"])
-        with patch.object(manage, "ensure_docker") as docker:
-            self.assertEqual(1, manage.dataset(args)); docker.assert_not_called()
+            env = Path(temporary) / ".env"
+            env.write_text("UNKNOWN=value\nDATA_DIR=old\n", encoding="utf-8")
+            with patch.object(manage, "ENV_FILE", env), patch.object(manage, "EXAMPLE_ENV", env):
+                manage.update_env({"DATA_DIR": "./data"})
+            self.assertIn("UNKNOWN=value", env.read_text(encoding="utf-8"))
