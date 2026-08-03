@@ -3155,7 +3155,6 @@ button:disabled {
   top: 0;
   z-index: 16;
   padding: 10px 0 12px;
-  border-bottom: 1px solid rgba(174, 188, 255, 0.14);
   background:
     linear-gradient(180deg, rgba(9, 15, 40, 0.98), rgba(6, 10, 27, 0.95)),
     rgba(5, 8, 22, 0.94);
