@@ -61,10 +61,11 @@ class ApplicationManager:
             )
             name = "Backend" if service == "api" else "Frontend"
             print(f"{name}: {status.label}")
-            published = ", ".join(status.published_ports) or "sin publicar"
-            if service == "api":
-                print(f"  Puerto publicado: {published}")
-                if status.health:
-                    print(f"  Salud: {status.health}")
+            if not status.published_ports:
+                print("  Published port: not published")
             else:
-                print(f"  Puerto publicado: {published}")
+                for published_port in status.published_ports:
+                    print(f"  Published port: {published_port.external}")
+                    print(f"  Internal port: {published_port.internal}")
+            if status.health:
+                print(f"  Salud: {status.health}")

@@ -34,10 +34,31 @@ PRODUCTION = Environment(
 
 
 @dataclass(frozen=True)
+class PublishedPort:
+    host: str
+    published_port: str
+    target_port: str
+    protocol: str
+
+    @property
+    def external(self) -> str:
+        formatted_host = (
+            self.host
+            if self.host.startswith("[") or ":" not in self.host
+            else f"[{self.host}]"
+        )
+        return f"{formatted_host}:{self.published_port}"
+
+    @property
+    def internal(self) -> str:
+        return f"{self.target_port}/{self.protocol}"
+
+
+@dataclass(frozen=True)
 class ServiceStatus:
     state: str
     health: str | None = None
-    published_ports: tuple[str, ...] = ()
+    published_ports: tuple[PublishedPort, ...] = ()
 
     @property
     def is_running(self) -> bool:
@@ -172,15 +193,24 @@ def _parse_compose_status(output: str) -> list[dict[str, object]]:
     return [parsed] if isinstance(parsed, dict) else []
 
 
-def _published_ports(entry: dict[str, object]) -> tuple[str, ...]:
+def _published_ports(entry: dict[str, object]) -> tuple[PublishedPort, ...]:
     publishers = entry.get("Publishers")
     if not isinstance(publishers, list):
         return ()
-    ports: list[str] = []
+    ports: list[PublishedPort] = []
     for publisher in publishers:
         if not isinstance(publisher, dict):
             continue
-        value = publisher.get("URL") or publisher.get("PublishedPort")
-        if value is not None:
-            ports.append(str(value))
+        published_port = publisher.get("PublishedPort")
+        target_port = publisher.get("TargetPort")
+        if published_port is None or target_port is None:
+            continue
+        ports.append(
+            PublishedPort(
+                host=str(publisher.get("URL") or "0.0.0.0"),
+                published_port=str(published_port),
+                target_port=str(target_port),
+                protocol=str(publisher.get("Protocol") or "tcp").lower(),
+            )
+        )
     return tuple(ports)

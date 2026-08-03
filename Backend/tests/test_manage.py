@@ -1,4 +1,6 @@
 import json
+from contextlib import redirect_stdout
+import io
 import subprocess
 import tempfile
 import unittest
@@ -7,7 +9,13 @@ from unittest.mock import Mock, patch
 
 from manager.application import ApplicationManager
 from manager.cli import InteractiveManager
-from manager.compose import DEVELOPMENT, PRODUCTION, DockerCompose, ServiceStatus
+from manager.compose import (
+    DEVELOPMENT,
+    PRODUCTION,
+    DockerCompose,
+    PublishedPort,
+    ServiceStatus,
+)
 from manager.config import Configuration
 from manager.console import Console
 from manager.models import ALGORITHMS, ModelManager
@@ -157,10 +165,78 @@ class ManageTests(unittest.TestCase):
                     status = compose.service_status("api")
                 self.assertEqual(state, status.state)
                 self.assertEqual(health, status.health)
-                if health == "healthy":
-                    self.assertEqual(
-                        ("127.0.0.1:18014->8014/tcp",), status.published_ports
-                    )
+
+    def test_published_ports_include_external_internal_and_ipv6_formats(self) -> None:
+        compose = DockerCompose(self.configuration, PRODUCTION)
+        payload = json.dumps(
+            [
+                {
+                    "State": "running",
+                    "Publishers": [
+                        {
+                            "URL": "127.0.0.1",
+                            "PublishedPort": 18014,
+                            "TargetPort": 8014,
+                            "Protocol": "tcp",
+                        },
+                        {
+                            "URL": "0.0.0.0",
+                            "PublishedPort": 8013,
+                            "TargetPort": 80,
+                            "Protocol": "tcp",
+                        },
+                        {
+                            "URL": "::1",
+                            "PublishedPort": 5173,
+                            "TargetPort": 5173,
+                            "Protocol": "tcp",
+                        },
+                        {
+                            "URL": "[::]",
+                            "PublishedPort": 8013,
+                            "TargetPort": 8013,
+                            "Protocol": "tcp",
+                        },
+                    ],
+                }
+            ]
+        )
+        result = subprocess.CompletedProcess([], 0, stdout=payload, stderr="")
+        with patch("manager.compose.subprocess.run", return_value=result):
+            status = compose.service_status("api")
+
+        self.assertEqual(
+            [
+                ("127.0.0.1:18014", "8014/tcp"),
+                ("0.0.0.0:8013", "80/tcp"),
+                ("[::1]:5173", "5173/tcp"),
+                ("[::]:8013", "8013/tcp"),
+            ],
+            [(port.external, port.internal) for port in status.published_ports],
+        )
+
+    def test_status_renders_all_published_ports_and_no_publisher_message(self) -> None:
+        compose = Mock()
+        compose.service_status.side_effect = [
+            ServiceStatus(
+                "running",
+                published_ports=(
+                    PublishedPort("127.0.0.1", "18014", "8014", "tcp"),
+                    PublishedPort("0.0.0.0", "8013", "80", "tcp"),
+                ),
+            ),
+            ServiceStatus("stopped"),
+        ]
+        manager = ApplicationManager(self.configuration, PRODUCTION, compose)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            manager.show_status(("api", "frontend"))
+        rendered = output.getvalue()
+        self.assertIn("Published port: 127.0.0.1:18014", rendered)
+        self.assertIn("Internal port: 8014/tcp", rendered)
+        self.assertIn("Published port: 0.0.0.0:8013", rendered)
+        self.assertIn("Internal port: 80/tcp", rendered)
+        self.assertIn("Published port: not published", rendered)
 
     def test_no_legacy_command_is_exposed_by_entrypoint(self) -> None:
         with patch("manager.cli.InteractiveManager.run", return_value=0) as run:
