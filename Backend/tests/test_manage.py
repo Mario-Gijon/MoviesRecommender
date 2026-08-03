@@ -24,7 +24,7 @@ from manager.compose import (
 )
 from manager.config import Configuration
 from manager.console import Console
-from manager.dataset import run_existing_interactive_flow
+from manager.dataset import DatasetManager, DatasetOptions, RECOMMENDED_VALUES
 from manager.models import ALGORITHMS, ModelManager
 from manager.runtime import Runtime, deployment_runtime
 
@@ -304,13 +304,11 @@ class ManageTests(unittest.TestCase):
             output = io.StringIO()
             with redirect_stdout(output):
                 models.validate()
-                run_existing_interactive_flow(compose)
                 with patch("builtins.input", side_effect=["3", "0"]):
                     InteractiveManager().run()
             rendered = output.getvalue()
         self.assertIn("Modelos: no compatibles", rendered)
         self.assertIn("Dataset offline ausente o inválido", rendered)
-        self.assertIn("La gestión completa del Dataset", rendered)
         self.assertIn("gestión de Configuración se implementará", rendered)
         self.assertNotIn("Models:", rendered)
         self.assertNotIn("Configuration:", rendered)
@@ -381,11 +379,11 @@ class ManageTests(unittest.TestCase):
             (root / ".env").write_text("DATA_DIR=./data\n", encoding="utf-8")
             manager = InteractiveManager(runtime=Runtime(root, packaged=True))
             output = io.StringIO()
-            with redirect_stdout(output), patch.object(DockerCompose, "validate_installation", return_value=(True, "")), patch.object(manager, "environment_menu") as environment_menu, patch("builtins.input", side_effect=["1", "2", "0"]):
+            with redirect_stdout(output), patch.object(DockerCompose, "validate_installation", return_value=(True, "")), patch.object(manager, "environment_menu") as environment_menu, patch("builtins.input", side_effect=["1", "2", "0", "0"]):
                 self.assertEqual(0, manager.run())
             environment_menu.assert_called_once_with(PRODUCTION)
             self.assertNotIn("Desarrollo", output.getvalue())
-            self.assertIn("imagen publicada", output.getvalue())
+            self.assertIn("Validar dataset offline", output.getvalue())
 
     def test_packaged_missing_compose_reports_absolute_path(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -418,6 +416,43 @@ class ManageTests(unittest.TestCase):
             self.assertEqual(0, result.returncode)
             self.assertIn("No se ha encontrado el archivo .env", result.stdout)
             self.assertFalse((target / ".env").exists())
+
+    def test_dataset_recommended_configuration_and_published_command(self) -> None:
+        runtime = Runtime(ROOT, packaged=True)
+        manager = DatasetManager(self.configuration, runtime, Mock(spec=Console))
+        self.assertEqual(15000, RECOMMENDED_VALUES["candidate_limit"])
+        self.assertEqual("family_and_teen", RECOMMENDED_VALUES["public_audience_policy"])
+        command = manager._generation_command("download", DatasetOptions(), "candidates", "reuse", True, True, False, None)
+        self.assertEqual(["run", "--rm", "dataset"], command[:3])
+        self.assertIn("--source", command)
+        self.assertIn("download", command)
+        self.assertIn("--audit", command)
+        self.assertNotIn("api", command)
+        self.assertNotIn("frontend", command)
+
+    def test_dataset_zip_is_resolved_read_only_and_supports_spaces(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="zip con espacios ") as temporary:
+            archive = Path(temporary) / "ml 32m.zip"
+            archive.write_bytes(b"zip")
+            manager = DatasetManager(self.configuration, Runtime(ROOT, packaged=True), Mock(spec=Console))
+            with patch("builtins.input", return_value=str(archive)):
+                resolved = manager._zip_path()
+            self.assertEqual(archive.resolve(), resolved)
+            command = manager._generation_command("zip", DatasetOptions(), "candidates", "reuse", False, False, False, resolved)
+            self.assertIn(f"{resolved}:/input/ml-32m.zip:ro", command)
+            self.assertIn("/input/ml-32m.zip", command)
+
+    def test_dataset_resume_cleanup_and_model_change_detection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            data = Path(temporary)
+            configuration = Configuration(root=ROOT, source=ROOT / ".env.example", values={"DATA_DIR": str(data)})
+            console = Mock(spec=Console)
+            manager = DatasetManager(configuration, Runtime(ROOT, packaged=True), console)
+            self.assertEqual("candidates", manager._resume_point())
+            output = io.StringIO()
+            with redirect_stdout(output):
+                manager.cleanup()
+            self.assertIn("No hay archivos", output.getvalue())
 
 
 def _write_valid_dataset(data_dir: Path) -> None:

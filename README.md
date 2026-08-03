@@ -48,8 +48,11 @@ TMDB metadata. It reuses valid raw files and cached work where possible, but
 regenerates the selected candidate, enrichment, catalogue, ratings, export, poster,
 and audit outputs. It never rebuilds `recommender_models/`.
 
-During this transition phase, choose Dataset from `python manage.py` to open the
-existing interactive wizard.
+El menú Dataset del gestor permite generar, reconstruir, reanudar, reconfigurar,
+validar, inspeccionar y limpiar el dataset mediante el servicio Compose `dataset`.
+En el paquete autónomo usa siempre la imagen publicada; en el repositorio permite
+escoger entre código local e imagen publicada. La imagen de Docker Hub debe incluir
+el contrato `pipelines.dataset_generation.cli --non-interactive` para estas operaciones.
 
 The `recommended` profile creates the broad 15,000-item configuration; choose
 `custom` in the wizard for individual limits, years, language, stages, poster and
@@ -81,8 +84,9 @@ perfiles, flags ni selección de algoritmos. Desarrollo usa el código local con
 y HMR; Producción usa las imágenes publicadas. La reconstrucción de modelos usa siempre
 las variantes activas declaradas en `.env` y mantiene `DATA_DIR` persistente.
 
-Dataset abre temporalmente su flujo interactivo existente mientras se prepara su
-gestión específica. Configuración se implementará en la siguiente fase.
+Dataset conserva sus datos, registros y artefactos de modelos separados bajo
+`DATA_DIR`; al cambiar su huella, los modelos existentes deben reconstruirse.
+Configuración se implementará en la siguiente fase.
 
 ### Paquete de despliegue autónomo
 

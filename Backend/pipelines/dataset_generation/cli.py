@@ -58,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate the portable MovieLens/TMDB offline dataset.")
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--yes", action="store_true", help="Skip final confirmation.")
-    parser.add_argument("--action", choices=("generate", "reconfigure"))
+    parser.add_argument("--action", choices=("generate", "reconfigure", "validate", "cleanup"))
     parser.add_argument("--source", choices=("existing", "download", "zip", "reconfigure"))
     parser.add_argument("--public-audience-policy", choices=tuple(POLICIES))
     parser.add_argument("--zip-path", type=Path)
@@ -115,6 +115,17 @@ def validate_config(config: DatasetPipelineConfig) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.action == "validate":
+            from .cleanup import validate_final_dataset
+            validate_final_dataset(DatasetPaths(DATA_DIR))
+            print(f"Dataset offline válido: {OFFLINE_DATASET_DIR}")
+            return 0
+        if args.action == "cleanup":
+            if not args.yes and not args.dry_run:
+                raise ValueError("La limpieza no interactiva requiere --yes.")
+            removed, skipped = apply_cleanup(args.cleanup, DatasetPaths(DATA_DIR), dry_run=args.dry_run)
+            _print_cleanup_summary(args.cleanup, DatasetPaths(DATA_DIR), removed, skipped)
+            return 0
         plan_printed = False
         if args.non_interactive:
             config = resolve_config(args)
