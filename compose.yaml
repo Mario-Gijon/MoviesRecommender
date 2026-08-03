@@ -1,4 +1,4 @@
-name: movies-recommender-local
+name: ${COMPOSE_PROJECT_NAME:-movies-recommender-local}
 
 services:
   api:

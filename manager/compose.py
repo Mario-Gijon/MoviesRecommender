@@ -1,0 +1,186 @@
+"""Docker Compose selection, execution and real service-state inspection."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+import subprocess
+import sys
+
+from manager.config import Configuration
+
+
+@dataclass(frozen=True)
+class Environment:
+    name: str
+    label: str
+    compose_file: str
+    development: bool
+
+
+DEVELOPMENT = Environment(
+    name="development",
+    label="Desarrollo",
+    compose_file="compose.dev.yaml",
+    development=True,
+)
+PRODUCTION = Environment(
+    name="production",
+    label="Producción",
+    compose_file="compose.yaml",
+    development=False,
+)
+
+
+@dataclass(frozen=True)
+class ServiceStatus:
+    state: str
+    health: str | None = None
+    published_ports: tuple[str, ...] = ()
+
+    @property
+    def is_running(self) -> bool:
+        return self.state == "running"
+
+    @property
+    def label(self) -> str:
+        if self.health == "unhealthy":
+            return "unhealthy"
+        return {
+            "missing": "no creado",
+            "running": "ejecutándose",
+            "stopped": "detenido",
+            "unknown": "estado no disponible",
+        }[self.state]
+
+
+class DockerCompose:
+    def __init__(self, configuration: Configuration, environment: Environment) -> None:
+        self.configuration = configuration
+        self.environment = environment
+
+    def command(self, arguments: list[str], *, profiles: tuple[str, ...] = ()) -> list[str]:
+        command = [
+            "docker",
+            "compose",
+            "--env-file",
+            self.configuration.source.name,
+        ]
+        if self.environment.development:
+            command.extend(["-p", "movies-recommender-dev"])
+        command.extend(["-f", self.environment.compose_file])
+        for profile in profiles:
+            command.extend(["--profile", profile])
+        return command + arguments
+
+    def run(self, arguments: list[str], *, profiles: tuple[str, ...] = ()) -> int:
+        try:
+            return subprocess.run(
+                self.command(arguments, profiles=profiles),
+                cwd=self.configuration.root,
+                check=False,
+            ).returncode
+        except OSError as exc:
+            print(f"No se pudo ejecutar Docker Compose: {exc}", file=sys.stderr)
+            return 1
+
+    def run_with_log(
+        self,
+        arguments: list[str],
+        log_path: Path,
+        *,
+        profiles: tuple[str, ...] = (),
+    ) -> int:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with subprocess.Popen(
+                self.command(arguments, profiles=profiles),
+                cwd=self.configuration.root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            ) as process, log_path.open("w", encoding="utf-8") as log:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    print(line, end="")
+                    log.write(line)
+                return process.wait()
+        except OSError as exc:
+            print(f"No se pudo ejecutar Docker Compose: {exc}", file=sys.stderr)
+            return 1
+
+    def service_status(self, service: str, *, profiles: tuple[str, ...] = ()) -> ServiceStatus:
+        try:
+            result = subprocess.run(
+                self.command(
+                    ["ps", "--all", "--format", "json", service],
+                    profiles=profiles,
+                ),
+                cwd=self.configuration.root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return ServiceStatus("unknown")
+        if result.returncode:
+            return ServiceStatus("unknown")
+        entries = _parse_compose_status(result.stdout)
+        if not entries:
+            return ServiceStatus("missing")
+        entry = entries[0]
+        state = str(entry.get("State", "")).lower()
+        health = str(entry.get("Health", "")).lower() or None
+        ports = _published_ports(entry)
+        if state == "running":
+            return ServiceStatus("running", health, ports)
+        return ServiceStatus("stopped", health, ports)
+
+
+def profiles_for(
+    environment: Environment,
+    services: tuple[str, ...],
+    *,
+    maintenance: bool = False,
+) -> tuple[str, ...]:
+    if maintenance:
+        return ("maintenance",)
+    if not environment.development and "frontend" in services:
+        return ("frontend",)
+    return ()
+
+
+def _parse_compose_status(output: str) -> list[dict[str, object]]:
+    text = output.strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        entries: list[dict[str, object]] = []
+        for line in text.splitlines():
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                return []
+            if isinstance(item, dict):
+                entries.append(item)
+        return entries
+    if isinstance(parsed, list):
+        return [item for item in parsed if isinstance(item, dict)]
+    return [parsed] if isinstance(parsed, dict) else []
+
+
+def _published_ports(entry: dict[str, object]) -> tuple[str, ...]:
+    publishers = entry.get("Publishers")
+    if not isinstance(publishers, list):
+        return ()
+    ports: list[str] = []
+    for publisher in publishers:
+        if not isinstance(publisher, dict):
+            continue
+        value = publisher.get("URL") or publisher.get("PublishedPort")
+        if value is not None:
+            ports.append(str(value))
+    return tuple(ports)

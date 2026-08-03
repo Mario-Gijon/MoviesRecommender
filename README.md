@@ -26,16 +26,10 @@ host through `DATA_DIR` (default `./Backend/data`). This includes both the share
 `offline_dataset/` and recommender-specific `recommender_models/` directories, so
 they survive `stop`, `down`, image pulls, and restarts.
 
-Docker users configure only `DATA_DIR`; Compose supplies
-`MOVIES_RECOMMENDER_DATA_DIR=/app/data` inside each backend container. The latter
-setting is only useful when running Python directly outside Docker, where its
-default remains `Backend/data`.
-
-```bash
-cp .env.example .env
-docker compose up -d api
-docker compose --profile frontend up -d
-```
+Docker users configure `DATA_DIR` in `.env`; the interactive manager supplies the
+appropriate Compose environment internally. `MOVIES_RECOMMENDER_DATA_DIR=/app/data`
+is used inside backend containers. It is only relevant when running Python directly
+outside Docker, where its default remains `Backend/data`.
 
 The backend is available by itself on `${BACKEND_BIND_HOST}:${BACKEND_PORT}`. The
 optional production frontend is served on `${FRONTEND_BIND_HOST}:${FRONTEND_PORT}`
@@ -43,13 +37,7 @@ and proxies `/api/`, `/offline/`, and `/audit/` to the backend internally. Defau
 bind to `127.0.0.1`; set either bind host to `0.0.0.0` only when LAN/server access is
 intended. Image names, ports, bind hosts, and `DATA_DIR` are configurable in `.env`.
 
-For source-based local development:
-
-```bash
-docker compose -f compose.yaml -f compose.dev.yaml up --build api
-docker compose --profile frontend -f compose.yaml -f compose.dev.yaml up --build
-```
-
+The manager selects source-mounted local development or published-image production.
 The development frontend keeps `VITE_API_URL=http://localhost:8014`; the production
 frontend uses relative `/api` URLs through Nginx.
 
@@ -60,17 +48,8 @@ TMDB metadata. It reuses valid raw files and cached work where possible, but
 regenerates the selected candidate, enrichment, catalogue, ratings, export, poster,
 and audit outputs. It never rebuilds `recommender_models/`.
 
-Run the local terminal wizard from `Backend`:
-
-```bash
-.venv/bin/python -m pipelines.dataset_generation.cli
-```
-
-Or run the same wizard in Docker:
-
-```bash
-docker compose --profile dataset run --rm dataset
-```
+During this transition phase, choose Dataset from `python manage.py` to open the
+existing interactive wizard.
 
 The `recommended` profile creates the broad 15,000-item configuration; choose
 `custom` in the wizard for individual limits, years, language, stages, poster and
@@ -82,61 +61,30 @@ MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN='...' \
   --non-interactive --yes --source download --preset recommended --audit
 ```
 
-Use `--dry-run` to print exact stage commands without downloads, TMDB calls, poster
-requests, or writes. Raw MovieLens source preparation is required for stage ranges
-containing `candidates` or `ratings`. Source modes are `existing`, `download`, and
-`zip`; `existing` requires all four extracted MovieLens CSVs, while `download`
-reuses valid raw data first, then a validated cached official ZIP. `--force` on the
-legacy downloader performs a fresh validated official download. Corrupt cached ZIPs
-are replaced only after a valid replacement is downloaded; custom ZIP mode never
-modifies the supplied host ZIP. For a custom ZIP in Docker, mount it read-only;
-the CLI path is inside the container:
-
-```bash
-docker compose --profile dataset run --rm \
-  -v /absolute/host/path/ml-32m.zip:/input/ml-32m.zip:ro \
-  dataset --source zip --zip-path /input/ml-32m.zip
-```
-
 The imported raw CSVs are written under persistent `DATA_DIR`; the original host ZIP
 is not modified. Enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`; set it
-in the environment (or enter it through the hidden interactive prompt). Use resume
-to reuse enrichment progress. Poster download and audit generation are optional.
+in the environment (or enter it through the existing interactive prompt). Dataset
+source selection, resume behavior, poster download, audit generation and cleanup are
+being redesigned in the next phase.
 
-## Recommender artifact rebuilding
+## Gestor interactivo
 
-## Quick local workflow
-
-Dataset setup offers Recommended (balanced defaults), Custom (movie count, ratings,
-years and minimum distinct tags), and Advanced settings. Minimum tags filters on all
-distinct normalized MovieLens tags; maximum stored tags only limits exported tags.
-For automation, for example: `python manage.py dataset --non-interactive --source
-existing --candidate-min-tags 0 --yes`. The movie count is a maximum and later
-validation may produce a smaller catalogue.
-
-Only Python, Docker, and Docker Compose are needed. Choose any writable `DATA_DIR`;
-the dataset container creates the portable dataset, and the backend container builds
-and loads recommenders. The frontend is optional.
+Only Python, Docker, and Docker Compose are needed. Configure any writable
+`DATA_DIR`, then start the manager with:
 
 ```bash
-python manage.py dataset
-python manage.py deploy
-python manage.py status
-python manage.py restart
-python manage.py stop
+python manage.py
 ```
 
-Bare commands are interactive; use `--non-interactive --yes` for automation. ZIP
-imports are mounted into the dataset container automatically. Deploy asks for model
-variants, algorithms, cleanup, and frontend; restart never rebuilds models.
+The manager guides application lifecycle actions without requiring Compose commands,
+profiles, flags, or algorithm selections. Development uses local code with reload and
+HMR; Production uses the published images. Recommendation-model rebuilding always
+uses the active variants declared in `.env` and keeps `DATA_DIR` persistent.
 
-`standard` dataset cleanup removes the pipeline cache and original MovieLens source
-files, while retaining the audit report. `minimal` also removes the audit report.
-Posters, final CSV files, and the manifest are always retained; MovieLens source data
-can be downloaded again for a future dataset regeneration. Model `--clean` removes
-optional model exports. `stop` never deletes persistent data. Requests select
-algorithms while deployment selects model variants. Manual Compose commands below
-remain available as an advanced fallback.
+Dataset currently opens its existing interactive flow while its dedicated management
+phase is prepared. Configuration management is the next phase.
+
+## Recommender artifact rebuilding
 
 Generating `offline_dataset/` does not rebuild `recommender_models/`. Rebuilding
 `recommender_models/` does not regenerate `offline_dataset/`. Rebuild the current
@@ -170,13 +118,8 @@ read-only input preflight (it exits nonzero when required CSVs are absent), and 
 Unselected variants are preserved. This command neither regenerates the offline
 dataset nor creates recommender audits.
 
-In Docker, use the opt-in maintenance profile:
-
-```bash
-docker compose --profile maintenance run --rm recommender-build --yes
-docker compose --profile maintenance run --rm recommender-build --algorithm biased --yes
-docker compose --profile maintenance run --rm recommender-build --algorithm item_knn --clean --yes
-```
+The interactive manager runs this maintenance flow with the appropriate environment
+and profile; it is not necessary to invoke Docker Compose directly.
 
 ## Current scope
 

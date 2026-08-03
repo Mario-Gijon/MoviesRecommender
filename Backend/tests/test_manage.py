@@ -1,110 +1,183 @@
-import importlib.util
+import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from manager.application import ApplicationManager
+from manager.cli import InteractiveManager
+from manager.compose import DEVELOPMENT, PRODUCTION, DockerCompose, ServiceStatus
+from manager.config import Configuration
+from manager.console import Console
+from manager.models import ALGORITHMS, ModelManager
 
 
 ROOT = Path(__file__).parents[2]
-SPEC = importlib.util.spec_from_file_location("manage", ROOT / "manage.py")
-manage = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(manage)
 
 
 class ManageTests(unittest.TestCase):
-    def test_compose_projects_are_standalone_and_distinct(self) -> None:
-        production = manage.compose_args(False)
-        development = manage.compose_args(True)
-        self.assertIn("compose.yaml", production)
-        self.assertNotIn("compose.dev.yaml", production)
-        self.assertIn("movies-recommender-local", production)
-        self.assertIn("compose.dev.yaml", development)
-        self.assertNotIn("compose.yaml", development)
+    def setUp(self) -> None:
+        self.configuration = Configuration(
+            root=ROOT,
+            source=ROOT / ".env.example",
+            values={
+                "DATA_DIR": "./data",
+                "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": "item-active",
+                "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": "biased-active",
+            },
+        )
+
+    def test_environment_selection_supports_development_and_production(self) -> None:
+        for selection, expected in (("1", DEVELOPMENT), ("2", PRODUCTION)):
+            with self.subTest(selection=selection):
+                manager = InteractiveManager()
+                with patch.object(manager, "environment_menu") as menu, patch(
+                    "builtins.input", side_effect=["1", selection, "0", "0"]
+                ):
+                    manager.run()
+                menu.assert_called_once_with(expected)
+
+    def test_compose_projects_are_isolated(self) -> None:
+        development = DockerCompose(self.configuration, DEVELOPMENT).command(["ps"])
+        production = DockerCompose(self.configuration, PRODUCTION).command(["ps"])
         self.assertIn("movies-recommender-dev", development)
+        self.assertIn("compose.dev.yaml", development)
+        self.assertNotIn("-p", production)
+        self.assertIn("compose.yaml", production)
 
-    def test_dev_starts_api_and_frontend_without_force_recreate(self) -> None:
-        args = manage.parser().parse_args(["dev"])
-        with patch.object(manage, "ensure_docker", return_value=True), patch.object(
-            manage, "run", return_value=0
-        ) as run, patch.object(manage, "wait_ready", return_value=True), patch.object(
-            manage, "read_env", return_value={}
-        ):
-            self.assertEqual(0, manage.dev(args))
-        command = run.call_args.args[0]
-        self.assertEqual(["api", "frontend"], command[-2:])
-        self.assertNotIn("--force-recreate", command)
-        self.assertIn("compose.dev.yaml", command)
+    def test_backend_and_frontend_start_independently(self) -> None:
+        compose = Mock()
+        compose.run.return_value = 0
+        development = ApplicationManager(self.configuration, DEVELOPMENT, compose)
+        production = ApplicationManager(self.configuration, PRODUCTION, compose)
 
-    def test_dev_stop_only_targets_development_api_and_frontend(self) -> None:
-        args = manage.parser().parse_args(["dev-stop"])
-        with patch.object(manage, "run", return_value=0) as run:
-            self.assertEqual(0, manage.dev_stop(args))
-        command = run.call_args.args[0]
-        self.assertEqual(["stop", "api", "frontend"], command[-3:])
-        self.assertIn("compose.dev.yaml", command)
-        self.assertNotIn("--volumes", command)
+        development.execute("backend", "start")
+        production.execute("frontend", "start")
 
-    def test_dev_rebuild_is_scoped_to_requested_service(self) -> None:
-        for target, expected in (("frontend", "frontend"), ("backend", "api")):
-            with self.subTest(target=target):
-                args = manage.parser().parse_args(["dev-rebuild", target])
-                with patch.object(manage, "ensure_docker", return_value=True), patch.object(
-                    manage, "run", return_value=0
-                ) as run:
-                    self.assertEqual(0, manage.dev_rebuild(args))
-                commands = [call.args[0] for call in run.call_args_list]
-                self.assertEqual(expected, commands[0][-1])
-                self.assertEqual(expected, commands[1][-1])
-                self.assertIn("--force-recreate", commands[1])
+        backend_call, frontend_call = compose.run.call_args_list
+        self.assertEqual(["up", "-d", "api"], backend_call.args[0])
+        self.assertNotIn("frontend", backend_call.args[0])
+        self.assertEqual(["up", "-d", "frontend"], frontend_call.args[0])
+        self.assertNotIn("api", frontend_call.args[0])
+        self.assertEqual(("frontend",), frontend_call.kwargs["profiles"])
 
-    def test_frontend_published_commands_do_not_require_backend(self) -> None:
-        args = manage.parser().parse_args(["frontend-start"])
-        with patch.object(manage, "ensure_docker", return_value=True), patch.object(
-            manage, "run", return_value=0
-        ) as run:
-            self.assertEqual(0, manage.frontend_start(args))
-        self.assertIn("frontend", run.call_args.args[0])
-        self.assertNotIn("api", run.call_args.args[0])
-        self.assertIn("compose.yaml", run.call_args.args[0])
+    def test_combined_operations_target_both_services(self) -> None:
+        compose = Mock()
+        compose.run.return_value = 0
+        manager = ApplicationManager(self.configuration, DEVELOPMENT, compose)
 
-    def test_development_compose_has_hmr_reload_and_root_data_dir(self) -> None:
-        content = (ROOT / "compose.dev.yaml").read_text(encoding="utf-8")
-        self.assertIn("--reload", content)
-        self.assertIn("bun\", \"run\", \"dev", content)
-        self.assertIn("./Frontend:/app", content)
-        self.assertIn("./Backend/pipelines:/app/pipelines", content)
-        self.assertIn("${DATA_DIR:-./data}:/app/data", content)
-        self.assertNotIn("VITE_API_URL", content)
-        self.assertNotIn("bun install", content)
+        manager.execute("both", "restart")
 
-    def test_published_frontend_has_no_api_startup_dependency(self) -> None:
-        production = (ROOT / "compose.yaml").read_text(encoding="utf-8")
-        frontend = production.split("  frontend:", 1)[1]
-        self.assertNotIn("depends_on", frontend)
+        self.assertEqual(
+            ["restart", "api", "frontend"], compose.run.call_args.args[0]
+        )
 
-    def test_vite_proxy_rewrites_only_api_prefix(self) -> None:
-        content = (ROOT / "Frontend" / "vite.config.js").read_text(encoding="utf-8")
-        self.assertIn("path.replace(/^\\/api/, '')", content)
-        self.assertIn("'/offline'", content)
-        self.assertIn("'/audit'", content)
+    def test_development_update_builds_and_production_update_pulls(self) -> None:
+        development_compose = Mock()
+        development_compose.run.return_value = 0
+        production_compose = Mock()
+        production_compose.run.return_value = 0
 
-    def test_main_menu_has_only_scoped_entries_and_submenu_back_returns(self) -> None:
-        with patch("builtins.input", side_effect=["0"]):
-            self.assertEqual(0, manage.menu())
-        with patch("builtins.input", return_value="0"):
-            self.assertEqual(0, manage.backend_management())
-            self.assertEqual(0, manage.frontend_management())
+        ApplicationManager(
+            self.configuration, DEVELOPMENT, development_compose
+        ).execute("backend", "update")
+        ApplicationManager(
+            self.configuration, PRODUCTION, production_compose
+        ).execute("backend", "update")
 
-    def test_relative_data_dir_remains_root_relative(self) -> None:
-        args = manage.parser().parse_args(["start"])
-        with patch.object(manage, "read_env", return_value={"DATA_DIR": "./data"}):
-            data = manage.configured_data_dir(args)
-        self.assertEqual(ROOT / "data", data)
+        self.assertEqual(
+            ["build", "api"], development_compose.run.call_args_list[0].args[0]
+        )
+        self.assertEqual(
+            ["up", "-d", "--force-recreate", "api"],
+            development_compose.run.call_args_list[1].args[0],
+        )
+        self.assertEqual(
+            ["pull", "api"], production_compose.run.call_args_list[0].args[0]
+        )
+        self.assertEqual(
+            ["up", "-d", "--force-recreate", "api"],
+            production_compose.run.call_args_list[1].args[0],
+        )
 
-    def test_env_update_preserves_unknown_entries(self) -> None:
+    def test_rebuild_uses_all_algorithms_and_env_variants(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            env = Path(temporary) / ".env"
-            env.write_text("UNKNOWN=value\nDATA_DIR=old\n", encoding="utf-8")
-            with patch.object(manage, "ENV_FILE", env), patch.object(manage, "EXAMPLE_ENV", env):
-                manage.update_env({"DATA_DIR": "./data"})
-            self.assertIn("UNKNOWN=value", env.read_text(encoding="utf-8"))
+            data_dir = Path(temporary)
+            _write_valid_dataset(data_dir)
+            configuration = Configuration(
+                root=ROOT,
+                source=ROOT / ".env.example",
+                values={
+                    "DATA_DIR": str(data_dir),
+                    "MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT": "item-v2",
+                    "MOVIES_RECOMMENDER_BIASED_MATRIX_FACTORIZATION_MODEL_VARIANT": "biased-v3",
+                },
+            )
+            compose = Mock()
+            compose.run_with_log.return_value = 0
+            compose.service_status.return_value = ServiceStatus("stopped")
+            console = Mock(spec=Console)
+            console.confirm.return_value = True
+
+            manager = ModelManager(configuration, DEVELOPMENT, compose, console)
+            self.assertEqual(0, manager.rebuild())
+
+            command = compose.run_with_log.call_args.args[0]
+            self.assertEqual("recommender-build", command[2])
+            self.assertEqual(
+                list(ALGORITHMS),
+                [command[index + 1] for index, value in enumerate(command) if value == "--algorithm"],
+            )
+            self.assertEqual("item-v2", manager.configuration.item_knn_variant)
+            self.assertEqual("biased-v3", manager.configuration.biased_variant)
+            self.assertFalse(compose.run.called)
+
+    def test_console_handles_invalid_input_and_interruptions(self) -> None:
+        console = Console()
+        with patch("builtins.input", side_effect=["x", KeyboardInterrupt]):
+            self.assertIsNone(console.menu("Prueba", {"0": "Salir"}))
+
+    def test_service_status_distinguishes_missing_stopped_running_and_unhealthy(self) -> None:
+        compose = DockerCompose(self.configuration, PRODUCTION)
+        cases = (
+            ("", "missing", None),
+            ('[{"State": "exited"}]', "stopped", None),
+            (
+                '[{"State": "running", "Health": "healthy", "Publishers": [{"URL": "127.0.0.1:18014->8014/tcp"}]}]',
+                "running",
+                "healthy",
+            ),
+            ('[{"State": "running", "Health": "unhealthy"}]', "running", "unhealthy"),
+        )
+        for payload, state, health in cases:
+            with self.subTest(payload=payload):
+                result = subprocess.CompletedProcess([], 0, stdout=payload, stderr="")
+                with patch("manager.compose.subprocess.run", return_value=result):
+                    status = compose.service_status("api")
+                self.assertEqual(state, status.state)
+                self.assertEqual(health, status.health)
+                if health == "healthy":
+                    self.assertEqual(
+                        ("127.0.0.1:18014->8014/tcp",), status.published_ports
+                    )
+
+    def test_no_legacy_command_is_exposed_by_entrypoint(self) -> None:
+        with patch("manager.cli.InteractiveManager.run", return_value=0) as run:
+            from manager.cli import main
+
+            self.assertEqual(0, main([]))
+        run.assert_called_once()
+
+
+def _write_valid_dataset(data_dir: Path) -> None:
+    dataset = data_dir / "offline_dataset"
+    (dataset / "csv").mkdir(parents=True)
+    (dataset / "images" / "posters").mkdir(parents=True)
+    for relative in (
+        "manifest.json",
+        "csv/public_movies.csv",
+        "csv/collaborative_support_movies.csv",
+        "csv/collaborative_ratings.csv",
+    ):
+        (dataset / relative).write_text(json.dumps({"valid": True}), encoding="utf-8")
