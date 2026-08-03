@@ -110,11 +110,13 @@ class DockerCompose:
             "docker",
             "compose",
             "--env-file",
-            self.configuration.source.name,
+            str(self.configuration.source.resolve()),
+            "--project-directory",
+            str(self.configuration.root.resolve()),
         ]
         if self.environment.development:
             command.extend(["-p", "movies-recommender-dev"])
-        command.extend(["-f", self.environment.compose_file])
+        command.extend(["-f", str((self.configuration.root / self.environment.compose_file).resolve())])
         for profile in profiles:
             command.extend(["--profile", profile])
         return command + arguments
@@ -179,6 +181,20 @@ class DockerCompose:
         health = str(entry.get("Health", "")) or None
         ports = _published_ports(entry)
         return ServiceStatus(state or "unknown", health, ports)
+
+    def validate_installation(self) -> tuple[bool, str]:
+        checks = ((["docker", "--version"], "Docker no está disponible. Instálalo e inténtalo de nuevo."),
+                  (["docker", "compose", "version"], "Docker Compose v2 no está disponible. Instálalo e inténtalo de nuevo."))
+        for command, message in checks:
+            try:
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+            except OSError:
+                return False, message
+            if result.returncode:
+                return False, message
+        if self.run(["config", "--quiet"]):
+            return False, "La configuración de Compose no es válida. Revisa el archivo .env y compose.yaml."
+        return True, ""
 
 
 def profiles_for(

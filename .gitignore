@@ -34,3 +34,4 @@ Backend/app/data/offline_dataset/*
 /Backend/data/recommender_audit/
 /app_simulation/
 /data/
+/dist/

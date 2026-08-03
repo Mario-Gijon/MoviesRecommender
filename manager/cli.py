@@ -5,18 +5,33 @@ from __future__ import annotations
 import sys
 
 from manager.application import ApplicationManager
+from manager.bootstrap import bootstrap_deployment
 from manager.compose import DEVELOPMENT, PRODUCTION, DockerCompose, Environment
 from manager.config import load_configuration
 from manager.console import Console
 from manager.dataset import run_existing_interactive_flow
 from manager.models import ModelManager
+from manager.runtime import Runtime, repository_runtime
 
 
 class InteractiveManager:
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(self, console: Console | None = None, runtime: Runtime | None = None) -> None:
         self.console = console or Console()
+        self.runtime = runtime or repository_runtime()
 
     def run(self) -> int:
+        if self.runtime.packaged:
+            compose_file = self.runtime.root / "compose.yaml"
+            if not compose_file.is_file():
+                print(f"No se ha encontrado el archivo Compose requerido: {compose_file}")
+                return 1
+            if not bootstrap_deployment(self.runtime.root, self.console):
+                return 0
+            configuration = load_configuration(self.runtime.root, require_env=True)
+            valid, message = DockerCompose(configuration, PRODUCTION).validate_installation()
+            if not valid:
+                print(message)
+                return 1
         while True:
             choice = self.console.menu(
                 "Gestor de Movies Recommender",
@@ -32,14 +47,18 @@ class InteractiveManager:
             if choice == "1":
                 self.application_menu()
             elif choice == "2":
-                configuration = load_configuration()
-                run_existing_interactive_flow(
-                    DockerCompose(configuration, PRODUCTION)
-                )
+                if self.runtime.packaged:
+                    print("La gestión del dataset mediante la imagen publicada se implementará en la siguiente fase.")
+                else:
+                    configuration = load_configuration(self.runtime.root)
+                    run_existing_interactive_flow(DockerCompose(configuration, PRODUCTION))
             else:
                 print("La gestión de Configuración se implementará en la siguiente fase.")
 
     def application_menu(self) -> None:
+        if self.runtime.packaged:
+            self.environment_menu(PRODUCTION)
+            return
         while True:
             choice = self.console.menu(
                 "Selecciona el entorno",
@@ -50,7 +69,7 @@ class InteractiveManager:
             self.environment_menu(DEVELOPMENT if choice == "1" else PRODUCTION)
 
     def environment_menu(self, environment: Environment) -> None:
-        configuration = load_configuration()
+        configuration = load_configuration(self.runtime.root, require_env=self.runtime.packaged)
         compose = DockerCompose(configuration, environment)
         application = ApplicationManager(configuration, environment, compose)
         models = ModelManager(configuration, environment, compose, self.console)
@@ -134,7 +153,7 @@ class InteractiveManager:
                 models.show_last_log()
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, runtime: Runtime | None = None) -> int:
     supplied = sys.argv[1:] if argv is None else argv
     if supplied:
         print(
@@ -143,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     try:
-        return InteractiveManager().run()
+        return InteractiveManager(runtime=runtime).run()
     except KeyboardInterrupt:
         print("\nOperación cancelada.")
         return 0

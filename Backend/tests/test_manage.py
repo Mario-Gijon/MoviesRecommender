@@ -1,13 +1,17 @@
 import json
 from contextlib import redirect_stdout
 import io
+import os
+import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from manager.application import ApplicationManager
+from manager.bootstrap import bootstrap_deployment
 from manager.cli import InteractiveManager
 from manager.compose import (
     DEVELOPMENT,
@@ -22,6 +26,7 @@ from manager.config import Configuration
 from manager.console import Console
 from manager.dataset import run_existing_interactive_flow
 from manager.models import ALGORITHMS, ModelManager
+from manager.runtime import Runtime, deployment_runtime
 
 
 ROOT = Path(__file__).parents[2]
@@ -53,9 +58,10 @@ class ManageTests(unittest.TestCase):
         development = DockerCompose(self.configuration, DEVELOPMENT).command(["ps"])
         production = DockerCompose(self.configuration, PRODUCTION).command(["ps"])
         self.assertIn("movies-recommender-dev", development)
-        self.assertIn("compose.dev.yaml", development)
+        self.assertIn(str(ROOT / "compose.dev.yaml"), development)
         self.assertNotIn("-p", production)
-        self.assertIn("compose.yaml", production)
+        self.assertIn(str(ROOT / "compose.yaml"), production)
+        self.assertIn("--project-directory", production)
 
     def test_backend_and_frontend_start_independently(self) -> None:
         compose = Mock()
@@ -316,6 +322,103 @@ class ManageTests(unittest.TestCase):
             self.assertEqual(0, main([]))
         run.assert_called_once()
 
+    def test_first_run_writes_safe_default_env_and_data_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            console = Console()
+            with patch("builtins.input", side_effect=["", "", "", "", "1", "", "s"]):
+                self.assertTrue(bootstrap_deployment(root, console))
+            values = _env_values(root / ".env")
+            self.assertEqual("movies-recommender", values["COMPOSE_PROJECT_NAME"])
+            self.assertEqual("./data", values["DATA_DIR"])
+            self.assertEqual("18014", values["BACKEND_PORT"])
+            self.assertEqual("15173", values["FRONTEND_PORT"])
+            self.assertEqual("127.0.0.1", values["BACKEND_BIND_HOST"])
+            self.assertEqual("127.0.0.1", values["FRONTEND_BIND_HOST"])
+            self.assertEqual("top_k_100_min_support_25", values["MOVIES_RECOMMENDER_ACTIVE_COLLABORATIVE_MODEL_VARIANT"])
+            self.assertTrue((root / "data").is_dir())
+
+    def test_bootstrap_rejects_invalid_values_and_never_overwrites_env(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            existing = root / ".env"
+            existing.write_text("KEEP=this\n", encoding="utf-8")
+            with patch("builtins.input", side_effect=AssertionError("no debe preguntar")):
+                self.assertTrue(bootstrap_deployment(root, Console()))
+            self.assertEqual("KEEP=this\n", existing.read_text(encoding="utf-8"))
+            existing.unlink()
+            output = io.StringIO()
+            inputs = ["Malo!", "good-project", "", "0", "18014", "18014", "15173", "2", "secreto", "s"]
+            with redirect_stdout(output), patch("builtins.input", side_effect=inputs):
+                self.assertTrue(bootstrap_deployment(root, Console()))
+            values = _env_values(root / ".env")
+            self.assertEqual("0.0.0.0", values["BACKEND_BIND_HOST"])
+            self.assertEqual("0.0.0.0", values["FRONTEND_BIND_HOST"])
+            self.assertNotIn("secreto", output.getvalue())
+            self.assertIn("Introduce un puerto", output.getvalue())
+
+    def test_bootstrap_cancellation_leaves_no_partial_env(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch("builtins.input", side_effect=KeyboardInterrupt):
+                self.assertFalse(bootstrap_deployment(root, Console()))
+            self.assertFalse((root / ".env").exists())
+
+    def test_bootstrap_accepts_absolute_data_paths_with_spaces(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "instalación"
+            data = Path(temporary) / "datos persistentes"
+            root.mkdir()
+            with patch("builtins.input", side_effect=["", str(data), "", "", "1", "", "s"]):
+                self.assertTrue(bootstrap_deployment(root, Console()))
+            self.assertEqual(str(data), _env_values(root / ".env")["DATA_DIR"])
+            self.assertTrue(data.is_dir())
+
+    def test_packaged_mode_is_production_only_and_dataset_is_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
+            (root / ".env").write_text("DATA_DIR=./data\n", encoding="utf-8")
+            manager = InteractiveManager(runtime=Runtime(root, packaged=True))
+            output = io.StringIO()
+            with redirect_stdout(output), patch.object(DockerCompose, "validate_installation", return_value=(True, "")), patch.object(manager, "environment_menu") as environment_menu, patch("builtins.input", side_effect=["1", "2", "0"]):
+                self.assertEqual(0, manager.run())
+            environment_menu.assert_called_once_with(PRODUCTION)
+            self.assertNotIn("Desarrollo", output.getvalue())
+            self.assertIn("imagen publicada", output.getvalue())
+
+    def test_packaged_missing_compose_reports_absolute_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = InteractiveManager(runtime=Runtime(root, packaged=True)).run()
+            self.assertEqual(1, result)
+            self.assertIn(str(root / "compose.yaml"), output.getvalue())
+
+    def test_deployment_runtime_uses_archive_parent_not_working_directory(self) -> None:
+        self.assertEqual(Path("/tmp/con espacios").resolve(), deployment_runtime("/tmp/con espacios/manage.pyz").root)
+
+    def test_build_archive_contains_only_manager_runtime_modules(self) -> None:
+        result = subprocess.run(["python", "scripts/build_deployment_package.py"], cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(0, result.returncode, result.stderr)
+        archive = ROOT / "dist" / "MoviesRecommender" / "manage.pyz"
+        with zipfile.ZipFile(archive) as package:
+            names = package.namelist()
+        forbidden = ("Backend", "Frontend", "tests", "compose.dev.yaml", ".env.example", "__pycache__", ".pyc")
+        self.assertFalse(any(any(item in name for item in forbidden) for name in names), names)
+
+    def test_archive_smoke_starts_from_a_different_directory(self) -> None:
+        subprocess.run(["python", "scripts/build_deployment_package.py"], cwd=ROOT, check=True, capture_output=True, text=True)
+        with tempfile.TemporaryDirectory(prefix="movies space ") as deployment, tempfile.TemporaryDirectory() as elsewhere:
+            target = Path(deployment)
+            shutil.copy2(ROOT / "dist" / "MoviesRecommender" / "manage.pyz", target / "manage.pyz")
+            shutil.copy2(ROOT / "dist" / "MoviesRecommender" / "compose.yaml", target / "compose.yaml")
+            result = subprocess.run(["python", str(target / "manage.pyz")], cwd=elsewhere, input="\n", capture_output=True, text=True, check=False)
+            self.assertEqual(0, result.returncode)
+            self.assertIn("No se ha encontrado el archivo .env", result.stdout)
+            self.assertFalse((target / ".env").exists())
+
 
 def _write_valid_dataset(data_dir: Path) -> None:
     dataset = data_dir / "offline_dataset"
@@ -328,3 +431,7 @@ def _write_valid_dataset(data_dir: Path) -> None:
         "csv/collaborative_ratings.csv",
     ):
         (dataset / relative).write_text(json.dumps({"valid": True}), encoding="utf-8")
+
+
+def _env_values(path: Path) -> dict[str, str]:
+    return dict(line.split("=", 1) for line in path.read_text(encoding="utf-8").splitlines())

@@ -84,6 +84,21 @@ las variantes activas declaradas en `.env` y mantiene `DATA_DIR` persistente.
 Dataset abre temporalmente su flujo interactivo existente mientras se prepara su
 gestión específica. Configuración se implementará en la siguiente fase.
 
+### Paquete de despliegue autónomo
+
+Quien mantenga el proyecto puede generar el paquete de producción con:
+
+```bash
+python scripts/build_deployment_package.py
+```
+
+Se distribuyen inicialmente solo `manage.pyz` y `compose.yaml` desde
+`dist/MoviesRecommender/`. En el primer arranque, `python manage.pyz` crea mediante
+un asistente `.env` y el directorio persistente `data/`; por tanto la instalación
+contiene después `manage.pyz`, `compose.yaml`, `.env` y `data/`. El código de la
+aplicación procede de las imágenes publicadas en Docker Hub. Ni el dataset ni los
+modelos se incluyen en el paquete.
+
 ## Reconstrucción de artefactos de recomendación
 
 Generar `offline_dataset/` no reconstruye `recommender_models/`. Reconstruir

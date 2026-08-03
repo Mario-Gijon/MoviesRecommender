@@ -45,10 +45,12 @@ class Configuration:
         return f"http://{shown_host}:{port}"
 
 
-def load_configuration(root: Path = ROOT) -> Configuration:
+def load_configuration(root: Path = ROOT, *, require_env: bool = False) -> Configuration:
     env_file = root / ".env"
     example_file = root / ".env.example"
     source = env_file if env_file.is_file() else example_file
+    if require_env and not env_file.is_file():
+        raise FileNotFoundError(env_file)
     values: dict[str, str] = {}
     if source.is_file():
         for line in source.read_text(encoding="utf-8").splitlines():
