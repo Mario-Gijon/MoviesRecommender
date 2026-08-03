@@ -15,9 +15,12 @@ from manager.compose import (
     DockerCompose,
     PublishedPort,
     ServiceStatus,
+    format_service_health,
+    format_service_state,
 )
 from manager.config import Configuration
 from manager.console import Console
+from manager.dataset import run_existing_interactive_flow
 from manager.models import ALGORITHMS, ModelManager
 
 
@@ -150,7 +153,7 @@ class ManageTests(unittest.TestCase):
         compose = DockerCompose(self.configuration, PRODUCTION)
         cases = (
             ("", "missing", None),
-            ('[{"State": "exited"}]', "stopped", None),
+            ('[{"State": "exited"}]', "exited", None),
             (
                 '[{"State": "running", "Health": "healthy", "Publishers": [{"URL": "127.0.0.1:18014->8014/tcp"}]}]',
                 "running",
@@ -232,11 +235,79 @@ class ManageTests(unittest.TestCase):
         with redirect_stdout(output):
             manager.show_status(("api", "frontend"))
         rendered = output.getvalue()
-        self.assertIn("Published port: 127.0.0.1:18014", rendered)
-        self.assertIn("Internal port: 8014/tcp", rendered)
-        self.assertIn("Published port: 0.0.0.0:8013", rendered)
-        self.assertIn("Internal port: 80/tcp", rendered)
-        self.assertIn("Published port: not published", rendered)
+        self.assertIn("Puerto publicado: 127.0.0.1:18014", rendered)
+        self.assertIn("Puerto interno: 8014/tcp", rendered)
+        self.assertIn("Puerto publicado: 0.0.0.0:8013", rendered)
+        self.assertIn("Puerto interno: 80/tcp", rendered)
+        self.assertIn("Puerto publicado: no publicado", rendered)
+
+    def test_docker_states_and_health_are_rendered_in_spanish(self) -> None:
+        expected_states = {
+            "running": "ejecutándose",
+            "stopped": "detenido",
+            "exited": "detenido",
+            "missing": "no creado",
+            "created": "creado",
+            "restarting": "reiniciándose",
+            "paused": "pausado",
+            "dead": "finalizado con error",
+            "starting": "iniciando",
+            "unknown": "desconocido",
+        }
+        for raw, expected in expected_states.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(expected, format_service_state(raw))
+        self.assertEqual("saludable", format_service_health("healthy"))
+        self.assertEqual("no saludable", format_service_health("unhealthy"))
+        self.assertEqual("iniciando", format_service_health("starting"))
+        self.assertEqual("Estado desconocido: rebooting", format_service_state("rebooting"))
+
+    def test_representative_cli_output_has_no_obsolete_english_labels(self) -> None:
+        compose = Mock()
+        compose.service_status.return_value = ServiceStatus("running", "healthy")
+        manager = ApplicationManager(self.configuration, PRODUCTION, compose)
+        output = io.StringIO()
+        with redirect_stdout(output), patch("builtins.input", return_value="0"):
+            manager.show_status(("api",))
+            InteractiveManager().console.menu("Prueba", {"0": "Salir"})
+        rendered = output.getvalue()
+        for obsolete in (
+            "Published port:",
+            "Internal port:",
+            "Health:",
+            "running",
+            "stopped",
+            "not created",
+            "Select an option",
+            "Cancelled",
+        ):
+            self.assertNotIn(obsolete, rendered)
+
+    def test_model_dataset_and_configuration_messages_are_spanish(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            configuration = Configuration(
+                root=ROOT,
+                source=ROOT / ".env.example",
+                values={"DATA_DIR": temporary},
+            )
+            compose = Mock()
+            compose.run.return_value = 0
+            console = Mock(spec=Console)
+            console.confirm.return_value = False
+            models = ModelManager(configuration, DEVELOPMENT, compose, console)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                models.validate()
+                run_existing_interactive_flow(compose)
+                with patch("builtins.input", side_effect=["3", "0"]):
+                    InteractiveManager().run()
+            rendered = output.getvalue()
+        self.assertIn("Modelos: no compatibles", rendered)
+        self.assertIn("Dataset offline ausente o inválido", rendered)
+        self.assertIn("La gestión completa del Dataset", rendered)
+        self.assertIn("gestión de Configuración se implementará", rendered)
+        self.assertNotIn("Models:", rendered)
+        self.assertNotIn("Configuration:", rendered)
 
     def test_no_legacy_command_is_exposed_by_entrypoint(self) -> None:
         with patch("manager.cli.InteractiveManager.run", return_value=0) as run:

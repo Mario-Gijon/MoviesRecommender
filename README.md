@@ -37,9 +37,9 @@ and proxies `/api/`, `/offline/`, and `/audit/` to the backend internally. Defau
 bind to `127.0.0.1`; set either bind host to `0.0.0.0` only when LAN/server access is
 intended. Image names, ports, bind hosts, and `DATA_DIR` are configurable in `.env`.
 
-The manager selects source-mounted local development or published-image production.
-The development frontend keeps `VITE_API_URL=http://localhost:8014`; the production
-frontend uses relative `/api` URLs through Nginx.
+El gestor selecciona Desarrollo con código montado o Producción con imágenes
+publicadas. El Frontend de Desarrollo mantiene `VITE_API_URL=http://localhost:8014`;
+el Frontend de Producción usa rutas relativas `/api` mediante Nginx.
 
 ## Dataset generation
 
@@ -65,30 +65,30 @@ The imported raw CSVs are written under persistent `DATA_DIR`; the original host
 is not modified. Enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`; set it
 in the environment (or enter it through the existing interactive prompt). Dataset
 source selection, resume behavior, poster download, audit generation and cleanup are
-being redesigned in the next phase.
+se rediseñarán en la siguiente fase.
 
 ## Gestor interactivo
 
-Only Python, Docker, and Docker Compose are needed. Configure any writable
-`DATA_DIR`, then start the manager with:
+Solo se necesitan Python, Docker y Docker Compose. Configura un `DATA_DIR` con
+permisos de escritura y ejecuta el gestor con:
 
 ```bash
 python manage.py
 ```
 
-The manager guides application lifecycle actions without requiring Compose commands,
-profiles, flags, or algorithm selections. Development uses local code with reload and
-HMR; Production uses the published images. Recommendation-model rebuilding always
-uses the active variants declared in `.env` and keeps `DATA_DIR` persistent.
+El gestor guía las operaciones de la aplicación sin exigir comandos de Compose,
+perfiles, flags ni selección de algoritmos. Desarrollo usa el código local con reload
+y HMR; Producción usa las imágenes publicadas. La reconstrucción de modelos usa siempre
+las variantes activas declaradas en `.env` y mantiene `DATA_DIR` persistente.
 
-Dataset currently opens its existing interactive flow while its dedicated management
-phase is prepared. Configuration management is the next phase.
+Dataset abre temporalmente su flujo interactivo existente mientras se prepara su
+gestión específica. Configuración se implementará en la siguiente fase.
 
-## Recommender artifact rebuilding
+## Reconstrucción de artefactos de recomendación
 
-Generating `offline_dataset/` does not rebuild `recommender_models/`. Rebuilding
-`recommender_models/` does not regenerate `offline_dataset/`. Rebuild the current
-runtime artifacts locally with:
+Generar `offline_dataset/` no reconstruye `recommender_models/`. Reconstruir
+`recommender_models/` no regenera `offline_dataset/`. El gestor reconstruye los
+artefactos actuales manteniendo esa separación.
 
 ```bash
 cd Backend
@@ -97,36 +97,31 @@ cd Backend
 .venv/bin/python -m pipelines.recommender_build.cli --algorithm item_knn --clean --yes
 ```
 
-The maintenance command builds each selected target under `DATA_DIR/tmp`, validates
-it, optionally removes non-runtime artifacts with `--clean`, then installs that target
-under `recommender_models/` before proceeding to the next selection.
-For Compose deployments, copy the root `.env.example` to `.env`; for direct Python
-backend runs, copy `Backend/.env.example` to `Backend/.env`. API requests select
-algorithms, never variants. Each target replacement uses a same-filesystem sibling
-backup; if recovery fails, the error identifies that backup for manual recovery. A
-later failed build does not undo targets already installed.
-Requests select algorithms, while variants are deployment-internal. Item KNN defaults
-to `top_k_100_min_support_25`; `top_k_50_min_support_25` is also a supported profile.
-The BMF deployment profile is `factors_128_epochs_100_lr_0_005_reg_0_02`. The API and
-maintenance command share active-variant environment settings, and maintenance builds
-only the active code-supported profile; arbitrary variant IDs are rejected. Adding a
-variant requires registering it in code, and generating a second variant does not make
-it active. Changing the active variant requires rebuilding that target and restarting
-the API. A future deployment CLI will select supported profiles. Use `--dry-run` for a
-read-only input preflight (it exits nonzero when required CSVs are absent), and use
-`--yes` for automation; otherwise an interactive terminal confirmation is required.
-Unselected variants are preserved. This command neither regenerates the offline
-dataset nor creates recommender audits.
+El proceso de mantenimiento construye cada objetivo seleccionado bajo
+`DATA_DIR/tmp`, lo valida, puede retirar artefactos no necesarios para ejecución con
+`--clean` y después instala ese objetivo bajo `recommender_models/`.
+Para despliegues Compose, copia el `.env.example` raíz a `.env`; para ejecutar el
+Backend directamente con Python, copia `Backend/.env.example` a `Backend/.env`. Las
+solicitudes de la API seleccionan algoritmos, nunca variantes. Cada reemplazo usa una
+copia de seguridad hermana en el mismo sistema de archivos; si la recuperación falla,
+el error identifica esa copia para su revisión manual. Un fallo posterior no deshace
+los objetivos ya instalados.
+Las variantes son internas al despliegue. Item KNN usa por defecto
+`top_k_100_min_support_25`; `top_k_50_min_support_25` también es compatible. El perfil
+de despliegue BMF es `factors_128_epochs_100_lr_0_005_reg_0_02`. La API y el
+mantenimiento comparten las variantes activas de `.env`; el gestor usa solo perfiles
+compatibles. El Dataset offline no se regenera durante esta operación ni se crean
+auditorías.
 
-The interactive manager runs this maintenance flow with the appropriate environment
-and profile; it is not necessary to invoke Docker Compose directly.
+El gestor interactivo ejecuta este proceso con el entorno y el perfil adecuados; no es
+necesario invocar Docker Compose directamente.
 
-## Current scope
+## Alcance actual
 
-- Configurable persistent runtime data and Docker deployment foundations.
-- No authentication or user accounts.
-- No external installation package or Docker Hub publication workflow yet.
+- Datos persistentes de ejecución configurables y base de despliegue Docker.
+- Sin autenticación ni cuentas de usuario.
+- Sin paquete de instalación externo ni flujo de publicación en Docker Hub.
 
-## Later phases
+## Fases posteriores
 
-- External installation package and Docker Hub publication workflow.
+- Paquete de instalación externo y flujo de publicación en Docker Hub.

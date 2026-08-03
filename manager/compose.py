@@ -11,6 +11,37 @@ import sys
 from manager.config import Configuration
 
 
+STATE_LABELS = {
+    "running": "ejecutándose",
+    "stopped": "detenido",
+    "exited": "detenido",
+    "missing": "no creado",
+    "created": "creado",
+    "restarting": "reiniciándose",
+    "paused": "pausado",
+    "dead": "finalizado con error",
+    "starting": "iniciando",
+    "unknown": "desconocido",
+}
+HEALTH_LABELS = {
+    "healthy": "saludable",
+    "unhealthy": "no saludable",
+    "starting": "iniciando",
+}
+
+
+def format_service_state(raw_state: str) -> str:
+    normalized = raw_state.lower()
+    label = STATE_LABELS.get(normalized)
+    return label if label is not None else f"Estado desconocido: {raw_state}"
+
+
+def format_service_health(raw_health: str) -> str:
+    normalized = raw_health.lower()
+    label = HEALTH_LABELS.get(normalized)
+    return label if label is not None else f"Salud desconocida: {raw_health}"
+
+
 @dataclass(frozen=True)
 class Environment:
     name: str
@@ -62,18 +93,11 @@ class ServiceStatus:
 
     @property
     def is_running(self) -> bool:
-        return self.state == "running"
+        return self.state.lower() == "running"
 
     @property
     def label(self) -> str:
-        if self.health == "unhealthy":
-            return "unhealthy"
-        return {
-            "missing": "no creado",
-            "running": "ejecutándose",
-            "stopped": "detenido",
-            "unknown": "estado no disponible",
-        }[self.state]
+        return format_service_state(self.state)
 
 
 class DockerCompose:
@@ -151,12 +175,10 @@ class DockerCompose:
         if not entries:
             return ServiceStatus("missing")
         entry = entries[0]
-        state = str(entry.get("State", "")).lower()
-        health = str(entry.get("Health", "")).lower() or None
+        state = str(entry.get("State", ""))
+        health = str(entry.get("Health", "")) or None
         ports = _published_ports(entry)
-        if state == "running":
-            return ServiceStatus("running", health, ports)
-        return ServiceStatus("stopped", health, ports)
+        return ServiceStatus(state or "unknown", health, ports)
 
 
 def profiles_for(

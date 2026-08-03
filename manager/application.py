@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from manager.compose import DockerCompose, Environment, profiles_for
+from manager.compose import (
+    DockerCompose,
+    Environment,
+    format_service_health,
+    profiles_for,
+)
 from manager.config import Configuration
 
 
@@ -62,10 +67,10 @@ class ApplicationManager:
             name = "Backend" if service == "api" else "Frontend"
             print(f"{name}: {status.label}")
             if not status.published_ports:
-                print("  Published port: not published")
+                print("  Puerto publicado: no publicado")
             else:
                 for published_port in status.published_ports:
-                    print(f"  Published port: {published_port.external}")
-                    print(f"  Internal port: {published_port.internal}")
+                    print(f"  Puerto publicado: {published_port.external}")
+                    print(f"  Puerto interno: {published_port.internal}")
             if status.health:
-                print(f"  Salud: {status.health}")
+                print(f"  Salud: {format_service_health(status.health)}")

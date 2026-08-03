@@ -19,7 +19,7 @@ class InteractiveManager:
     def run(self) -> int:
         while True:
             choice = self.console.menu(
-                "Movies Recommender Manager",
+                "Gestor de Movies Recommender",
                 {
                     "1": "Aplicación",
                     "2": "Dataset",
@@ -90,7 +90,7 @@ class InteractiveManager:
             "3": "Reiniciar",
             "4": "Actualizar",
             "5": "Ver estado",
-            "6": "Ver logs",
+            "6": "Ver registros",
             "0": "Volver",
         }
         action_names = {

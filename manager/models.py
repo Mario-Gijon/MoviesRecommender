@@ -41,13 +41,16 @@ class ModelManager:
 
     def show_existing(self) -> int:
         print(f"Directorio de modelos: {self.models_dir}")
-        print(f"Variante activa Item KNN: {self.configuration.item_knn_variant}")
-        print(f"Variante activa Biased: {self.configuration.biased_variant}")
+        print(f"Variante activa de Item KNN: {self.configuration.item_knn_variant}")
+        print(
+            "Variante activa de Biased Matrix Factorization: "
+            f"{self.configuration.biased_variant}"
+        )
         for label, path in self._required_artifacts():
             state = "encontrado" if path.is_file() and path.stat().st_size else "ausente"
             print(f"{label}: {state}")
         compatible, reason = self.validate_compatibility()
-        print("Compatibilidad con el dataset: " + ("compatible" if compatible else reason))
+        print("Compatibilidad con el Dataset: " + ("compatible" if compatible else reason))
         return 0
 
     def validate_compatibility(self) -> tuple[bool, str]:
@@ -87,9 +90,12 @@ class ModelManager:
         print(f"Entorno: {self.environment.label}")
         print(f"Dataset: {self.data_dir / 'offline_dataset'}")
         print("Algoritmos: " + ", ".join(ALGORITHMS))
-        print(f"Variante Item KNN: {self.configuration.item_knn_variant}")
-        print(f"Variante Biased: {self.configuration.biased_variant}")
-        print("No se iniciará el frontend ni se reiniciará el backend automáticamente.")
+        print(f"Variante de Item KNN: {self.configuration.item_knn_variant}")
+        print(
+            "Variante de Biased Matrix Factorization: "
+            f"{self.configuration.biased_variant}"
+        )
+        print("No se iniciará el Frontend ni se reiniciará el Backend automáticamente.")
         if not self.console.confirm("¿Reconstruir y entrenar todos los modelos?"):
             return 0
         command = ["run", "--rm", "recommender-build"]
@@ -138,7 +144,7 @@ class ModelManager:
                 self.models_dir / "content_based" / "content_feature_metadata.json",
             ),
             (
-                "Popularity",
+                "Popularidad",
                 collaborative / "popularity_baseline" / "default" / "model_manifest.json",
             ),
             (
@@ -156,7 +162,7 @@ class ModelManager:
                 / "model_manifest.json",
             ),
             (
-                "Biased",
+                "Biased Matrix Factorization",
                 collaborative
                 / "biased_matrix_factorization"
                 / self.configuration.biased_variant
@@ -177,8 +183,8 @@ def validate_dataset(data_dir: Path) -> tuple[bool, str]:
     missing = [str(path) for path in required if not path.exists()]
     empty = [str(path) for path in required[:-1] if path.is_file() and path.stat().st_size == 0]
     if missing or empty:
-        return False, "dataset offline ausente o inválido: " + ", ".join(missing + empty)
-    return True, "dataset válido"
+        return False, "Dataset offline ausente o inválido: " + ", ".join(missing + empty)
+    return True, "Dataset válido"
 
 
 def dataset_fingerprint(data_dir: Path) -> str:
