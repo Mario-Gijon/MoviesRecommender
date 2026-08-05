@@ -17,7 +17,11 @@ function RecommendationControls({
     !isLoadingRecommendations
 
   return (
-    <div className="recommend-toolbar compact-recommend-toolbar">
+    <div
+      className={`recommend-toolbar compact-recommend-toolbar ${
+        selectedStrategy === 'collaborative' ? 'has-algorithm' : 'content-only'
+      }`}
+    >
       <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
 
       {selectedStrategy === 'collaborative' ? (

@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import { isStrategyEnabled } from '../strategies'
 import RecommendationCard from './RecommendationCard'
 
@@ -11,6 +13,8 @@ function RecommendationsStep({
   onRate,
   isStale,
 }) {
+  const [openRecommendationId, setOpenRecommendationId] = useState(null)
+
   const canGenerate =
     ratedMoviesCount > 0 &&
     isStrategyEnabled(selectedStrategy) &&
@@ -72,6 +76,12 @@ function RecommendationsStep({
                       rank={index + 1}
                       rating={ratings[movieId] || null}
                       onRate={onRate}
+                      isTouchOpen={openRecommendationId === movieId}
+                      onToggleTouch={() => {
+                        setOpenRecommendationId((currentMovieId) =>
+                          currentMovieId === movieId ? null : movieId,
+                        )
+                      }}
                     />
                   )
                 })}

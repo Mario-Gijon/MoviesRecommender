@@ -10,6 +10,8 @@ function RecommendationCard({
   rank,
   rating,
   onRate,
+  isTouchOpen = false,
+  onToggleTouch,
 }) {
   const [isLeaving, setIsLeaving] = useState(false)
   const [exitRating, setExitRating] = useState(null)
@@ -36,6 +38,19 @@ function RecommendationCard({
     : []
 
   const hasReasons = reasons.length > 0
+
+  function handleCardClick(event) {
+    if (event.target.closest('button')) return
+    onToggleTouch?.()
+  }
+
+  function handleCardKeyDown(event) {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+
+    event.preventDefault()
+    onToggleTouch?.()
+  }
 
   useEffect(() => {
     return () => {
@@ -68,6 +83,7 @@ function RecommendationCard({
     'recommendation-card',
     'visible',
     isLeaving ? 'recommendation-card--leaving' : '',
+    isTouchOpen ? 'touch-open' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -77,6 +93,9 @@ function RecommendationCard({
       className={cardClassName}
       style={{ '--card-order': rank % 16 }}
       tabIndex={0}
+      aria-expanded={isTouchOpen}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
     >
       <div className="poster-frame recommendation-frame">
         {movie.posterUrl ? (

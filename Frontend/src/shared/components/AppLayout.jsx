@@ -227,16 +227,21 @@ function AppLayout({
                       : 'game-step'
                   }
                   onClick={() => handleStepClick(step.id)}
+                  aria-label={`${step.title}: ${step.description}`}
                   aria-current={
                     step.id === activeStep
                       ? 'step'
                       : undefined
                   }
                 >
-                  <span>{step.id}</span>
+                  <span className="game-step-number">{step.id}</span>
 
                   <div className="game-step-copy">
-                    <strong>{step.title}</strong>
+                    <strong>
+                      <span className="game-step-title-full">{step.title}</span>
+                      <span className="game-step-title-short">{step.shortTitle}</span>
+                      <span className="game-step-title-narrow">{step.narrowTitle}</span>
+                    </strong>
                     <small>{step.description}</small>
                   </div>
                 </button>

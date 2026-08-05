@@ -66,8 +66,10 @@ function AlgorithmSelector({ strategy, value, onChange }) {
           setIsOpen((current) => !current)
         }}
         onKeyDown={handleKeyDown}
+        aria-label={selectedOption?.label}
+        title={selectedOption?.label}
       >
-        <span>{selectedOption?.label}</span>
+        <span className="recommendation-algorithm-label">{selectedOption?.label}</span>
         <span className="recommendation-algorithm-chevron" aria-hidden="true" />
       </button>
       {isOpen ? (

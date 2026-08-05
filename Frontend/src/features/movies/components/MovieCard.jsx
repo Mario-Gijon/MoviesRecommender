@@ -3,11 +3,31 @@ import { useEffect, useRef, useState } from 'react'
 import { getMovieDisplayTitle } from '../movieDisplay'
 import MovieRatingControl from './MovieRatingControl'
 
-function MovieCard({ movie, rating, onRate, index = 0 }) {
+function MovieCard({
+  movie,
+  rating,
+  onRate,
+  index = 0,
+  isTouchOpen = false,
+  onToggleTouch,
+}) {
   const cardRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
   const isRated = Boolean(rating)
   const movieTitle = getMovieDisplayTitle(movie)
+
+  function handleCardClick(event) {
+    if (event.target.closest('button')) return
+    onToggleTouch?.()
+  }
+
+  function handleCardKeyDown(event) {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+
+    event.preventDefault()
+    onToggleTouch?.()
+  }
 
   useEffect(() => {
     if (!cardRef.current) {
@@ -38,10 +58,15 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
         'poster-card',
         isRated ? 'rated' : '',
         isVisible ? 'visible' : '',
+        isTouchOpen ? 'touch-open' : '',
       ]
         .filter(Boolean)
         .join(' ')}
       style={{ '--card-order': index % 16 }}
+      tabIndex={0}
+      aria-expanded={isTouchOpen}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
     >
       <div className="poster-frame">
         {movie.posterUrl ? (

@@ -29,16 +29,22 @@ const STEPS = [
   {
     id: 1,
     title: 'Valora películas',
+    shortTitle: 'Valorar',
+    narrowTitle: 'Valorar',
     description: 'Crea tu perfil de gustos',
   },
   {
     id: 2,
     title: 'Revisa tu perfil',
+    shortTitle: 'Perfil',
+    narrowTitle: 'Perfil',
     description: 'Comprueba tus valoraciones',
   },
   {
     id: 3,
     title: 'Recomendar',
+    shortTitle: 'Recomendar',
+    narrowTitle: 'Recom.',
     description: 'Obtén tus recomendaciones',
   },
 ]
@@ -292,7 +298,7 @@ function App() {
           movieId: Number(movieId),
           rating,
         })),
-        limit: 10,
+        limit: 5,
       })
 
       setRecommendationsByAlgorithm((current) => ({
