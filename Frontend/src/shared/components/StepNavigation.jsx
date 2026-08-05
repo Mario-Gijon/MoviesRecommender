@@ -9,7 +9,7 @@ function StepNavigation({
     <footer className="game-navigation">
       {canGoBack ? (
         <button type="button" className="game-nav-button secondary" onClick={onBack}>
-          Back
+          Atrás
         </button>
       ) : (
         <span />

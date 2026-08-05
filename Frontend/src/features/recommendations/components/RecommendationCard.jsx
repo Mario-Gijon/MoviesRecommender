@@ -82,7 +82,7 @@ function RecommendationCard({
         {movie.posterUrl ? (
           <img
             src={movie.posterUrl}
-            alt={`${movieTitle} poster`}
+            alt={`${movieTitle} póster`}
             loading="lazy"
           />
         ) : (

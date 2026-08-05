@@ -28,18 +28,18 @@ import StepShell from './shared/components/StepShell'
 const STEPS = [
   {
     id: 1,
-    title: 'Rate movies',
-    description: 'Build your taste profile',
+    title: 'Valora películas',
+    description: 'Crea tu perfil de gustos',
   },
   {
     id: 2,
-    title: 'Review profile',
-    description: 'Check your ratings',
+    title: 'Revisa tu perfil',
+    description: 'Comprueba tus valoraciones',
   },
   {
     id: 3,
-    title: 'Recommend',
-    description: 'Get your movie picks',
+    title: 'Recomendar',
+    description: 'Obtén tus recomendaciones',
   },
 ]
 
@@ -183,7 +183,7 @@ function App() {
         setMovies([])
       }
 
-      setCatalogError('Catalog unavailable')
+      setCatalogError('Catálogo no disponible')
     } finally {
       if (requestId !== catalogRequestIdRef.current) {
         // eslint-disable-next-line no-unsafe-finally
@@ -307,7 +307,7 @@ function App() {
       setRecommendationError(
         error instanceof Error
           ? error
-          : new Error('Could not generate recommendations.'),
+          : new Error('No se han podido generar las recomendaciones.'),
       )
     } finally {
       setIsLoadingRecommendations(false)
@@ -357,7 +357,7 @@ function App() {
   const hasMoreCatalogPages = catalogPage < catalogTotalPages
   const canGoBack = activeStep > 1
   const canGoNext = activeStep < STEPS.length
-  const nextButtonLabel = activeStep === 2 ? 'Recommend' : 'Continue'
+  const nextButtonLabel = activeStep === 2 ? 'Recomendar' : 'Continuar'
   const stepErrorMessage = activeStep === 1 && movies.length === 0
     ? catalogError
     : activeStep === 3

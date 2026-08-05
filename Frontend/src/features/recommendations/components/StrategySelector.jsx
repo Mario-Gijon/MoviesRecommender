@@ -2,7 +2,7 @@ import { RECOMMENDATION_STRATEGIES } from '../strategies'
 
 function StrategySelector({ value, onChange }) {
   return (
-    <div className="game-strategy-tabs" aria-label="Recommendation strategy">
+    <div className="game-strategy-tabs" aria-label="Estrategia de recomendación">
       {RECOMMENDATION_STRATEGIES.map((strategy) => (
         <button
           key={strategy.value}

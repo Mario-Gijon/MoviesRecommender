@@ -45,7 +45,7 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
     >
       <div className="poster-frame">
         {movie.posterUrl ? (
-          <img src={movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
+          <img src={movie.posterUrl} alt={`${movieTitle} póster`} loading="lazy" />
         ) : (
           <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
         )}
@@ -64,14 +64,14 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
 
             {isRated ? (
               <button type="button" className="poster-clear" onClick={() => onRate(movie, null)}>
-                Clear
+                Quitar valoración
               </button>
             ) : null}
           </div>
         </div>
 
         {isRated ? (
-          <div className="poster-rating-badge" aria-label={`${rating} stars`}>
+          <div className="poster-rating-badge" aria-label={`${rating} estrellas`}>
             {rating}★
           </div>
         ) : null}

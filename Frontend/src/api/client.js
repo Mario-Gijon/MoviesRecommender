@@ -20,7 +20,7 @@ export async function apiRequest(path, options = {}) {
     if (errorNormalizer) {
       throw errorNormalizer({ payload, status: response.status })
     }
-    throw new Error(`Request failed with status ${response.status}`)
+    throw new Error(`La solicitud ha fallado con el estado ${response.status}`)
   }
 
   const payload = await response.json()

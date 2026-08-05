@@ -46,18 +46,18 @@ function RateMoviesStep({
         {isCatalogLoading && movies.length === 0 ? (
           <div className="game-state">
             <span className="game-loader" aria-hidden="true" />
-            <strong>Loading</strong>
+            <strong>Cargando</strong>
           </div>
         ) : catalogError && movies.length === 0 ? (
           <div className="game-state">
-            <strong>Catalog unavailable</strong>
+            <strong>Catálogo no disponible</strong>
             <button type="button" className="game-nav-button primary" onClick={onRetryLoadMovies}>
-              Retry
+              Reintentar
             </button>
           </div>
         ) : movies.length === 0 && catalogHasLoaded ? (
           <div className="game-state">
-            <strong>No movies found</strong>
+            <strong>No se encontraron películas</strong>
           </div>
         ) : (
           <>
@@ -68,7 +68,7 @@ function RateMoviesStep({
                 <span className="game-loader small" aria-hidden="true" />
               ) : hasMoreCatalogPages ? (
                 <button type="button" className="load-trigger-button" onClick={onLoadMore}>
-                  Load more
+                  Cargar más
                 </button>
               ) : null}
 

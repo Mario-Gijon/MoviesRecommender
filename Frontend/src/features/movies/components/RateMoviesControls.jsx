@@ -3,12 +3,12 @@ function RateMoviesControls({ catalogSearch, onSearchChange }) {
     <div className="game-search-row">
       <label className="game-search">
         <span aria-hidden="true">⌕</span>
-        <span className="sr-only">Search movies</span>
+        <span className="sr-only">Buscar películas</span>
         <input
           type="search"
           value={catalogSearch}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search movies"
+          placeholder="Buscar películas"
         />
       </label>
     </div>

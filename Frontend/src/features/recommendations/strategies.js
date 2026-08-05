@@ -3,9 +3,9 @@ export const RECOMMENDER_OPTIONS = Object.freeze({
     Object.freeze({ value: 'tfidf', label: 'TF-IDF' }),
   ]),
   collaborative: Object.freeze([
-    Object.freeze({ value: 'item_knn', label: 'Item KNN' }),
-    Object.freeze({ value: 'user_knn', label: 'User KNN' }),
-    Object.freeze({ value: 'biased', label: 'Factorización matricial sesgada' }),
+    Object.freeze({ value: 'item_knn', label: 'KNN de elementos' }),
+    Object.freeze({ value: 'user_knn', label: 'KNN de usuarios' }),
+    Object.freeze({ value: 'biased', label: 'Factorización matricial con sesgo' }),
     Object.freeze({ value: 'popularity', label: 'Popularidad' }),
   ]),
 })

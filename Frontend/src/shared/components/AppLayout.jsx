@@ -215,7 +215,7 @@ function AppLayout({
 
             <nav
               className="game-steps"
-              aria-label="Demo steps"
+              aria-label="Pasos de la aplicación"
             >
               {steps.map((step) => (
                 <button
