@@ -495,11 +495,9 @@ button:disabled {
   isolation: isolate;
   overflow: hidden;
   aspect-ratio: 4 / 5;
-  border: 1px solid rgba(174, 188, 255, 0.18);
+  border: 1px solid transparent;
   border-radius: 38px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(102, 126, 234, 0.26), transparent 42%),
-    #10183a;
+  background: #10183a;
   box-shadow:
     0 30px 78px rgba(0, 0, 0, 0.46),
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
@@ -513,38 +511,56 @@ button:disabled {
 
 .poster-card:hover .poster-frame {
   transform: translateY(-14px) scale(1.045);
-  border-color: rgba(174, 188, 255, 0.58);
   box-shadow:
     0 42px 110px rgba(0, 0, 0, 0.56),
-    0 0 68px rgba(102, 126, 234, 0.28),
     0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 }
 
 .poster-card.rated .poster-frame {
-  border-color: rgba(214, 173, 76, 0.86);
+  border-color: rgba(214, 173, 76, 0.9);
   box-shadow:
     0 40px 104px rgba(0, 0, 0, 0.52),
     0 0 58px rgba(214, 173, 76, 0.24),
     0 0 0 1px rgba(214, 173, 76, 0.22) inset;
 }
 
-.poster-frame img {
+.poster-card.touch-open .poster-frame {
+  border-color: rgba(102, 126, 234, 0.9);
+  box-shadow:
+    0 36px 92px rgba(0, 0, 0, 0.5),
+    0 0 42px rgba(102, 126, 234, 0.2),
+    0 0 0 1px rgba(102, 126, 234, 0.16) inset;
+}
+
+.poster-card:focus-visible .poster-frame {
+  border-color: rgba(102, 126, 234, 0.9);
+  box-shadow:
+    0 0 0 3px rgba(174, 188, 255, 0.16),
+    0 30px 78px rgba(0, 0, 0, 0.46);
+}
+
+.poster-frame > img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
-  transform: scale(1.04);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0) scale(1.04);
   transition:
     transform 360ms ease,
     filter 260ms ease;
 }
 
-.poster-card:hover .poster-frame img {
-  transform: scale(1.14);
+.poster-card:hover .poster-frame > img {
+  transform: translateZ(0) scale(1.14);
   filter: saturate(1.18) contrast(1.08) brightness(0.62);
 }
 
-.poster-card.rated .poster-frame img {
+.poster-card.rated .poster-frame > img {
   filter: saturate(1.12) contrast(1.06) brightness(0.76);
 }
 
@@ -587,8 +603,7 @@ button:disabled {
   transition: opacity 220ms ease;
 }
 
-.poster-card:hover .poster-light,
-.poster-card.rated .poster-light {
+.poster-card:hover .poster-light {
   opacity: 1;
 }
 
@@ -603,8 +618,7 @@ button:disabled {
   transition: transform 220ms ease;
 }
 
-.poster-card:hover .poster-overlay,
-.poster-card.rated .poster-overlay {
+.poster-card:hover .poster-overlay {
   transform: translateY(0);
 }
 
@@ -646,16 +660,13 @@ button:disabled {
   display: grid;
   gap: 9px;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transform: translateY(18px) scale(0.92);
   transition:
     opacity 220ms ease,
+    visibility 0s linear 220ms,
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.poster-card:hover .poster-actions,
-.poster-card.rated .poster-actions {
-  opacity: 1;
-  transform: translateY(0) scale(1);
 }
 
 .poster-stars {
@@ -696,8 +707,7 @@ button:disabled {
     filter 140ms ease;
 }
 
-.poster-card:hover .poster-star,
-.poster-card.rated .poster-star {
+.poster-card:hover .poster-star {
   animation: star-enter-pop 260ms cubic-bezier(0.2, 1.2, 0.32, 1) both;
   animation-delay: calc(var(--star-order, 1) * 28ms);
 }
@@ -764,6 +774,14 @@ button:disabled {
   box-shadow:
     0 14px 30px rgba(0, 0, 0, 0.32),
     0 0 28px rgba(214, 173, 76, 0.28);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  transform: scale(1);
+  transition:
+    opacity 180ms ease,
+    visibility 0s linear 0s,
+    transform 180ms ease;
   animation: rating-badge-pop 260ms cubic-bezier(0.2, 1.35, 0.32, 1) both;
 }
 
@@ -1558,86 +1576,6 @@ button:disabled {
   }
 }
 
-/* Recommendation card expanded details: explanations and ratings coexist. */
-.recommendation-hover-details {
-  gap: 10px;
-  padding-top: 0;
-}
-
-.recommendation-rating-only {
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(14px);
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-rating-action {
-  display: grid;
-  gap: 7px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.recommendation-rating-control {
-  gap: 5px;
-}
-
-.recommendation-rating-control .poster-star {
-  width: 100%;
-  max-width: 56px;
-  min-height: 36px;
-  height: auto;
-  font-size: clamp(1.2rem, 3.2vw, 2.5rem);
-}
-
-.recommendation-card:hover .recommendation-hover-details,
-.recommendation-card:focus-within .recommendation-hover-details,
-.recommendation-card:hover .recommendation-rating-only,
-.recommendation-card:focus-within .recommendation-rating-only {
-  max-height: 360px;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.recommendation-card:hover .recommendation-headline,
-.recommendation-card:focus-within .recommendation-headline {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.recommendation-card:hover .recommendation-poster-shade,
-.recommendation-card:focus-within .recommendation-poster-shade {
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.36) 34%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.95) 100%);
-}
-
-.recommendation-rating-control .poster-star:focus-visible {
-  outline: 2px solid var(--sinbad-blue-3);
-  outline-offset: 2px;
-}
-
-@media (hover: none) {
-  .recommendation-card:not(.touch-open) .recommendation-hover-details,
-  .recommendation-card:not(.touch-open) .recommendation-rating-only {
-    max-height: 0;
-    opacity: 0;
-    transform: translateY(14px);
-  }
-
-  .recommendation-card.touch-open .recommendation-hover-details,
-  .recommendation-card.touch-open .recommendation-rating-only {
-    max-height: 360px;
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .recommendation-stale-notice,
 .local-profile-note {
   margin: 10px 0 0;
@@ -1650,26 +1588,6 @@ button:disabled {
   border-radius: 12px;
   padding: 9px 12px;
   background: rgba(24, 33, 78, 0.34);
-}
-
-.recommendation-rating-action {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: rgba(245, 247, 255, 0.8);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.recommendation-rating-control {
-  gap: 3px;
-}
-
-.recommendation-rating-control .poster-star {
-  width: 26px;
-  height: 26px;
-  font-size: 0.95rem;
 }
 
 .clear-profile-button {
@@ -1854,12 +1772,12 @@ button:disabled {
     transform: none;
   }
 
-  .poster-frame img,
-  .poster-card:hover .poster-frame img {
-    transform: scale(1.02);
+  .poster-frame > img,
+  .poster-card:hover .poster-frame > img {
+    transform: translateZ(0) scale(1.02);
   }
 
-  .poster-card:hover .poster-frame img {
+  .poster-card:hover .poster-frame > img {
     filter: saturate(1.08) contrast(1.04) brightness(0.76);
   }
 
@@ -2051,16 +1969,11 @@ button:disabled {
 }
 
 .recommendation-frame {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 4 / 5.25;
 }
 
-.recommendation-card .poster-frame img {
+.recommendation-card .poster-frame > img {
   filter: saturate(1.08) contrast(1.05) brightness(0.78);
-}
-
-.recommendation-card:hover .poster-frame img {
-  transform: scale(1.14);
-  filter: saturate(1.12) contrast(1.08) brightness(0.42);
 }
 
 .recommendation-poster-shade {
@@ -2070,15 +1983,9 @@ button:disabled {
     linear-gradient(180deg, transparent 34%, rgba(0, 0, 0, 0.9) 100%);
 }
 
-.recommendation-card:hover .recommendation-poster-shade {
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.34) 34%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.94) 100%);
-}
-
 .recommendation-overlay {
-  gap: 12px;
-  padding: 24px 86px 24px 24px;
+  gap: 11px;
+  padding: 26px 88px 26px 26px;
   transform: none;
 }
 
@@ -2116,54 +2023,6 @@ button:disabled {
     0 0 34px rgba(214, 173, 76, 0.26);
 }
 
-.recommendation-hover-details {
-  max-height: 0;
-  display: grid;
-  gap: 9px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(14px);
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-card:hover .recommendation-hover-details {
-  max-height: 260px;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.recommendation-hover-details strong {
-  color: #ffffff;
-  font-size: 0.98rem;
-  line-height: 1.2;
-  text-shadow:
-    0 5px 18px rgba(0, 0, 0, 0.8),
-    0 0 22px rgba(0, 0, 0, 0.42);
-}
-
-.recommendation-hover-details ul {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recommendation-hover-details li {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 9px 11px;
-  color: rgba(245, 247, 255, 0.86);
-  font-size: 0.86rem;
-  font-weight: 750;
-  line-height: 1.28;
-  background: rgba(5, 8, 22, 0.48);
-  backdrop-filter: blur(12px);
-}
-
 .recommendation-rank-badge {
   position: absolute;
   right: 16px;
@@ -2196,9 +2055,6 @@ button:disabled {
     padding: 20px 76px 20px 20px;
   }
 
-  .recommendation-hover-details li {
-    font-size: 0.8rem;
-  }
 }
 
 @media (max-width: 900px) {
@@ -2218,94 +2074,6 @@ button:disabled {
     min-height: 38px;
   }
 
-  .recommendation-hover-details {
-    max-height: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Recommendation card refinements */
-
-.recommendation-card:hover .recommendation-rank-badge {
-  opacity: 0;
-  transform: translateY(8px) scale(0.88);
-  pointer-events: none;
-}
-
-.recommendation-rank-badge {
-  transition:
-    opacity 220ms ease,
-    transform 220ms ease;
-}
-
-.recommendation-score-line {
-  align-items: center;
-  gap: 9px;
-  padding: 7px 13px;
-}
-
-.recommendation-score-line span {
-  color: rgba(245, 247, 255, 0.86);
-  font-size: 0.86rem;
-  line-height: 1;
-  font-weight: 950;
-  letter-spacing: 0.06em;
-}
-
-.recommendation-score-line strong {
-  font-size: 0.96rem;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.recommendation-hover-details {
-  gap: 10px;
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-card:hover .recommendation-hover-details {
-  max-height: 340px;
-}
-
-.recommendation-hover-details strong {
-  font-size: 1.02rem;
-}
-
-.recommendation-hover-details ul {
-  gap: 8px;
-}
-
-.recommendation-hover-details li {
-  padding: 10px 12px;
-  font-size: 0.88rem;
-  line-height: 1.32;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
-    rgba(5, 8, 22, 0.58);
-}
-
-.recommendation-card:hover .recommendation-overlay {
-  padding-right: 24px;
-}
-
-/* Recommendation card final refinements */
-
-.recommendation-grid {
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 36px;
-}
-
-.recommendation-frame {
-  aspect-ratio: 4 / 5.25;
-}
-
-.recommendation-overlay {
-  gap: 11px;
-  padding: 26px 88px 26px 26px;
 }
 
 .recommendation-score-line {
@@ -2346,83 +2114,25 @@ button:disabled {
     0 5px 18px rgba(0, 0, 0, 0.82),
     0 0 22px rgba(0, 0, 0, 0.42);
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
   transition:
-    max-height 420ms ease,
-    opacity 360ms ease,
-    transform 420ms ease;
-}
-
-.recommendation-card:hover .recommendation-headline {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.recommendation-hover-details {
-  max-height: 0;
-  display: grid;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(14px);
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-card:hover .recommendation-hover-details {
-  max-height: 340px;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.recommendation-hover-details ul {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recommendation-hover-details li {
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 16px;
-  padding: 10px 12px;
-  color: rgba(245, 247, 255, 0.9);
-  font-size: 0.88rem;
-  font-weight: 780;
-  line-height: 1.32;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
-    rgba(5, 8, 22, 0.6);
-  backdrop-filter: blur(12px);
-}
-
-.recommendation-card:hover .recommendation-rank-badge {
-  opacity: 0;
-  transform: translateY(8px) scale(0.88);
-  pointer-events: none;
-}
-
-.recommendation-rank-badge {
-  transition:
-    opacity 220ms ease,
+    max-height 220ms ease,
+    margin 220ms ease,
+    opacity 180ms ease,
+    visibility 0s linear 0s,
     transform 220ms ease;
 }
 
-.recommendation-card:hover .recommendation-overlay {
-  padding-right: 26px;
-}
-
-.recommendation-card:hover .poster-frame img {
-  filter: saturate(1.12) contrast(1.08) brightness(0.38);
-}
-
-.recommendation-card:hover .recommendation-poster-shade {
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.36) 34%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.95) 100%);
+.recommendation-rank-badge {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  transform: none;
+  transition:
+    opacity 180ms ease,
+    visibility 0s linear 0s,
+    transform 220ms ease;
 }
 
 @media (min-width: 1900px) {
@@ -2442,9 +2152,6 @@ button:disabled {
     padding: 22px 78px 22px 22px;
   }
 
-  .recommendation-card:hover .recommendation-overlay {
-    padding-right: 22px;
-  }
 }
 
 @media (max-width: 900px) {
@@ -2455,8 +2162,7 @@ button:disabled {
 }
 
 /* =========================================================
-   Recommendation interaction final overrides
-   Keep this block at the end of global.css
+   Recommendation presentation
    ========================================================= */
 
 .recommendation-top-area {
@@ -2575,32 +2281,28 @@ button:disabled {
   display: none;
 }
 
-/* ---------- Recommendation hover interaction ---------- */
+/* ---------- Recommendation cards ---------- */
 
 .recommendation-interaction-panel {
   max-height: 0;
   min-height: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   overflow: hidden;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transform: translateY(16px);
   transition:
-    max-height 520ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 320ms ease,
-    transform 460ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.recommendation-card:hover .recommendation-interaction-panel,
-.recommendation-card:focus-within .recommendation-interaction-panel {
-  max-height: 360px;
-  opacity: 1;
-  transform: translateY(0);
+    max-height 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease,
+    visibility 0s linear 220ms,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .recommendation-reasons {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2609,11 +2311,11 @@ button:disabled {
 .recommendation-reasons li {
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 14px;
-  padding: 9px 11px;
+  padding: 7px 9px;
   color: rgba(245, 247, 255, 0.9);
   font-size: clamp(0.78rem, 0.9vw, 0.88rem);
   font-weight: 760;
-  line-height: 1.28;
+  line-height: 1.24;
   background:
     linear-gradient(
       135deg,
@@ -2624,26 +2326,23 @@ button:disabled {
   backdrop-filter: blur(12px);
 }
 
-/* Override every earlier recommendation-rating-action rule. */
 .recommendation-card .recommendation-rating-action {
   width: 100%;
   display: grid;
   align-items: stretch;
-  gap: 8px;
+  gap: 6px;
   color: rgba(245, 247, 255, 0.86);
   font-size: clamp(0.78rem, 0.9vw, 0.9rem);
   font-weight: 850;
 }
 
-/* Divider exists only when detailed reasons actually exist. */
 .recommendation-interaction-panel.has-reasons
   .recommendation-rating-action {
-  margin-top: 2px;
+  margin-top: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.16);
-  padding-top: 10px;
+  padding-top: 7px;
 }
 
-/* Item KNN and other algorithms without reasons get no ghost gap. */
 .recommendation-interaction-panel.rating-only
   .recommendation-rating-action {
   margin-top: 0;
@@ -2661,7 +2360,6 @@ button:disabled {
     0 0 18px rgba(0, 0, 0, 0.34);
 }
 
-/* Override the old 26px / 0.95rem rules. */
 .recommendation-card .recommendation-rating-control {
   width: 100%;
   display: grid;
@@ -2700,19 +2398,219 @@ button:disabled {
     0 5px 18px rgba(0, 0, 0, 0.72);
 }
 
-.recommendation-card
-  .recommendation-rating-control
-  .poster-star:hover,
-.recommendation-card
-  .recommendation-rating-control
-  .poster-star:focus-visible {
-  transform: translateY(-3px) scale(1.15);
-  color: var(--sinbad-gold-soft);
-  outline: none;
-  text-shadow:
-    0 0 18px rgba(214, 173, 76, 0.98),
-    0 0 42px rgba(214, 173, 76, 0.5),
-    0 5px 18px rgba(0, 0, 0, 0.74);
+@media (hover: hover) and (pointer: fine) {
+  .recommendation-card:hover .poster-frame > img,
+  .recommendation-card:focus-visible .poster-frame > img,
+  .recommendation-card:focus-within .poster-frame > img {
+    transform: translateZ(0) scale(1.14);
+    filter: saturate(1.12) contrast(1.08) brightness(0.38);
+  }
+
+  .recommendation-card:hover .recommendation-poster-shade,
+  .recommendation-card:focus-visible .recommendation-poster-shade,
+  .recommendation-card:focus-within .recommendation-poster-shade {
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.36) 34%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.95) 100%);
+  }
+
+  .recommendation-card:hover .recommendation-overlay,
+  .recommendation-card:focus-visible .recommendation-overlay,
+  .recommendation-card:focus-within .recommendation-overlay {
+    padding-right: 26px;
+  }
+
+  .recommendation-card:hover .recommendation-headline,
+  .recommendation-card:focus-visible .recommendation-headline,
+  .recommendation-card:focus-within .recommendation-headline {
+    max-height: 0;
+    margin: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition-delay: 0s, 0s, 0s, 180ms, 0s;
+  }
+
+  .recommendation-card:hover .recommendation-interaction-panel,
+  .recommendation-card:focus-visible .recommendation-interaction-panel,
+  .recommendation-card:focus-within .recommendation-interaction-panel {
+    max-height: 260px;
+    overflow: visible;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+
+  .recommendation-card:hover .recommendation-rank-badge,
+  .recommendation-card:focus-visible .recommendation-rank-badge,
+  .recommendation-card:focus-within .recommendation-rank-badge {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(8px) scale(0.88);
+    pointer-events: none;
+    transition-delay: 0s, 180ms, 0s;
+  }
+
+  .recommendation-card .recommendation-rating-control .poster-star:hover,
+  .recommendation-card .recommendation-rating-control .poster-star:focus-visible {
+    transform: translateY(-3px) scale(1.15);
+    color: var(--sinbad-gold-soft);
+    outline: none;
+    text-shadow:
+      0 0 18px rgba(214, 173, 76, 0.98),
+      0 0 42px rgba(214, 173, 76, 0.5),
+      0 5px 18px rgba(0, 0, 0, 0.74);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .recommendation-card:not(.touch-open) .poster-frame,
+  .recommendation-card.touch-open .poster-frame {
+    aspect-ratio: 4 / 5.25;
+    min-height: 0;
+    transform: none;
+  }
+
+  .recommendation-card:not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
+    filter: saturate(1.08) contrast(1.05) brightness(0.78);
+  }
+
+  .recommendation-card.touch-open .poster-frame > img {
+    transform: translateZ(0) scale(1.1);
+    filter: saturate(1.12) contrast(1.08) brightness(0.56);
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-poster-shade {
+    opacity: 1;
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, transparent 24%),
+      linear-gradient(180deg, transparent 34%, rgba(0, 0, 0, 0.9) 100%);
+  }
+
+  .recommendation-card.touch-open .recommendation-poster-shade {
+    opacity: 1;
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.34) 34%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.94) 100%);
+  }
+
+  .recommendation-card:not(.touch-open) .poster-light {
+    opacity: 0;
+  }
+
+  .recommendation-card.touch-open .poster-light {
+    opacity: 1;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-overlay {
+    transform: none;
+    opacity: 1;
+    padding-right: 58px;
+    padding-bottom: 30px;
+  }
+
+  .recommendation-card.touch-open .recommendation-overlay {
+    transform: none;
+    opacity: 1;
+    padding-right: 16px;
+    padding-bottom: 18px;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-headline {
+    display: block;
+    max-height: 3.66em;
+    margin: 0;
+    overflow: hidden;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition-delay: 0s;
+  }
+
+  .recommendation-card.touch-open .recommendation-headline {
+    max-height: 0;
+    margin: 0;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition-delay: 0s, 0s, 0s, 180ms, 0s;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-interaction-panel {
+    max-height: 0;
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(16px);
+  }
+
+  .recommendation-card.touch-open .recommendation-interaction-panel {
+    max-height: 260px;
+    overflow: visible;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-rank-badge {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: none;
+  }
+
+  .recommendation-card.touch-open .recommendation-rank-badge {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(8px) scale(0.88);
+    pointer-events: none;
+    transition-delay: 0s, 180ms, 0s;
+  }
+
+  .recommendation-card.touch-open .recommendation-rating-control {
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .recommendation-card .recommendation-overlay {
+    gap: 5px;
+    padding: 14px 58px 22px 16px;
+  }
+
+  .recommendation-card.touch-open .recommendation-overlay {
+    padding-right: 16px;
+  }
+
+  .recommendation-card .poster-title-block {
+    gap: 2px;
+  }
+
+  .recommendation-card .poster-title-block h3 {
+    min-height: 0;
+    font-size: 1.1rem;
+    line-height: 1.08;
+  }
+
+  .recommendation-card .recommendation-score-line {
+    gap: 6px;
+    padding: 5px 9px;
+  }
+
+  .recommendation-card .recommendation-headline {
+    font-size: 0.78rem;
+    line-height: 1.22;
+  }
 }
 
 /* ---------- Rating confirmation and exit animation ---------- */
@@ -2795,13 +2693,6 @@ button:disabled {
   .recommendation-refresh-banner {
     width: 100%;
   }
-
-  .recommendation-card
-    .recommendation-rating-control
-    .poster-star {
-    min-height: 38px;
-    font-size: clamp(1.6rem, 5vw, 2.15rem);
-  }
 }
 
 @media (max-width: 640px) {
@@ -2823,112 +2714,100 @@ button:disabled {
     width: 100%;
   }
 
-  .recommendation-card
-    .recommendation-rating-control
-    .poster-star {
-    min-height: 36px;
-    font-size: clamp(1.5rem, 8vw, 2rem);
-  }
 }
 
 /*
  * Touch devices cannot depend on hover.
  * Explanation and rating interaction remain directly available.
  */
-@media (hover: none) {
-  .poster-card:not(.touch-open):hover .poster-frame,
-  .poster-card:not(.touch-open) .poster-frame {
+@media (hover: none), (pointer: coarse) {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame {
     transform: none;
   }
 
-  .poster-card:not(.touch-open):hover .poster-frame img,
-  .poster-card:not(.touch-open) .poster-frame img {
-    transform: scale(1.04);
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
   }
 
-  .poster-card:not(.touch-open):hover .poster-light,
-  .poster-card:not(.touch-open) .poster-light {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-light {
     opacity: 0;
   }
 
-  .poster-card.rated:not(.touch-open) .poster-overlay,
-  .poster-card:not(.touch-open) .poster-overlay {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-overlay {
     transform: translateY(58px);
   }
 
-  .poster-card.rated:not(.touch-open) .poster-actions,
-  .poster-card:not(.touch-open) .poster-actions {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-actions {
     opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
     transform: translateY(18px) scale(0.92);
   }
 
-  .poster-card.touch-open .poster-overlay,
-  .poster-card.touch-open .poster-actions {
+  .poster-card:not(.recommendation-card).touch-open .poster-overlay {
     transform: translateY(0) scale(1);
   }
 
-  .poster-card.touch-open .poster-actions {
+  .poster-card:not(.recommendation-card).touch-open .poster-actions {
     opacity: 1;
-  }
-
-  .recommendation-card:not(.touch-open):hover .poster-frame img,
-  .recommendation-card:not(.touch-open) .poster-frame img {
-    transform: scale(1.04);
-    filter: saturate(1.08) contrast(1.05) brightness(0.78);
-  }
-
-  .recommendation-card:not(.touch-open):hover .recommendation-interaction-panel,
-  .recommendation-card:not(.touch-open) .recommendation-interaction-panel {
-    max-height: 0;
-    opacity: 0;
-    transform: translateY(16px);
-  }
-
-  .recommendation-card.touch-open .recommendation-interaction-panel {
-    max-height: 360px;
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .recommendation-card:not(.touch-open):hover .recommendation-headline,
-  .recommendation-card:not(.touch-open) .recommendation-headline,
-  .recommendation-card.touch-open .recommendation-headline {
-    max-height: 90px;
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .recommendation-card:not(.touch-open):hover .recommendation-rank-badge,
-  .recommendation-card:not(.touch-open) .recommendation-rank-badge,
-  .recommendation-card.touch-open .recommendation-rank-badge {
-    opacity: 1;
-    transform: none;
+    visibility: visible;
     pointer-events: auto;
+    transform: translateY(0) scale(1);
   }
 
-  .recommendation-card:not(.touch-open):hover .recommendation-overlay,
-  .recommendation-card:not(.touch-open) .recommendation-overlay,
-  .recommendation-card.touch-open .recommendation-overlay {
-    padding-right: 26px;
+  .poster-card:not(.recommendation-card).rated:not(.touch-open) .poster-rating-badge {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: none;
+    transform: scale(1);
+  }
+
+  .poster-card:not(.recommendation-card).touch-open .poster-rating-badge {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(0.86);
   }
 }
 
 /* Hover-only card interaction is enabled only on precise pointing devices. */
 @media (hover: hover) and (pointer: fine) {
-  .poster-card:hover .poster-overlay,
-  .poster-card.rated .poster-overlay,
-  .poster-card:hover .poster-actions,
-  .poster-card.rated .poster-actions,
-  .recommendation-card:hover .recommendation-interaction-panel,
-  .recommendation-card:focus-within .recommendation-interaction-panel {
+  .poster-card:not(.recommendation-card):hover .poster-overlay,
+  .poster-card:not(.recommendation-card):focus-visible .poster-overlay,
+  .poster-card:not(.recommendation-card):focus-within .poster-overlay,
+  .poster-card:not(.recommendation-card):hover .poster-actions,
+  .poster-card:not(.recommendation-card):focus-visible .poster-actions,
+  .poster-card:not(.recommendation-card):focus-within .poster-actions {
     transform: translateY(0);
   }
 
-  .poster-card:hover .poster-actions,
-  .poster-card.rated .poster-actions,
-  .recommendation-card:hover .recommendation-interaction-panel,
-  .recommendation-card:focus-within .recommendation-interaction-panel {
+  .poster-card:not(.recommendation-card):hover .poster-actions,
+  .poster-card:not(.recommendation-card):focus-visible .poster-actions,
+  .poster-card:not(.recommendation-card):focus-within .poster-actions {
     opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+
+  .poster-card:not(.recommendation-card):hover .poster-rating-badge,
+  .poster-card:not(.recommendation-card):focus-visible .poster-rating-badge,
+  .poster-card:not(.recommendation-card):focus-within .poster-rating-badge {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(0.86);
+    transition-delay: 0s, 180ms, 0s;
+  }
+
+  .poster-card:not(.recommendation-card):hover .poster-frame,
+  .poster-card:not(.recommendation-card):focus-visible .poster-frame,
+  .poster-card:not(.recommendation-card):focus-within .poster-frame {
+    border-color: rgba(102, 126, 234, 0.9);
+    box-shadow:
+      0 36px 92px rgba(0, 0, 0, 0.5),
+      0 0 42px rgba(102, 126, 234, 0.2),
+      0 0 0 1px rgba(102, 126, 234, 0.16) inset;
   }
 }
 
@@ -3779,36 +3658,6 @@ button:disabled {
     border-radius: 16px;
   }
 
-  .recommendation-card .poster-title-block h3 {
-    font-size: 1.02rem;
-  }
-
-  .recommendation-card .recommendation-headline {
-    display: -webkit-box;
-    max-height: 3.84em;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .recommendation-card.touch-open .recommendation-headline {
-    display: block;
-    max-height: 360px;
-    -webkit-line-clamp: unset;
-  }
-
-  .recommendation-card.touch-open .recommendation-frame {
-    aspect-ratio: auto;
-    min-height: clamp(420px, 125vw, 560px);
-  }
-
-  .recommendation-card.touch-open .recommendation-frame img,
-  .recommendation-card.touch-open .recommendation-frame .poster-fallback {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
 }
 
 @media (hover: none) and (max-width: 640px),
@@ -3889,115 +3738,23 @@ button:disabled {
   }
 }
 
-/* Restore the fixed mobile recommendation poster size. */
-@media (hover: none) and (max-width: 640px),
-  (pointer: coarse) and (max-width: 640px) {
-  .recommendation-card .recommendation-frame,
-  .recommendation-card.touch-open .recommendation-frame {
-    aspect-ratio: 4 / 5.25;
-    min-height: 0;
-    display: block;
-  }
-
-  .recommendation-card .recommendation-frame > img,
-  .recommendation-card .recommendation-frame > .poster-fallback,
-  .recommendation-card.touch-open .recommendation-frame > img,
-  .recommendation-card.touch-open .recommendation-frame > .poster-fallback {
-    position: static;
-    inset: auto;
-    width: 100%;
-    height: 100%;
-  }
-
-  .recommendation-card .recommendation-overlay,
-  .recommendation-card.touch-open .recommendation-overlay {
-    position: absolute;
-    inset: auto 0 0;
-    width: auto;
-    margin-top: 0;
-    max-height: 100%;
-    overflow: hidden;
-    gap: 6px;
-    padding: 14px 58px 22px 16px;
-  }
-
-  .recommendation-card .poster-title-block {
-    gap: 3px;
-  }
-
-  .recommendation-card .recommendation-headline,
-  .recommendation-card.touch-open .recommendation-headline {
-    display: -webkit-box;
-    max-height: 3.9em;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .recommendation-card.touch-open .recommendation-interaction-panel {
-    max-height: 150px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-}
-
-/* Final touch-state corrections for fixed-size recommendation cards. */
 @media (hover: none), (pointer: coarse) {
-  .poster-card:not(.touch-open) .poster-frame {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame {
     transform: none;
   }
 
-  .poster-card:not(.touch-open) .poster-frame img {
-    transform: scale(1.04);
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
   }
 
-  .poster-card:not(.touch-open) .poster-shade {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-shade {
     opacity: 0.96;
   }
 
-  .poster-card:not(.touch-open) .poster-light {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-light {
     opacity: 0;
   }
 
-  .poster-card.rated:not(.touch-open) .poster-light {
-    opacity: 1;
-  }
-
-  .recommendation-card:not(.touch-open) .recommendation-poster-shade {
-    opacity: 1;
-    background:
-      linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, transparent 24%),
-      linear-gradient(180deg, transparent 34%, rgba(0, 0, 0, 0.9) 100%);
-  }
-
-  .recommendation-card:not(.touch-open) .recommendation-overlay {
-    padding-right: 58px;
-    padding-bottom: 30px;
-  }
-
-  .recommendation-card.touch-open .recommendation-overlay {
-    padding-right: 16px;
-    padding-bottom: 24px;
-  }
-
-  .recommendation-card.touch-open .recommendation-rating-control,
-  .recommendation-card.touch-open .recommendation-rating-control .poster-stars {
-    width: 100%;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .recommendation-card:not(.touch-open) .recommendation-rank-badge {
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
-  }
-
-  .recommendation-card.touch-open .recommendation-rank-badge {
-    opacity: 0;
-    transform: translateY(8px) scale(0.88);
-    pointer-events: none;
-  }
 }
 
 /* Final recommendation-header sizing and narrow-screen step layout. */
@@ -4282,53 +4039,21 @@ button:disabled {
     gap: 6px;
   }
 
-  .recommendation-card .recommendation-overlay {
-    gap: 8px;
-    padding: 16px 58px 28px 16px;
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
   }
 
-  .recommendation-card .poster-title-block {
-    gap: 4px;
-  }
-
-  .recommendation-card .poster-title-block h3 {
-    min-height: 0;
-    font-size: 1.08rem;
-    line-height: 1.08;
-  }
-
-  .recommendation-card .recommendation-headline {
-    max-height: 3.9em;
-    line-height: 1.3;
-  }
-
-  .recommendation-card.touch-open .recommendation-headline {
-    display: block;
-    max-height: 360px;
-    -webkit-line-clamp: unset;
-  }
-
-  .poster-card:not(.touch-open) .poster-frame img {
-    transform: scale(1.04);
-  }
-
-  .poster-card:not(.rated):not(.touch-open) .poster-frame img {
+  .poster-card:not(.recommendation-card):not(.rated):not(.touch-open) .poster-frame > img {
     filter: none;
   }
 
-  .poster-card.rated:not(.touch-open) .poster-frame img {
+  .poster-card:not(.recommendation-card).rated:not(.touch-open) .poster-frame > img {
     filter: saturate(1.12) contrast(1.06) brightness(0.76);
   }
 
-  .poster-card.touch-open .poster-frame img {
-    transform: scale(1.12);
+  .poster-card:not(.recommendation-card).touch-open .poster-frame > img {
+    transform: translateZ(0) scale(1.12);
     filter: saturate(1.18) contrast(1.08) brightness(0.62);
-  }
-
-  .recommendation-card.touch-open .recommendation-rank-badge {
-    opacity: 0;
-    transform: translateY(8px) scale(0.88);
-    pointer-events: none;
   }
 
   .recommendation-algorithm-menu {
@@ -4366,50 +4091,6 @@ button:disabled {
     margin-top: 5px;
   }
 
-  .recommendation-card .recommendation-frame {
-    aspect-ratio: auto;
-    min-height: clamp(420px, 125vw, 520px);
-    display: flex;
-    align-items: flex-end;
-  }
-
-  .recommendation-card .recommendation-frame > img,
-  .recommendation-card .recommendation-frame > .poster-fallback {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .recommendation-card .recommendation-overlay {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    margin-top: auto;
-    padding: 16px 58px 30px 16px;
-  }
-
-  .recommendation-card .recommendation-headline {
-    display: -webkit-box;
-    max-height: none;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .recommendation-card.touch-open .recommendation-frame {
-    min-height: 0;
-  }
-
-  .recommendation-card.touch-open .recommendation-overlay {
-    margin-top: 0;
-  }
-
-  .recommendation-card.touch-open .recommendation-headline {
-    display: block;
-    max-height: none;
-    -webkit-line-clamp: unset;
-  }
 }
 
 @media (hover: none) and (max-width: 359px),
@@ -4434,58 +4115,5 @@ button:disabled {
   .game-step-copy {
     width: 100%;
     text-align: center;
-  }
-}
-
-/* Final mobile override: preserve the original fixed recommendation-card size. */
-@media (hover: none) and (max-width: 640px),
-  (pointer: coarse) and (max-width: 640px) {
-  .recommendation-card .recommendation-frame,
-  .recommendation-card.touch-open .recommendation-frame {
-    aspect-ratio: 4 / 5.25;
-    min-height: 0;
-    display: block;
-  }
-
-  .recommendation-card .recommendation-frame > img,
-  .recommendation-card .recommendation-frame > .poster-fallback,
-  .recommendation-card.touch-open .recommendation-frame > img,
-  .recommendation-card.touch-open .recommendation-frame > .poster-fallback {
-    position: static;
-    inset: auto;
-    width: 100%;
-    height: 100%;
-  }
-
-  .recommendation-card .recommendation-overlay,
-  .recommendation-card.touch-open .recommendation-overlay {
-    position: absolute;
-    inset: auto 0 0;
-    width: auto;
-    margin-top: 0;
-    max-height: 100%;
-    overflow: hidden;
-    gap: 6px;
-    padding: 14px 58px 22px 16px;
-  }
-
-  .recommendation-card .poster-title-block {
-    gap: 3px;
-  }
-
-  .recommendation-card .recommendation-headline,
-  .recommendation-card.touch-open .recommendation-headline {
-    display: -webkit-box;
-    max-height: 3.9em;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .recommendation-card.touch-open .recommendation-interaction-panel {
-    max-height: 150px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding-right: 4px;
   }
 }
