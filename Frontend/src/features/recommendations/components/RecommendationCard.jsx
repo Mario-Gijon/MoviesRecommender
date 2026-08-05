@@ -38,15 +38,25 @@ function RecommendationCard({
     : []
 
   const hasReasons = reasons.length > 0
+  const isRated = Boolean(rating)
+
+  function canToggleTouchCard() {
+    return (
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(hover: none), (pointer: coarse)').matches
+    )
+  }
 
   function handleCardClick(event) {
     if (event.target.closest('button')) return
+    if (!canToggleTouchCard()) return
     onToggleTouch?.()
   }
 
   function handleCardKeyDown(event) {
     if (event.target !== event.currentTarget) return
     if (event.key !== 'Enter' && event.key !== ' ') return
+    if (!canToggleTouchCard()) return
 
     event.preventDefault()
     onToggleTouch?.()
@@ -82,6 +92,7 @@ function RecommendationCard({
     'poster-card',
     'recommendation-card',
     'visible',
+    isRated ? 'rated' : '',
     isLeaving ? 'recommendation-card--leaving' : '',
     isTouchOpen ? 'touch-open' : '',
   ]
@@ -168,6 +179,12 @@ function RecommendationCard({
             </div>
           </div>
         </div>
+
+        {isRated ? (
+          <div className="poster-rating-badge" aria-label={`${rating} estrellas`}>
+            {rating}★
+          </div>
+        ) : null}
 
         <div className="recommendation-rank-badge">
           #{rank}

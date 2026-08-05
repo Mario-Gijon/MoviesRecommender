@@ -16,14 +16,23 @@ function MovieCard({
   const isRated = Boolean(rating)
   const movieTitle = getMovieDisplayTitle(movie)
 
+  function canToggleTouchCard() {
+    return (
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(hover: none), (pointer: coarse)').matches
+    )
+  }
+
   function handleCardClick(event) {
     if (event.target.closest('button')) return
+    if (!canToggleTouchCard()) return
     onToggleTouch?.()
   }
 
   function handleCardKeyDown(event) {
     if (event.target !== event.currentTarget) return
     if (event.key !== 'Enter' && event.key !== ' ') return
+    if (!canToggleTouchCard()) return
 
     event.preventDefault()
     onToggleTouch?.()
