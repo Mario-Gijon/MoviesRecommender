@@ -23,6 +23,20 @@ RECOMMENDED_VALUES = {
 }
 POLICIES = ("family_only", "family_and_teen", "all_classified")
 POLICY_LABELS = {"family_only": "Solo público familiar", "family_and_teen": "Público familiar y adolescente", "all_classified": "Todas las categorías clasificadas"}
+CONFIG_LABELS = {
+    "candidate_limit": "Máximo de películas candidatas",
+    "candidate_min_ratings": "Mínimo de valoraciones por película candidata",
+    "candidate_min_year": "Año mínimo de las películas candidatas",
+    "candidate_max_year": "Año máximo de las películas candidatas",
+    "candidate_min_tags": "Mínimo de etiquetas distintas",
+    "max_tags_per_movie": "Máximo de etiquetas por película",
+    "public_limit": "Límite de películas públicas",
+    "collaborative_core_limit": "Límite del núcleo colaborativo",
+    "catalog_min_ratings": "Mínimo de valoraciones del catálogo",
+    "public_min_year": "Año mínimo del catálogo público",
+    "collaborative_min_year": "Año mínimo del catálogo colaborativo",
+    "display_language": "Idioma de visualización",
+}
 
 
 @dataclass(frozen=True)
@@ -135,7 +149,7 @@ class DatasetManager:
             values["public_audience_policy"] = policy
         options = DatasetOptions(**values)
         if not self._valid_options(options): return None
-        print("Configuración efectiva: " + json.dumps(asdict(options), ensure_ascii=False))
+        self._print_configuration_summary(options)
         print("Reglas fijas: duración pública mínima 70 minutos; documentales y audiencia desconocida excluidos.")
         return options
 
@@ -146,7 +160,7 @@ class DatasetManager:
     def _generation_command(self, source: str, options: DatasetOptions, start: str, tmdb: str, posters: bool, audit: bool, cleanup: bool, zip_path: Path | None) -> list[str]:
         command = ["run", "--rm"]
         if zip_path: command += ["-v", f"{zip_path}:/input/ml-32m.zip:ro"]
-        command += ["dataset", "python", "-m", "pipelines.dataset_generation.cli", "--non-interactive", "--yes", "--action", "generate", "--source", source, "--start-at", start, "--preset", "recommended"]
+        command += ["dataset", "--non-interactive", "--yes", "--action", "generate", "--source", source, "--start-at", start, "--preset", "recommended"]
         if zip_path: command += ["--zip-path", "/input/ml-32m.zip"]
         for key, value in asdict(options).items():
             if key == "public_audience_policy": continue
@@ -182,7 +196,7 @@ class DatasetManager:
         if policy is None: return
         print(f"Se aplicará la política: {POLICY_LABELS[policy]}. Se obtendrá una vista previa sin modificar archivos.")
         options = DatasetOptions(public_audience_policy=policy)
-        command = ["run", "--rm", "dataset", "python", "-m", "pipelines.dataset_generation.cli", "--non-interactive", "--yes", "--action", "reconfigure", "--source", "reconfigure", "--public-audience-policy", policy]
+        command = ["run", "--rm", "dataset", "--non-interactive", "--yes", "--action", "reconfigure", "--source", "reconfigure", "--public-audience-policy", policy]
         environment, _ = implementation
         compose = DockerCompose(self.configuration, environment)
         preview = [item for item in command if item != "--yes"] + ["--dry-run"]
@@ -195,7 +209,7 @@ class DatasetManager:
     def validate(self) -> None:
         implementation = self._implementation()
         if implementation is None: return
-        self._execute(implementation, ["run", "--rm", "dataset", "python", "-m", "pipelines.dataset_generation.cli", "--non-interactive", "--action", "validate"], "validación", "no aplicable", DatasetOptions(), "audit")
+        self._execute(implementation, ["run", "--rm", "dataset", "--non-interactive", "--action", "validate"], "validación", "no aplicable", DatasetOptions(), "audit")
 
     def cleanup(self) -> None:
         candidates = tuple(path for path in (self.data_dir / "pipeline_cache", self.data_dir / "tmp") if path.exists())
@@ -205,7 +219,7 @@ class DatasetManager:
         if not self.console.confirm("¿Limpiar estos archivos temporales?"): return
         implementation = self._implementation()
         if implementation is None: return
-        self._execute(implementation, ["run", "--rm", "dataset", "python", "-m", "pipelines.dataset_generation.cli", "--non-interactive", "--yes", "--action", "cleanup", "--cleanup", "standard"], "limpieza", "no aplicable", DatasetOptions(), "audit")
+        self._execute(implementation, ["run", "--rm", "dataset", "--non-interactive", "--yes", "--action", "cleanup", "--cleanup", "standard"], "limpieza", "no aplicable", DatasetOptions(), "audit")
 
     def show_information(self) -> None:
         manifest = self.data_dir / "offline_dataset" / "manifest.json"
@@ -262,6 +276,17 @@ class DatasetManager:
                 print(f"{key} debe ser mayor que cero."); return False
         if values.candidate_min_tags < 0 or (values.candidate_max_year and values.candidate_max_year < values.candidate_min_year): print("La configuración de años o etiquetas no es válida."); return False
         return True
+
+    def _print_configuration_summary(self, options: DatasetOptions) -> None:
+        print("\nResumen de configuración")
+        for key, value in asdict(options).items():
+            if key == "public_audience_policy":
+                shown = POLICY_LABELS[value]
+                label = "Política de audiencia"
+            else:
+                label = CONFIG_LABELS[key]
+                shown = "sin límite" if value is None else str(value)
+            print(f"{label}: {shown}")
     def _number(self, label: str, default: int | None, *, optional: bool, zero: bool) -> int | None:
         while True:
             value = self._text(label, "sin límite" if default is None else str(default))

@@ -442,6 +442,40 @@ class ManageTests(unittest.TestCase):
             self.assertIn(f"{resolved}:/input/ml-32m.zip:ro", command)
             self.assertIn("/input/ml-32m.zip", command)
 
+    def test_dataset_operations_do_not_duplicate_container_entrypoint(self) -> None:
+        manager = DatasetManager(self.configuration, Runtime(ROOT, packaged=True), Mock(spec=Console))
+        commands = [
+            manager._generation_command("download", DatasetOptions(), "candidates", "reuse", True, True, False, None),
+            ["run", "--rm", "dataset", "--non-interactive", "--yes", "--action", "reconfigure"],
+            ["run", "--rm", "dataset", "--non-interactive", "--action", "validate"],
+            ["run", "--rm", "dataset", "--non-interactive", "--yes", "--action", "cleanup"],
+        ]
+        for command in commands:
+            self.assertNotIn("python", command)
+            self.assertNotIn("-m", command)
+            self.assertNotIn("pipelines.dataset_generation.cli", command)
+        generation = commands[0]
+        service_index = generation.index("dataset")
+        self.assertEqual("--non-interactive", generation[service_index + 1])
+        self.assertIn("--yes", generation[service_index + 1:])
+        self.assertIn("--action", generation[service_index + 1:])
+        self.assertIn("--source", generation[service_index + 1:])
+
+    def test_advanced_dataset_configuration_is_spanish_and_not_raw_json(self) -> None:
+        console = Mock(spec=Console)
+        console.menu.side_effect = ["3", "2"]
+        manager = DatasetManager(self.configuration, Runtime(ROOT, packaged=True), console)
+        output = io.StringIO()
+        with redirect_stdout(output), patch("builtins.input", side_effect=[""] * 12):
+            options = manager._configuration()
+        self.assertIsNotNone(options)
+        rendered = output.getvalue()
+        for label in ("Máximo de películas candidatas", "Mínimo de valoraciones por película candidata", "Año mínimo de las películas candidatas", "Límite de películas públicas", "Idioma de visualización", "Política de audiencia"):
+            self.assertIn(label, rendered)
+        self.assertNotIn("candidate_limit", rendered)
+        self.assertNotIn("public_limit", rendered)
+        self.assertNotIn("{\"candidate_limit\"", rendered)
+
     def test_dataset_resume_cleanup_and_model_change_detection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             data = Path(temporary)
