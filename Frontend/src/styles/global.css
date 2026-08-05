@@ -3889,6 +3889,117 @@ button:disabled {
   }
 }
 
+/* Restore the fixed mobile recommendation poster size. */
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .recommendation-card .recommendation-frame,
+  .recommendation-card.touch-open .recommendation-frame {
+    aspect-ratio: 4 / 5.25;
+    min-height: 0;
+    display: block;
+  }
+
+  .recommendation-card .recommendation-frame > img,
+  .recommendation-card .recommendation-frame > .poster-fallback,
+  .recommendation-card.touch-open .recommendation-frame > img,
+  .recommendation-card.touch-open .recommendation-frame > .poster-fallback {
+    position: static;
+    inset: auto;
+    width: 100%;
+    height: 100%;
+  }
+
+  .recommendation-card .recommendation-overlay,
+  .recommendation-card.touch-open .recommendation-overlay {
+    position: absolute;
+    inset: auto 0 0;
+    width: auto;
+    margin-top: 0;
+    max-height: 100%;
+    overflow: hidden;
+    gap: 6px;
+    padding: 14px 58px 22px 16px;
+  }
+
+  .recommendation-card .poster-title-block {
+    gap: 3px;
+  }
+
+  .recommendation-card .recommendation-headline,
+  .recommendation-card.touch-open .recommendation-headline {
+    display: -webkit-box;
+    max-height: 3.9em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .recommendation-card.touch-open .recommendation-interaction-panel {
+    max-height: 150px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+}
+
+/* Final touch-state corrections for fixed-size recommendation cards. */
+@media (hover: none), (pointer: coarse) {
+  .poster-card:not(.touch-open) .poster-frame {
+    transform: none;
+  }
+
+  .poster-card:not(.touch-open) .poster-frame img {
+    transform: scale(1.04);
+  }
+
+  .poster-card:not(.touch-open) .poster-shade {
+    opacity: 0.96;
+  }
+
+  .poster-card:not(.touch-open) .poster-light {
+    opacity: 0;
+  }
+
+  .poster-card.rated:not(.touch-open) .poster-light {
+    opacity: 1;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-poster-shade {
+    opacity: 1;
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, transparent 24%),
+      linear-gradient(180deg, transparent 34%, rgba(0, 0, 0, 0.9) 100%);
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-overlay {
+    padding-right: 58px;
+    padding-bottom: 30px;
+  }
+
+  .recommendation-card.touch-open .recommendation-overlay {
+    padding-right: 16px;
+    padding-bottom: 24px;
+  }
+
+  .recommendation-card.touch-open .recommendation-rating-control,
+  .recommendation-card.touch-open .recommendation-rating-control .poster-stars {
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-rank-badge {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .recommendation-card.touch-open .recommendation-rank-badge {
+    opacity: 0;
+    transform: translateY(8px) scale(0.88);
+    pointer-events: none;
+  }
+}
+
 /* Final recommendation-header sizing and narrow-screen step layout. */
 .game-strategy-tabs,
 .game-strategy-button,
@@ -4144,10 +4255,12 @@ button:disabled {
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(7, 11, 29, 0.72) 0%,
-    rgba(7, 11, 29, 0.38) 48%,
-    rgba(7, 11, 29, 0) 100%
+    rgba(7, 11, 29, 0.82) 0%,
+    rgba(7, 11, 29, 0.58) 52%,
+    rgba(7, 11, 29, 0.24) 100%
   );
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
 }
 
 .app-sticky-header > * {
@@ -4161,6 +4274,142 @@ button:disabled {
   background: transparent;
   border: 0;
   box-shadow: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .compact-recommend-toolbar {
+    --recommend-control-height: 40px;
+    gap: 6px;
+  }
+
+  .recommendation-card .recommendation-overlay {
+    gap: 8px;
+    padding: 16px 58px 28px 16px;
+  }
+
+  .recommendation-card .poster-title-block {
+    gap: 4px;
+  }
+
+  .recommendation-card .poster-title-block h3 {
+    min-height: 0;
+    font-size: 1.08rem;
+    line-height: 1.08;
+  }
+
+  .recommendation-card .recommendation-headline {
+    max-height: 3.9em;
+    line-height: 1.3;
+  }
+
+  .recommendation-card.touch-open .recommendation-headline {
+    display: block;
+    max-height: 360px;
+    -webkit-line-clamp: unset;
+  }
+
+  .poster-card:not(.touch-open) .poster-frame img {
+    transform: scale(1.04);
+  }
+
+  .poster-card:not(.rated):not(.touch-open) .poster-frame img {
+    filter: none;
+  }
+
+  .poster-card.rated:not(.touch-open) .poster-frame img {
+    filter: saturate(1.12) contrast(1.06) brightness(0.76);
+  }
+
+  .poster-card.touch-open .poster-frame img {
+    transform: scale(1.12);
+    filter: saturate(1.18) contrast(1.08) brightness(0.62);
+  }
+
+  .recommendation-card.touch-open .recommendation-rank-badge {
+    opacity: 0;
+    transform: translateY(8px) scale(0.88);
+    pointer-events: none;
+  }
+
+  .recommendation-algorithm-menu {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: min(320px, 50vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    z-index: 30;
+  }
+
+  .recommendation-algorithm-option {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .app-sticky-header {
+    padding-top: 4px;
+    padding-bottom: 5px;
+  }
+
+  .game-header {
+    gap: 4px;
+  }
+
+  .game-brand-logo {
+    width: clamp(100px, 24vw, 112px);
+  }
+
+  .active-section-controls {
+    margin-top: 5px;
+  }
+
+  .recommendation-card .recommendation-frame {
+    aspect-ratio: auto;
+    min-height: clamp(420px, 125vw, 520px);
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .recommendation-card .recommendation-frame > img,
+  .recommendation-card .recommendation-frame > .poster-fallback {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .recommendation-card .recommendation-overlay {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    margin-top: auto;
+    padding: 16px 58px 30px 16px;
+  }
+
+  .recommendation-card .recommendation-headline {
+    display: -webkit-box;
+    max-height: none;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .recommendation-card.touch-open .recommendation-frame {
+    min-height: 0;
+  }
+
+  .recommendation-card.touch-open .recommendation-overlay {
+    margin-top: 0;
+  }
+
+  .recommendation-card.touch-open .recommendation-headline {
+    display: block;
+    max-height: none;
+    -webkit-line-clamp: unset;
+  }
 }
 
 @media (hover: none) and (max-width: 359px),
@@ -4185,5 +4434,58 @@ button:disabled {
   .game-step-copy {
     width: 100%;
     text-align: center;
+  }
+}
+
+/* Final mobile override: preserve the original fixed recommendation-card size. */
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .recommendation-card .recommendation-frame,
+  .recommendation-card.touch-open .recommendation-frame {
+    aspect-ratio: 4 / 5.25;
+    min-height: 0;
+    display: block;
+  }
+
+  .recommendation-card .recommendation-frame > img,
+  .recommendation-card .recommendation-frame > .poster-fallback,
+  .recommendation-card.touch-open .recommendation-frame > img,
+  .recommendation-card.touch-open .recommendation-frame > .poster-fallback {
+    position: static;
+    inset: auto;
+    width: 100%;
+    height: 100%;
+  }
+
+  .recommendation-card .recommendation-overlay,
+  .recommendation-card.touch-open .recommendation-overlay {
+    position: absolute;
+    inset: auto 0 0;
+    width: auto;
+    margin-top: 0;
+    max-height: 100%;
+    overflow: hidden;
+    gap: 6px;
+    padding: 14px 58px 22px 16px;
+  }
+
+  .recommendation-card .poster-title-block {
+    gap: 3px;
+  }
+
+  .recommendation-card .recommendation-headline,
+  .recommendation-card.touch-open .recommendation-headline {
+    display: -webkit-box;
+    max-height: 3.9em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .recommendation-card.touch-open .recommendation-interaction-panel {
+    max-height: 150px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 4px;
   }
 }
