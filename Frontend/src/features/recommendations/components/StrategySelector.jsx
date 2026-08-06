@@ -2,16 +2,23 @@ import { RECOMMENDATION_STRATEGIES } from '../strategies'
 
 function StrategySelector({ value, onChange }) {
   return (
-    <div className="game-strategy-tabs" aria-label="Recommendation strategy">
+    <div
+      className="game-strategy-tabs"
+      aria-label="Estrategia de recomendación"
+      data-strategy={value}
+    >
       {RECOMMENDATION_STRATEGIES.map((strategy) => (
         <button
           key={strategy.value}
           type="button"
+          aria-label={strategy.label}
           className={value === strategy.value ? 'game-strategy-button active' : 'game-strategy-button'}
           onClick={() => onChange(strategy.value)}
         >
-          <span>{strategy.label}</span>
-          <small>{strategy.status}</small>
+          <span className="game-strategy-label-full">{strategy.label}</span>
+          <span className="game-strategy-label-short" aria-hidden="true">
+            {strategy.value === 'content' ? 'Contenido' : 'Colaborativo'}
+          </span>
         </button>
       ))}
     </div>

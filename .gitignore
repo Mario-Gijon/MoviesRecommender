@@ -26,8 +26,12 @@ Backend/app/data/pipeline_cache/*
 Backend/app/data/offline_dataset/*
 
 # Local/generated backend data
+/Backend/data/
 /Backend/data/raw/
 /Backend/data/pipeline_cache/
 /Backend/data/offline_dataset/
 /Backend/data/recommender_models/
 /Backend/data/recommender_audit/
+/app_simulation/
+/data/
+/dist/

@@ -1,5 +1,6 @@
 import csv
 import json
+from functools import cached_property
 
 from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_MANIFEST_PATH,
@@ -11,6 +12,10 @@ from app.project_paths.dataset_paths import (
 EXPORT_DATASET_COMMAND = "python -m pipelines.dataset_generation.export_offline_dataset_from_movielens_32m"
 POSTER_URL_PREFIX = "/offline/posters"
 LIST_SEPARATOR = "|"
+
+
+class OfflineCatalogDataUnavailableError(RuntimeError):
+    """Raised when the portable runtime catalog cannot be loaded."""
 
 
 class OfflineCatalogRepository:
@@ -88,28 +93,36 @@ class OfflineCatalogRepository:
     def _load_manifest(self) -> dict:
         if not OFFLINE_DATASET_MANIFEST_PATH.exists():
             return {}
-        return json.loads(OFFLINE_DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
+        try:
+            return json.loads(OFFLINE_DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise OfflineCatalogDataUnavailableError(
+                "Offline catalog metadata is unavailable."
+            ) from exc
 
     def _load_public_movies(self) -> list[dict]:
         if not OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH.exists():
-            raise RuntimeError(
-                "Offline public catalog CSV is missing. "
-                f"Run {EXPORT_DATASET_COMMAND} first."
+            raise OfflineCatalogDataUnavailableError(
+                "Offline public catalog data is unavailable."
             )
 
         movies: list[dict] = []
-        with OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH.open("r", encoding="utf-8", newline="") as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                movie = _build_movie_from_csv_row(row)
-                if movie is None:
-                    continue
-                movies.append(movie)
+        try:
+            with OFFLINE_DATASET_PUBLIC_MOVIES_CSV_PATH.open("r", encoding="utf-8", newline="") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    movie = _build_movie_from_csv_row(row)
+                    if movie is None:
+                        continue
+                    movies.append(movie)
+        except OSError as exc:
+            raise OfflineCatalogDataUnavailableError(
+                "Offline public catalog data is unavailable."
+            ) from exc
 
         if not movies:
-            raise RuntimeError(
-                "Offline public catalog CSV contains no public movies. "
-                f"Run {EXPORT_DATASET_COMMAND} first."
+            raise OfflineCatalogDataUnavailableError(
+                "Offline public catalog data is unavailable."
             )
 
         return movies
@@ -333,4 +346,15 @@ def _round_float(value: float) -> float:
     return round(float(value), 2)
 
 
-catalog_repository = OfflineCatalogRepository()
+class LazyOfflineCatalogRepository:
+    """Defers runtime CSV reads until an endpoint actually needs the catalog."""
+
+    @cached_property
+    def _repository(self) -> OfflineCatalogRepository:
+        return OfflineCatalogRepository()
+
+    def __getattr__(self, name: str):
+        return getattr(self._repository, name)
+
+
+catalog_repository = LazyOfflineCatalogRepository()

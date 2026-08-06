@@ -1,14 +1,42 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { getMovieDisplayTitle } from '../movieDisplay'
+import MovieRatingControl from './MovieRatingControl'
 
-function MovieCard({ movie, rating, onRate, index = 0 }) {
+function MovieCard({
+  movie,
+  rating,
+  onRate,
+  index = 0,
+  isTouchOpen = false,
+  onToggleTouch,
+}) {
   const cardRef = useRef(null)
   const [isVisible, setIsVisible] = useState(false)
-  const [hoveredRating, setHoveredRating] = useState(null)
   const isRated = Boolean(rating)
-  const previewRating = hoveredRating || rating || 0
   const movieTitle = getMovieDisplayTitle(movie)
+
+  function canToggleTouchCard() {
+    return (
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(hover: none), (pointer: coarse)').matches
+    )
+  }
+
+  function handleCardClick(event) {
+    if (event.target.closest('button')) return
+    if (!canToggleTouchCard()) return
+    onToggleTouch?.()
+  }
+
+  function handleCardKeyDown(event) {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    if (!canToggleTouchCard()) return
+
+    event.preventDefault()
+    onToggleTouch?.()
+  }
 
   useEffect(() => {
     if (!cardRef.current) {
@@ -39,14 +67,19 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
         'poster-card',
         isRated ? 'rated' : '',
         isVisible ? 'visible' : '',
+        isTouchOpen ? 'touch-open' : '',
       ]
         .filter(Boolean)
         .join(' ')}
       style={{ '--card-order': index % 16 }}
+      tabIndex={0}
+      aria-expanded={isTouchOpen}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
     >
       <div className="poster-frame">
         {movie.posterUrl ? (
-          <img src={movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
+          <img src={movie.posterUrl} alt={`${movieTitle} póster`} loading="lazy" />
         ) : (
           <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
         )}
@@ -61,39 +94,18 @@ function MovieCard({ movie, rating, onRate, index = 0 }) {
           </div>
 
           <div className="poster-actions">
-            <div
-              className="poster-stars"
-              aria-label={`Rate ${movieTitle}`}
-              onMouseLeave={() => setHoveredRating(null)}
-            >
-              {[1, 2, 3, 4, 5].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={value <= previewRating ? 'poster-star active' : 'poster-star'}
-                  style={{ '--star-order': value }}
-                  aria-label={`${value} stars`}
-                  aria-pressed={rating === value}
-                  onMouseEnter={() => setHoveredRating(value)}
-                  onFocus={() => setHoveredRating(value)}
-                  onBlur={() => setHoveredRating(null)}
-                  onClick={() => onRate(movie.id, value)}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
+            <MovieRatingControl movie={movie} rating={rating} onRate={onRate} />
 
             {isRated ? (
-              <button type="button" className="poster-clear" onClick={() => onRate(movie.id, null)}>
-                Clear
+              <button type="button" className="poster-clear" onClick={() => onRate(movie, null)}>
+                Quitar valoración
               </button>
             ) : null}
           </div>
         </div>
 
         {isRated ? (
-          <div className="poster-rating-badge" aria-label={`${rating} stars`}>
+          <div className="poster-rating-badge" aria-label={`${rating} estrellas`}>
             {rating}★
           </div>
         ) : null}

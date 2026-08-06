@@ -1,30 +1,25 @@
 import { useEffect, useRef } from 'react'
 
-import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
+import { useAppScrollContainer } from '../../../shared/scroll/scrollContext'
 import MoviesGrid from './MoviesGrid'
 
 function RateMoviesStep({
   movies,
   ratings,
-  ratedMoviesCount,
-  catalogSearch,
   isCatalogLoading,
   isCatalogLoadingMore,
   catalogHasLoaded,
   hasMoreCatalogPages,
   catalogError,
   onRate,
-  onSearchChange,
   onLoadMore,
   onRetryLoadMovies,
 }) {
-  const scrollPanelRef = useRef(null)
+  const scrollContainerRef = useAppScrollContainer()
   const loadMoreSentinelRef = useRef(null)
 
-  useSmoothWheelScroll(scrollPanelRef)
-
   useEffect(() => {
-    if (!scrollPanelRef.current || !loadMoreSentinelRef.current || !hasMoreCatalogPages) {
+    if (!loadMoreSentinelRef.current || !hasMoreCatalogPages) {
       return undefined
     }
 
@@ -35,7 +30,7 @@ function RateMoviesStep({
         }
       },
       {
-        root: scrollPanelRef.current,
+        root: scrollContainerRef?.current || null,
         rootMargin: '220px 0px',
       },
     )
@@ -43,44 +38,26 @@ function RateMoviesStep({
     observer.observe(loadMoreSentinelRef.current)
 
     return () => observer.disconnect()
-  }, [hasMoreCatalogPages, isCatalogLoading, isCatalogLoadingMore, onLoadMore])
+  }, [hasMoreCatalogPages, isCatalogLoading, isCatalogLoadingMore, onLoadMore, scrollContainerRef])
 
   return (
     <div className="rate-game-step">
-      <div className="game-search-row">
-        <label className="game-search">
-          <span aria-hidden="true">⌕</span>
-          <span className="sr-only">Search movies</span>
-          <input
-            type="search"
-            value={catalogSearch}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search movies"
-          />
-        </label>
-
-        <div className="rated-counter" aria-label={`${ratedMoviesCount} rated movies`}>
-          <strong>{ratedMoviesCount}</strong>
-          <span>rated</span>
-        </div>
-      </div>
-
-      <div ref={scrollPanelRef} className="game-catalog-panel">
+      <div className="game-catalog-panel">
         {isCatalogLoading && movies.length === 0 ? (
           <div className="game-state">
             <span className="game-loader" aria-hidden="true" />
-            <strong>Loading</strong>
+            <strong>Cargando</strong>
           </div>
         ) : catalogError && movies.length === 0 ? (
           <div className="game-state">
-            <strong>Catalog unavailable</strong>
+            <strong>Catálogo no disponible</strong>
             <button type="button" className="game-nav-button primary" onClick={onRetryLoadMovies}>
-              Retry
+              Reintentar
             </button>
           </div>
         ) : movies.length === 0 && catalogHasLoaded ? (
           <div className="game-state">
-            <strong>No movies found</strong>
+            <strong>No se encontraron películas</strong>
           </div>
         ) : (
           <>
@@ -91,7 +68,7 @@ function RateMoviesStep({
                 <span className="game-loader small" aria-hidden="true" />
               ) : hasMoreCatalogPages ? (
                 <button type="button" className="load-trigger-button" onClick={onLoadMore}>
-                  Load more
+                  Cargar más
                 </button>
               ) : null}
 

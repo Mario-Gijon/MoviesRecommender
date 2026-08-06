@@ -1,4 +1,7 @@
-from app.catalog.catalog_repository import catalog_repository
+from app.catalog.catalog_repository import (
+    OfflineCatalogDataUnavailableError,
+    catalog_repository,
+)
 from app.recommenders.unified.models import (
     RecommendationAdapter,
     RecommendationServiceError,
@@ -102,6 +105,12 @@ def _validate_request(request: UnifiedRecommendationRequest) -> None:
             )
         try:
             catalog_repository.get_public_movie_by_id(item.movie_id)
+        except OfflineCatalogDataUnavailableError as exc:
+            raise RecommendationServiceError(
+                code="runtime_data_unavailable",
+                message="Runtime dataset or recommender artifacts are unavailable.",
+                status_code=503,
+            ) from exc
         except RuntimeError as exc:
             raise RecommendationServiceError(
                 code="unknown_movie",

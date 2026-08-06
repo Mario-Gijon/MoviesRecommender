@@ -1,65 +1,109 @@
-import { useRef } from 'react'
+import { useState } from 'react'
 
-import useSmoothWheelScroll from '../../../shared/hooks/useSmoothWheelScroll'
 import { isStrategyEnabled } from '../strategies'
-import AlgorithmSelector from './AlgorithmSelector'
 import RecommendationCard from './RecommendationCard'
-import StrategySelector from './StrategySelector'
 
 function RecommendationsStep({
   selectedStrategy,
-  onSelectStrategy,
-  selectedAlgorithm,
-  onSelectAlgorithm,
   onGenerateRecommendations,
   recommendations,
   isLoadingRecommendations,
   ratedMoviesCount,
+  ratings,
+  onRate,
+  isStale,
 }) {
-  const scrollPanelRef = useRef(null)
+  const [openRecommendationId, setOpenRecommendationId] = useState(null)
+
   const canGenerate =
     ratedMoviesCount > 0 &&
     isStrategyEnabled(selectedStrategy) &&
     !isLoadingRecommendations
 
-  useSmoothWheelScroll(scrollPanelRef)
-
   return (
     <div className="recommend-game-step compact-recommend-step">
-      <div className="recommend-toolbar compact-recommend-toolbar">
-        <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
-        <AlgorithmSelector
-          strategy={selectedStrategy}
-          value={selectedAlgorithm}
-          onChange={onSelectAlgorithm}
-        />
-        <button
-          type="button"
-          className="game-nav-button primary generate-button"
-          onClick={onGenerateRecommendations}
-          disabled={!canGenerate}
-        >
-          {isLoadingRecommendations ? 'Generando...' : 'Recomendar'}
-        </button>
-      </div>
+      {isStale ? (
+        <div className="recommendation-top-area">
+          <div
+            className="recommendation-refresh-banner"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className="recommendation-refresh-icon"
+              aria-hidden="true"
+            >
+              ✦
+            </span>
 
-      <section ref={scrollPanelRef} className="game-catalog-panel recommendations-stage">
+            <div className="recommendation-refresh-copy">
+              <strong>
+                Puedo mejorar la recomendación
+              </strong>
+
+              <span>
+                Tendré en cuenta tus nuevas valoraciones.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="recommendation-refresh-button"
+              onClick={onGenerateRecommendations}
+              disabled={!canGenerate}
+            >
+              {isLoadingRecommendations
+                ? 'Mejorando...'
+                : 'Mejorar'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <section className="game-catalog-panel recommendations-stage">
         {recommendations ? (
           <div className="recommendations-panel">
-            <div className="recommendation-grid">
-              {recommendations.recommendations.map((item) => (
-                <RecommendationCard
-                  key={item.movie.movieId || item.movie.id}
-                  item={item}
-                  rank={item.rank}
-                />
-              ))}
-            </div>
+            {recommendations.recommendations.length ? (
+              <div className="recommendation-grid">
+                {recommendations.recommendations.map((item, index) => {
+                  const movieId =
+                    item.movie.movieId || item.movie.id
+
+                  return (
+                    <RecommendationCard
+                      key={movieId}
+                      item={item}
+                      rank={index + 1}
+                      rating={ratings[movieId] || null}
+                      onRate={onRate}
+                      isTouchOpen={openRecommendationId === movieId}
+                      onToggleTouch={() => {
+                        setOpenRecommendationId((currentMovieId) =>
+                          currentMovieId === movieId ? null : movieId,
+                        )
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="game-state">
+                <strong>
+                  Ya has valorado todas estas películas
+                </strong>
+
+                <span>
+                  Vuelve a recomendar para descubrir otras.
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="game-state">
             <strong>
-              {ratedMoviesCount ? 'Listo para recomendar' : 'Valora algunas películas primero'}
+              {ratedMoviesCount
+                ? 'Listo para recomendar'
+                : 'Valora algunas películas primero'}
             </strong>
           </div>
         )}

@@ -63,6 +63,12 @@ class ContentTfidfAdapter:
             )
         except ContentRecommendationDomainError as exc:
             raise _translate_content_error(exc, request=request) from exc
+        except RuntimeError as exc:
+            raise RecommendationServiceError(
+                code="model_unavailable",
+                message="The selected recommendation model is currently unavailable.",
+                status_code=503,
+            ) from exc
 
         return [
             UnifiedRecommendedMovie(

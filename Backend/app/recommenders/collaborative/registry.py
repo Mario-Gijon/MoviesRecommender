@@ -8,6 +8,8 @@ from app.recommenders.collaborative.algorithms.popularity_baseline.recommender i
 from app.recommenders.collaborative.algorithms.user_knn_pearson_shrinkage.recommender import (
     UserKnnPearsonShrinkageRecommender,
 )
+from collections.abc import Callable
+
 from app.recommenders.collaborative.common.base import CollaborativeRecommender
 from app.recommenders.collaborative.common.errors import (
     CollaborativeAlgorithmNotAvailableError,
@@ -20,25 +22,38 @@ from app.recommenders.collaborative.algorithms.biased_matrix_factorization.recom
 )
 
 
-COLLABORATIVE_RECOMMENDER_REGISTRY: dict[str, CollaborativeRecommender] = {
-    PopularityBaselineRecommender.algorithm_id: PopularityBaselineRecommender(),
-    ItemKnnCosineRecommender.algorithm_id: ItemKnnCosineRecommender(
+COLLABORATIVE_RECOMMENDER_FACTORIES: dict[
+    str,
+    Callable[[], CollaborativeRecommender],
+] = {
+    PopularityBaselineRecommender.algorithm_id: PopularityBaselineRecommender,
+    ItemKnnCosineRecommender.algorithm_id: lambda: ItemKnnCosineRecommender(
         model_variant_id=settings.active_collaborative_model_variant,
     ),
-    UserKnnPearsonShrinkageRecommender.algorithm_id: UserKnnPearsonShrinkageRecommender(),
-    BiasedMatrixFactorizationRecommender.algorithm_id: BiasedMatrixFactorizationRecommender(
-        runtime_config=BiasedMatrixFactorizationRuntimeConfig(
-            variant_id=settings.biased_matrix_factorization_model_variant,
-        ),
+    UserKnnPearsonShrinkageRecommender.algorithm_id: UserKnnPearsonShrinkageRecommender,
+    BiasedMatrixFactorizationRecommender.algorithm_id: (
+        lambda: BiasedMatrixFactorizationRecommender(
+            runtime_config=BiasedMatrixFactorizationRuntimeConfig(
+                variant_id=settings.biased_matrix_factorization_model_variant,
+            ),
+        )
     ),
 }
+COLLABORATIVE_RECOMMENDER_REGISTRY: dict[str, CollaborativeRecommender] = {}
 
 
 def get_collaborative_recommender(algorithm_id: str) -> CollaborativeRecommender:
     recommender = COLLABORATIVE_RECOMMENDER_REGISTRY.get(algorithm_id)
-    if recommender is None:
+    if recommender is not None:
+        return recommender
+
+    factory = COLLABORATIVE_RECOMMENDER_FACTORIES.get(algorithm_id)
+    if factory is None:
         raise CollaborativeAlgorithmNotAvailableError(
             code="collaborative_algorithm_not_available",
             message=f"Collaborative recommender algorithm is not available: {algorithm_id}",
         )
+
+    recommender = factory()
+    COLLABORATIVE_RECOMMENDER_REGISTRY[algorithm_id] = recommender
     return recommender

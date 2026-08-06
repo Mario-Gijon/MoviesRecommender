@@ -1,9 +1,33 @@
 from argparse import Namespace
 
-from app.catalog.constants import PUBLIC_MIN_STAND_DISPLAY_SCORE
+from app.catalog.constants import PUBLIC_MIN_RUNTIME_MINUTES, PUBLIC_MIN_STAND_DISPLAY_SCORE
 from app.catalog.public_accessibility import (
     has_low_stand_accessibility,
 )
+
+PUBLIC_EXCLUSION_REASON_LABELS = {
+    "documentary": "Documental",
+    "short_runtime": "Corto (< 70 min)",
+}
+
+
+def public_catalogue_policy_reasons(item: dict) -> list[str]:
+    """Return public-only policy exclusions from already enriched TMDB metadata."""
+    tmdb = item.get("tmdb", {})
+    genres = tmdb.get("genres") or []
+    if isinstance(genres, str):
+        genres = genres.split("|")
+    normalized_genres = {str(genre).strip().casefold() for genre in genres if genre}
+    reasons: list[str] = []
+    if "documentary" in normalized_genres:
+        reasons.append("documentary")
+    try:
+        runtime = float(tmdb.get("runtime"))
+    except (TypeError, ValueError):
+        runtime = None
+    if runtime is not None and runtime < PUBLIC_MIN_RUNTIME_MINUTES:
+        reasons.append("short_runtime")
+    return reasons
 
 
 def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
@@ -33,6 +57,7 @@ def build_public_exclusion_reasons(item: dict, *, args: Namespace) -> list[str]:
         reasons.append("unknown_suitability")
     if args.family_only and item.get("suitabilityCategory") == "teen":
         reasons.append("family_only_excludes_teen")
+    reasons.extend(public_catalogue_policy_reasons(item))
     if not reasons and has_low_stand_accessibility(item):
         reasons.append("low_stand_accessibility")
     if (
@@ -63,6 +88,8 @@ def is_public_candidate(item: dict, *, args: Namespace) -> bool:
     if item.get("suitabilityCategory") in {"adult_or_sensitive", "unknown"}:
         return False
     if args.family_only and item.get("suitabilityCategory") != "family_friendly":
+        return False
+    if public_catalogue_policy_reasons(item):
         return False
     if stand_display_score is None or float(stand_display_score) < PUBLIC_MIN_STAND_DISPLAY_SCORE:
         return False

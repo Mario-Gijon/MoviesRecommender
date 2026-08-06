@@ -50,7 +50,7 @@ function normalizeRecommendationError({ payload, status }) {
     message:
       error && typeof error.message === 'string'
         ? error.message
-        : `Request failed with status ${status}`,
+        : `La solicitud ha fallado con el estado ${status}`,
     details: error && typeof error.details === 'object' && error.details ? error.details : {},
     status,
   })

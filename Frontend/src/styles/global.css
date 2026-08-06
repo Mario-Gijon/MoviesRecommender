@@ -15,6 +15,9 @@
   --sinbad-muted: rgba(245, 247, 255, 0.68);
   --sinbad-border: rgba(174, 188, 255, 0.18);
   --sinbad-glow: rgba(63, 83, 160, 0.44);
+  --recommend-control-radius: 20px;
+  --recommend-control-radius-mobile: 16px;
+  --recommend-control-height: 42px;
 
   color: var(--sinbad-text);
   background: var(--sinbad-ink);
@@ -37,10 +40,8 @@ body {
   overflow: hidden;
   color: var(--sinbad-text);
   background:
-    radial-gradient(circle at 16% 8%, rgba(63, 83, 160, 0.48), transparent 28%),
-    radial-gradient(circle at 82% 10%, rgba(102, 126, 234, 0.28), transparent 26%),
-    radial-gradient(circle at 50% 100%, rgba(214, 173, 76, 0.13), transparent 36%),
-    linear-gradient(135deg, #050816 0%, #0a102b 44%, #141b42 100%);
+    radial-gradient(ellipse 95% 58% at 14% -18%, rgba(73, 99, 184, 0.17), transparent 72%),
+    linear-gradient(145deg, #050816 0%, #09112c 52%, #101a38 100%);
 }
 
 body::before {
@@ -49,12 +50,12 @@ body::before {
   z-index: -1;
   content: "";
   pointer-events: none;
-  opacity: 0.22;
+  opacity: 0.12;
   background-image:
-    linear-gradient(rgba(174, 188, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(174, 188, 255, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(174, 188, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(174, 188, 255, 0.045) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: radial-gradient(circle at center, black, transparent 72%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), transparent 88%);
 }
 
 body::after {
@@ -63,10 +64,10 @@ body::after {
   z-index: -1;
   content: "";
   pointer-events: none;
-  opacity: 0.42;
+  opacity: 0.24;
   background:
-    linear-gradient(115deg, transparent 0 42%, rgba(174, 188, 255, 0.08) 48%, transparent 56%),
-    radial-gradient(circle at 50% 45%, transparent 0 52%, rgba(0, 0, 0, 0.28) 100%);
+    linear-gradient(115deg, transparent 0 42%, rgba(174, 188, 255, 0.035) 49%, transparent 58%),
+    linear-gradient(to bottom, transparent 0%, rgba(2, 5, 17, 0.16) 100%);
 }
 
 button,
@@ -111,16 +112,20 @@ button:disabled {
   height: 100vh;
   height: 100dvh;
   margin: 0 auto;
-  padding: 14px 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 14px;
+  padding: 0 0 14px;
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(102, 126, 234, 0.9) rgba(255, 255, 255, 0.06);
 }
 
 .game-header {
   display: grid;
-  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 14px;
   align-items: end;
 }
 
@@ -128,7 +133,8 @@ button:disabled {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding-bottom: 2px;
+  width: max-content;
+  padding-bottom: 0;
 }
 
 .game-brand-mark {
@@ -148,7 +154,7 @@ button:disabled {
 }
 
 .game-brand-logo {
-  width: clamp(170px, 10vw, 230px);
+  width: clamp(160px, 9vw, 210px);
   height: auto;
   display: block;
   flex: 0 0 auto;
@@ -188,7 +194,7 @@ button:disabled {
     box-shadow 180ms ease;
 }
 
-.game-step span {
+.game-step-number {
   width: 34px;
   height: 34px;
   display: grid;
@@ -254,7 +260,7 @@ button:disabled {
     0 0 0 1px rgba(255, 255, 255, 0.12) inset;
 }
 
-.game-step.active span,
+.game-step.active .game-step-number,
 .game-strategy-button.active,
 .recommendation-rank {
   color: #11183c;
@@ -264,14 +270,13 @@ button:disabled {
 }
 
 .game-main {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  min-height: calc(100dvh - 180px);
+  display: block;
 }
 
 .game-step-shell {
   min-height: 0;
-  display: grid;
+  display: block;
   position: relative;
 }
 
@@ -296,9 +301,7 @@ button:disabled {
 .review-game-step,
 .recommend-game-step {
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
+  display: block;
 }
 
 .compact-step {
@@ -404,30 +407,10 @@ button:disabled {
 .game-catalog-panel,
 .scroll-panel {
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: visible;
+  overscroll-behavior: auto;
   border-radius: 38px;
-  padding: 26px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(102, 126, 234, 0.9) rgba(255, 255, 255, 0.06);
-}
-
-.game-catalog-panel::-webkit-scrollbar,
-.scroll-panel::-webkit-scrollbar {
-  width: 10px;
-}
-
-.game-catalog-panel::-webkit-scrollbar-track,
-.scroll-panel::-webkit-scrollbar-track {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.game-catalog-panel::-webkit-scrollbar-thumb,
-.scroll-panel::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(102, 126, 234, 0.9), rgba(214, 173, 76, 0.78));
+  padding: 0 0 26px;
 }
 
 .game-state {
@@ -487,8 +470,8 @@ button:disabled {
 .poster-card {
   position: relative;
   overflow: visible;
-  border: 0;
-  border-radius: 34px;
+  border: 1px solid rgba(7, 11, 29, 0.95);
+  border-radius: 38px;
   background: transparent;
   box-shadow: none;
   opacity: 1;
@@ -512,14 +495,11 @@ button:disabled {
   isolation: isolate;
   overflow: hidden;
   aspect-ratio: 4 / 5;
-  border: 1px solid rgba(174, 188, 255, 0.18);
+  border: 0;
+  outline: 0;
   border-radius: 38px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(102, 126, 234, 0.26), transparent 42%),
-    #10183a;
-  box-shadow:
-    0 30px 78px rgba(0, 0, 0, 0.46),
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  background: #10183a;
+  box-shadow: 0 30px 78px rgba(0, 0, 0, 0.46);
   transform: translateZ(0);
   transition:
     transform 220ms ease,
@@ -530,38 +510,47 @@ button:disabled {
 
 .poster-card:hover .poster-frame {
   transform: translateY(-14px) scale(1.045);
-  border-color: rgba(174, 188, 255, 0.58);
-  box-shadow:
-    0 42px 110px rgba(0, 0, 0, 0.56),
-    0 0 68px rgba(102, 126, 234, 0.28),
-    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  box-shadow: 0 42px 110px rgba(0, 0, 0, 0.56);
 }
 
-.poster-card.rated .poster-frame {
-  border-color: rgba(214, 173, 76, 0.86);
+.poster-card.rated {
+  border-color: rgba(214, 173, 76, 0.9);
   box-shadow:
-    0 40px 104px rgba(0, 0, 0, 0.52),
-    0 0 58px rgba(214, 173, 76, 0.24),
-    0 0 0 1px rgba(214, 173, 76, 0.22) inset;
+    0 0 58px rgba(214, 173, 76, 0.24);
 }
 
-.poster-frame img {
+.poster-card.touch-open:not(.rated) {
+  border-color: rgba(102, 126, 234, 0.9);
+  box-shadow: 0 0 42px rgba(102, 126, 234, 0.2);
+}
+
+.poster-card:not(.rated):focus-visible {
+  border-color: rgba(102, 126, 234, 0.9);
+  box-shadow: 0 0 0 3px rgba(174, 188, 255, 0.16);
+}
+
+.poster-frame > img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
-  transform: scale(1.04);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0) scale(1.04);
   transition:
     transform 360ms ease,
     filter 260ms ease;
 }
 
-.poster-card:hover .poster-frame img {
-  transform: scale(1.14);
+.poster-card:hover .poster-frame > img {
+  transform: translateZ(0) scale(1.14);
   filter: saturate(1.18) contrast(1.08) brightness(0.62);
 }
 
-.poster-card.rated .poster-frame img {
+.poster-card.rated .poster-frame > img {
   filter: saturate(1.12) contrast(1.06) brightness(0.76);
 }
 
@@ -604,8 +593,7 @@ button:disabled {
   transition: opacity 220ms ease;
 }
 
-.poster-card:hover .poster-light,
-.poster-card.rated .poster-light {
+.poster-card:hover .poster-light {
   opacity: 1;
 }
 
@@ -620,8 +608,7 @@ button:disabled {
   transition: transform 220ms ease;
 }
 
-.poster-card:hover .poster-overlay,
-.poster-card.rated .poster-overlay {
+.poster-card:hover .poster-overlay {
   transform: translateY(0);
 }
 
@@ -663,16 +650,13 @@ button:disabled {
   display: grid;
   gap: 9px;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transform: translateY(18px) scale(0.92);
   transition:
     opacity 220ms ease,
+    visibility 0s linear 220ms,
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.poster-card:hover .poster-actions,
-.poster-card.rated .poster-actions {
-  opacity: 1;
-  transform: translateY(0) scale(1);
 }
 
 .poster-stars {
@@ -713,8 +697,7 @@ button:disabled {
     filter 140ms ease;
 }
 
-.poster-card:hover .poster-star,
-.poster-card.rated .poster-star {
+.poster-card:hover .poster-star {
   animation: star-enter-pop 260ms cubic-bezier(0.2, 1.2, 0.32, 1) both;
   animation-delay: calc(var(--star-order, 1) * 28ms);
 }
@@ -781,7 +764,18 @@ button:disabled {
   box-shadow:
     0 14px 30px rgba(0, 0, 0, 0.32),
     0 0 28px rgba(214, 173, 76, 0.28);
-  animation: rating-badge-pop 260ms cubic-bezier(0.2, 1.35, 0.32, 1) both;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  transform: translateY(0) scale(1);
+  transition-property: opacity, transform, visibility;
+  transition-duration: 190ms, 220ms, 0s;
+  transition-timing-function:
+    ease,
+    cubic-bezier(0.22, 1, 0.36, 1),
+    linear;
+  transition-delay: 0s, 0s, 0s;
+  will-change: opacity, transform;
 }
 
 /* Step 2 and 3 */
@@ -870,8 +864,7 @@ button:disabled {
 .strategy-button,
 .primary-button,
 .secondary-button,
-.game-nav-button,
-.game-strategy-button {
+.game-nav-button {
   border-radius: 999px;
   color: var(--sinbad-text);
   font-weight: 950;
@@ -985,7 +978,7 @@ button:disabled {
   display: inline-flex;
   gap: 6px;
   border: 1px solid rgba(174, 188, 255, 0.18);
-  border-radius: 999px;
+  border-radius: var(--recommend-control-radius);
   padding: 5px;
   background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(14px);
@@ -993,24 +986,17 @@ button:disabled {
 
 .game-strategy-button {
   border: 0;
+  border-radius: var(--recommend-control-radius);
   padding: 10px 14px;
   color: var(--sinbad-muted);
   background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
+  min-height: 44px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .game-strategy-button:hover {
   color: var(--sinbad-text);
-}
-
-.game-strategy-button small {
-  color: rgba(245, 247, 255, 0.58);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .game-strategy-button.active {
@@ -1025,6 +1011,87 @@ button:disabled {
 
 .compact-recommend-toolbar .game-strategy-tabs {
   min-width: min(100%, 460px);
+}
+
+.recommendation-algorithm-selector {
+  position: relative;
+  min-width: 190px;
+  z-index: 5;
+}
+
+.recommendation-algorithm-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(174, 188, 255, 0.22);
+  border-radius: var(--recommend-control-radius);
+  color: var(--sinbad-text);
+  background: rgba(10, 24, 54, 0.86);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.recommendation-algorithm-trigger:hover,
+.recommendation-algorithm-trigger:focus-visible {
+  border-color: rgba(103, 217, 255, 0.72);
+  background: rgba(19, 40, 82, 0.96);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(103, 217, 255, 0.14);
+}
+
+.recommendation-algorithm-chevron {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-right: 2px solid var(--sinbad-blue-3);
+  border-bottom: 2px solid var(--sinbad-blue-3);
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.recommendation-algorithm-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max(100%, 230px);
+  padding: 6px;
+  border: 1px solid rgba(174, 188, 255, 0.24);
+  border-radius: 14px;
+  background: #0b1835;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
+  z-index: 20;
+}
+
+.recommendation-algorithm-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--sinbad-muted);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recommendation-algorithm-option:hover,
+.recommendation-algorithm-option.highlighted,
+.recommendation-algorithm-option.selected {
+  color: var(--sinbad-text);
+  background: rgba(103, 217, 255, 0.13);
+}
+
+.recommendation-algorithm-option.selected {
+  color: var(--sinbad-blue-3);
 }
 
 .compact-recommend-toolbar .generate-button {
@@ -1303,23 +1370,6 @@ button:disabled {
   }
 }
 
-@keyframes rating-badge-pop {
-  0% {
-    transform: scale(0.62) rotate(-8deg);
-    opacity: 0;
-  }
-
-  70% {
-    transform: scale(1.18) rotate(3deg);
-    opacity: 1;
-  }
-
-  100% {
-    transform: scale(1) rotate(0);
-    opacity: 1;
-  }
-}
-
 @keyframes loader-spin {
   to {
     transform: rotate(360deg);
@@ -1382,8 +1432,7 @@ button:disabled {
 @media (max-width: 1200px) {
   .game-shell {
     width: min(100% - 20px, 1200px);
-    padding: 10px 0;
-    gap: 10px;
+    padding: 0 0 10px;
   }
 
   .game-header {
@@ -1448,15 +1497,6 @@ button:disabled {
     border-radius: 26px;
   }
 
-  .poster-overlay,
-  .poster-actions {
-    transform: none;
-  }
-
-  .poster-actions {
-    opacity: 1;
-  }
-
   .poster-title-block h3 {
     font-size: 1rem;
   }
@@ -1506,13 +1546,124 @@ button:disabled {
   .compact-recommend-toolbar {
     justify-content: stretch;
   }
+
+  .recommendation-algorithm-selector {
+    flex: 1 1 190px;
+  }
+}
+
+.recommendation-stale-notice,
+.local-profile-note {
+  margin: 10px 0 0;
+  color: var(--sinbad-muted);
+  font-size: 0.9rem;
+}
+
+.recommendation-stale-notice {
+  border: 1px solid rgba(174, 188, 255, 0.16);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: rgba(24, 33, 78, 0.34);
+}
+
+.clear-profile-button {
+  margin: 16px 0;
+}
+
+/* Recommendation toolbar polish */
+.compact-recommend-toolbar {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.compact-recommend-toolbar .game-strategy-tabs {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.compact-recommend-toolbar .recommendation-algorithm-selector {
+  flex: 0 1 220px;
+  min-width: 180px;
+}
+
+.compact-recommend-toolbar .generate-button {
+  flex: 0 0 auto;
+}
+
+.recommendation-algorithm-trigger {
+  min-height: 44px;
+  border-color: rgba(144, 175, 232, 0.3);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(63, 83, 160, 0.42), rgba(102, 126, 234, 0.2)),
+    var(--sinbad-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.recommendation-algorithm-trigger:hover {
+  background:
+    linear-gradient(135deg, rgba(63, 83, 160, 0.54), rgba(102, 126, 234, 0.28)),
+    var(--sinbad-panel);
+}
+
+/* Keep selected strategy text dark across hover, focus, and press states. */
+.game-strategy-button:hover:not(.active):not(:disabled) {
+  color: var(--sinbad-text);
+  background: rgba(103, 126, 234, 0.14);
+  transform: translateY(-2px);
+}
+
+.game-strategy-button.active,
+.game-strategy-button.active:hover,
+.game-strategy-button.active:focus-visible,
+.game-strategy-button.active:active {
+  color: #11183c;
+  background:
+    linear-gradient(135deg, #ffffff, #cfd7ff),
+    #ffffff;
+  outline: none;
+}
+
+.game-strategy-button.active:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 30px rgba(63, 83, 160, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.26) inset;
+}
+
+.game-strategy-button.active:disabled {
+  color: #11183c;
+}
+
+.recommendation-algorithm-menu {
+  background: var(--sinbad-ink-2);
+  border-color: var(--sinbad-border);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+}
+
+.recommendation-algorithm-option.selected {
+  color: var(--sinbad-blue-3);
+}
+
+.recommendation-algorithm-trigger:focus-visible {
+  border-color: var(--sinbad-blue-3);
+  box-shadow: 0 0 0 3px rgba(103, 217, 255, 0.16);
+}
+
+@media (max-width: 640px) {
+  .compact-recommend-toolbar {
+    gap: 8px;
+  }
+
+  .compact-recommend-toolbar .game-strategy-tabs,
+  .compact-recommend-toolbar .recommendation-algorithm-selector,
+  .compact-recommend-toolbar .generate-button {
+    width: 100%;
+    flex-basis: 100%;
+  }
 }
 
 @media (max-width: 760px) {
-  .game-shell {
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
   .game-navigation {
     display: flex;
   }
@@ -1523,10 +1674,16 @@ button:disabled {
     overflow: hidden;
   }
 
+  .compact-recommend-toolbar .game-strategy-tabs,
+  .compact-recommend-toolbar .recommendation-algorithm-selector,
+  .compact-recommend-toolbar .generate-button {
+    width: 100%;
+    min-width: 0;
+  }
+
   .game-shell {
     width: min(100% - 14px, 640px);
-    padding: 8px 0;
-    gap: 8px;
+    padding: 0 0 8px;
   }
 
   .game-header {
@@ -1548,7 +1705,7 @@ button:disabled {
     border-radius: 14px;
   }
 
-  .game-step span {
+  .game-step-number {
     width: 26px;
     height: 26px;
     border-radius: 10px;
@@ -1591,12 +1748,12 @@ button:disabled {
     transform: none;
   }
 
-  .poster-frame img,
-  .poster-card:hover .poster-frame img {
-    transform: scale(1.02);
+  .poster-frame > img,
+  .poster-card:hover .poster-frame > img {
+    transform: translateZ(0) scale(1.02);
   }
 
-  .poster-card:hover .poster-frame img {
+  .poster-card:hover .poster-frame > img {
     filter: saturate(1.08) contrast(1.04) brightness(0.76);
   }
 
@@ -1741,6 +1898,11 @@ button:disabled {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+
+  .poster-rating-badge {
+    transition: opacity 1ms linear, visibility 1ms linear;
+    transform: none;
+  }
 }
 
 /* Stand recommendations */
@@ -1785,37 +1947,65 @@ button:disabled {
 
 .recommendation-card {
   position: relative;
+  aspect-ratio: 4 / 5.25;
+  border: 1px solid rgba(7, 11, 29, 0.95);
+  border-radius: 38px;
+  box-shadow: none;
 }
 
 .recommendation-frame {
-  aspect-ratio: 4 / 5;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+  outline: 0;
+  box-shadow: 0 30px 78px rgba(0, 0, 0, 0.46);
 }
 
-.recommendation-card .poster-frame img {
+.poster-card.recommendation-card:hover .recommendation-frame,
+.poster-card.recommendation-card.rated .recommendation-frame,
+.poster-card.recommendation-card.touch-open .recommendation-frame,
+.poster-card.recommendation-card:focus-visible .recommendation-frame,
+.poster-card.recommendation-card:has(:focus-visible) .recommendation-frame {
+  border: 0;
+  outline: 0;
+  box-shadow: 0 30px 78px rgba(0, 0, 0, 0.46);
+}
+
+.poster-card.recommendation-card.rated {
+  border-color: rgba(214, 173, 76, 0.9);
+  box-shadow: 0 0 58px rgba(214, 173, 76, 0.24);
+}
+
+.recommendation-card .poster-frame > img {
   filter: saturate(1.08) contrast(1.05) brightness(0.78);
 }
 
-.recommendation-card:hover .poster-frame img {
-  transform: scale(1.14);
-  filter: saturate(1.12) contrast(1.08) brightness(0.42);
-}
-
 .recommendation-poster-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 1;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, transparent 24%),
-    linear-gradient(180deg, transparent 34%, rgba(0, 0, 0, 0.9) 100%);
-}
-
-.recommendation-card:hover .recommendation-poster-shade {
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.34) 34%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.94) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(3, 6, 20, 0.02) 18%,
+    rgba(3, 6, 20, 0.14) 45%,
+    rgba(3, 6, 20, 0.42) 68%,
+    rgba(3, 6, 20, 0.74) 100%
+  );
 }
 
 .recommendation-overlay {
-  gap: 12px;
-  padding: 24px 86px 24px 24px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  background: transparent;
+  gap: 11px;
+  padding: 22px 88px 20px 26px;
   transform: none;
 }
 
@@ -1853,54 +2043,6 @@ button:disabled {
     0 0 34px rgba(214, 173, 76, 0.26);
 }
 
-.recommendation-hover-details {
-  max-height: 0;
-  display: grid;
-  gap: 9px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(14px);
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-card:hover .recommendation-hover-details {
-  max-height: 260px;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.recommendation-hover-details strong {
-  color: #ffffff;
-  font-size: 0.98rem;
-  line-height: 1.2;
-  text-shadow:
-    0 5px 18px rgba(0, 0, 0, 0.8),
-    0 0 22px rgba(0, 0, 0, 0.42);
-}
-
-.recommendation-hover-details ul {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recommendation-hover-details li {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 9px 11px;
-  color: rgba(245, 247, 255, 0.86);
-  font-size: 0.86rem;
-  font-weight: 750;
-  line-height: 1.28;
-  background: rgba(5, 8, 22, 0.48);
-  backdrop-filter: blur(12px);
-}
-
 .recommendation-rank-badge {
   position: absolute;
   right: 16px;
@@ -1933,9 +2075,6 @@ button:disabled {
     padding: 20px 76px 20px 20px;
   }
 
-  .recommendation-hover-details li {
-    font-size: 0.8rem;
-  }
 }
 
 @media (max-width: 900px) {
@@ -1955,94 +2094,6 @@ button:disabled {
     min-height: 38px;
   }
 
-  .recommendation-hover-details {
-    max-height: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Recommendation card refinements */
-
-.recommendation-card:hover .recommendation-rank-badge {
-  opacity: 0;
-  transform: translateY(8px) scale(0.88);
-  pointer-events: none;
-}
-
-.recommendation-rank-badge {
-  transition:
-    opacity 220ms ease,
-    transform 220ms ease;
-}
-
-.recommendation-score-line {
-  align-items: center;
-  gap: 9px;
-  padding: 7px 13px;
-}
-
-.recommendation-score-line span {
-  color: rgba(245, 247, 255, 0.86);
-  font-size: 0.86rem;
-  line-height: 1;
-  font-weight: 950;
-  letter-spacing: 0.06em;
-}
-
-.recommendation-score-line strong {
-  font-size: 0.96rem;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.recommendation-hover-details {
-  gap: 10px;
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-card:hover .recommendation-hover-details {
-  max-height: 340px;
-}
-
-.recommendation-hover-details strong {
-  font-size: 1.02rem;
-}
-
-.recommendation-hover-details ul {
-  gap: 8px;
-}
-
-.recommendation-hover-details li {
-  padding: 10px 12px;
-  font-size: 0.88rem;
-  line-height: 1.32;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
-    rgba(5, 8, 22, 0.58);
-}
-
-.recommendation-card:hover .recommendation-overlay {
-  padding-right: 24px;
-}
-
-/* Recommendation card final refinements */
-
-.recommendation-grid {
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 36px;
-}
-
-.recommendation-frame {
-  aspect-ratio: 4 / 5.25;
-}
-
-.recommendation-overlay {
-  gap: 11px;
-  padding: 26px 88px 26px 26px;
 }
 
 .recommendation-score-line {
@@ -2083,83 +2134,25 @@ button:disabled {
     0 5px 18px rgba(0, 0, 0, 0.82),
     0 0 22px rgba(0, 0, 0, 0.42);
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
   transition:
-    max-height 420ms ease,
-    opacity 360ms ease,
-    transform 420ms ease;
-}
-
-.recommendation-card:hover .recommendation-headline {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.recommendation-hover-details {
-  max-height: 0;
-  display: grid;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(14px);
-  transition:
-    max-height 620ms ease,
-    opacity 580ms ease,
-    transform 620ms ease;
-}
-
-.recommendation-card:hover .recommendation-hover-details {
-  max-height: 340px;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.recommendation-hover-details ul {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recommendation-hover-details li {
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 16px;
-  padding: 10px 12px;
-  color: rgba(245, 247, 255, 0.9);
-  font-size: 0.88rem;
-  font-weight: 780;
-  line-height: 1.32;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
-    rgba(5, 8, 22, 0.6);
-  backdrop-filter: blur(12px);
-}
-
-.recommendation-card:hover .recommendation-rank-badge {
-  opacity: 0;
-  transform: translateY(8px) scale(0.88);
-  pointer-events: none;
-}
-
-.recommendation-rank-badge {
-  transition:
-    opacity 220ms ease,
+    max-height 220ms ease,
+    margin 220ms ease,
+    opacity 180ms ease,
+    visibility 0s linear 0s,
     transform 220ms ease;
 }
 
-.recommendation-card:hover .recommendation-overlay {
-  padding-right: 26px;
-}
-
-.recommendation-card:hover .poster-frame img {
-  filter: saturate(1.12) contrast(1.08) brightness(0.38);
-}
-
-.recommendation-card:hover .recommendation-poster-shade {
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.36) 34%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.95) 100%);
+.recommendation-rank-badge {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  transform: none;
+  transition:
+    opacity 180ms ease,
+    visibility 0s linear 0s,
+    transform 220ms ease;
 }
 
 @media (min-width: 1900px) {
@@ -2179,14 +2172,1997 @@ button:disabled {
     padding: 22px 78px 22px 22px;
   }
 
-  .recommendation-card:hover .recommendation-overlay {
-    padding-right: 22px;
-  }
 }
 
 @media (max-width: 900px) {
   .recommendation-grid {
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
     gap: 18px;
+  }
+}
+
+/* =========================================================
+   Recommendation presentation
+   ========================================================= */
+
+.recommendation-top-area {
+  display: grid;
+  gap: 12px;
+}
+
+/* ---------- Improved recommendation refresh notice ---------- */
+
+.recommendation-refresh-banner {
+  width: min(100%, 880px);
+  justify-self: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(174, 188, 255, 0.32);
+  border-radius: 20px;
+  padding: 12px 14px;
+  color: var(--sinbad-text);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(63, 83, 160, 0.34),
+      rgba(102, 126, 234, 0.16)
+    ),
+    rgba(15, 23, 57, 0.82);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.22),
+    0 0 34px rgba(102, 126, 234, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  animation:
+    recommendation-refresh-enter
+    420ms
+    cubic-bezier(0.2, 1.15, 0.32, 1)
+    both;
+}
+
+.recommendation-refresh-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  color: var(--sinbad-gold-soft);
+  font-size: 1.35rem;
+  background:
+    radial-gradient(
+      circle at 50% 30%,
+      rgba(255, 241, 184, 0.28),
+      transparent 62%
+    ),
+    rgba(214, 173, 76, 0.12);
+  box-shadow:
+    0 0 22px rgba(214, 173, 76, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.recommendation-refresh-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.recommendation-refresh-copy strong {
+  color: #ffffff;
+  font-size: clamp(0.98rem, 1.2vw, 1.12rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.recommendation-refresh-copy span {
+  color: rgba(245, 247, 255, 0.72);
+  font-size: clamp(0.78rem, 0.95vw, 0.9rem);
+  font-weight: 720;
+  line-height: 1.2;
+}
+
+.recommendation-refresh-button {
+  min-width: 112px;
+  min-height: 42px;
+  border: 1px solid rgba(174, 188, 255, 0.58);
+  border-radius: 14px;
+  padding: 9px 16px;
+  color: #ffffff;
+  font-weight: 950;
+  background:
+    linear-gradient(
+      135deg,
+      var(--sinbad-blue),
+      var(--sinbad-blue-2)
+    );
+  box-shadow:
+    0 12px 28px rgba(63, 83, 160, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.recommendation-refresh-button:hover:not(:disabled),
+.recommendation-refresh-button:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  outline: none;
+  box-shadow:
+    0 16px 34px rgba(63, 83, 160, 0.38),
+    0 0 0 3px rgba(174, 188, 255, 0.16);
+}
+
+/* Disable the obsolete thin stale-message presentation. */
+.recommendation-stale-notice {
+  display: none;
+}
+
+/* ---------- Recommendation cards ---------- */
+
+.recommendation-interaction-panel {
+  max-height: 0;
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  background: transparent;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(16px);
+  transition:
+    max-height 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease,
+    visibility 0s linear 220ms,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.recommendation-reasons {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  list-style: none;
+}
+
+.recommendation-reasons li {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  padding: 7px 9px;
+  color: rgba(245, 247, 255, 0.9);
+  font-size: clamp(0.78rem, 0.9vw, 0.88rem);
+  font-weight: 760;
+  line-height: 1.24;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.09),
+      rgba(255, 255, 255, 0.03)
+    ),
+    rgba(5, 8, 22, 0.58);
+  backdrop-filter: blur(12px);
+}
+
+.recommendation-card .recommendation-rating-action {
+  width: 100%;
+  display: grid;
+  align-items: stretch;
+  gap: 6px;
+  background: transparent;
+  color: rgba(245, 247, 255, 0.86);
+  font-size: clamp(0.78rem, 0.9vw, 0.9rem);
+  font-weight: 850;
+}
+
+.recommendation-interaction-panel.has-reasons
+  .recommendation-rating-action {
+  margin-top: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  padding-top: 7px;
+}
+
+.recommendation-interaction-panel.rating-only
+  .recommendation-rating-action {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.recommendation-rating-action > span {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(0.78rem, 0.9vw, 0.9rem);
+  font-weight: 900;
+  line-height: 1.1;
+  text-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.72),
+    0 0 18px rgba(0, 0, 0, 0.34);
+}
+
+.recommendation-card .recommendation-rating-control {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: clamp(3px, 0.5vw, 8px);
+  padding: 2px 0 0;
+}
+
+.recommendation-card
+  .recommendation-rating-control
+  .poster-star {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: clamp(38px, 3vw, 48px);
+  height: auto;
+  border: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: clamp(1.75rem, 2.2vw, 2.45rem);
+  line-height: 1;
+  background: transparent;
+  text-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.72),
+    0 0 14px rgba(0, 0, 0, 0.28);
+}
+
+.recommendation-card
+  .recommendation-rating-control
+  .poster-star.active {
+  color: var(--sinbad-gold-soft);
+  text-shadow:
+    0 0 16px rgba(214, 173, 76, 0.92),
+    0 0 36px rgba(214, 173, 76, 0.46),
+    0 5px 18px rgba(0, 0, 0, 0.72);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .recommendation-card:not(.rated):hover,
+  .recommendation-card:not(.rated):focus-visible,
+  .recommendation-card:not(.rated):has(:focus-visible) {
+    border-color: rgba(102, 126, 234, 0.9);
+    box-shadow:
+      0 0 42px rgba(102, 126, 234, 0.2);
+  }
+
+  .recommendation-card:hover .poster-frame > img,
+  .recommendation-card:focus-visible .poster-frame > img,
+  .recommendation-card:has(:focus-visible) .poster-frame > img {
+    transform: translateZ(0) scale(1.14);
+    filter: saturate(1.12) contrast(1.08) brightness(0.38);
+  }
+
+  .recommendation-card:hover .recommendation-poster-shade,
+  .recommendation-card:focus-visible .recommendation-poster-shade,
+  .recommendation-card:has(:focus-visible) .recommendation-poster-shade {
+    background: linear-gradient(
+      180deg,
+      rgba(3, 6, 20, 0.06) 18%,
+      rgba(3, 6, 20, 0.22) 45%,
+      rgba(3, 6, 20, 0.52) 68%,
+      rgba(3, 6, 20, 0.82) 100%
+    );
+  }
+
+  .recommendation-card:hover .recommendation-overlay,
+  .recommendation-card:focus-visible .recommendation-overlay,
+  .recommendation-card:has(:focus-visible) .recommendation-overlay {
+    padding-right: 26px;
+  }
+
+  .recommendation-card:hover .recommendation-headline,
+  .recommendation-card:focus-visible .recommendation-headline,
+  .recommendation-card:has(:focus-visible) .recommendation-headline {
+    max-height: 0;
+    margin: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition-delay: 0s, 0s, 0s, 180ms, 0s;
+  }
+
+  .recommendation-card:hover .recommendation-interaction-panel,
+  .recommendation-card:focus-visible .recommendation-interaction-panel,
+  .recommendation-card:has(:focus-visible) .recommendation-interaction-panel {
+    max-height: 260px;
+    overflow: visible;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+
+  .recommendation-card:hover .recommendation-rank-badge,
+  .recommendation-card:focus-visible .recommendation-rank-badge,
+  .recommendation-card:has(:focus-visible) .recommendation-rank-badge {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(8px) scale(0.88);
+    pointer-events: none;
+    transition-delay: 0s, 180ms, 0s;
+  }
+
+  .recommendation-card .recommendation-rating-control .poster-star:hover,
+  .recommendation-card .recommendation-rating-control .poster-star:focus-visible {
+    transform: translateY(-3px) scale(1.15);
+    color: var(--sinbad-gold-soft);
+    outline: none;
+    text-shadow:
+      0 0 18px rgba(214, 173, 76, 0.98),
+      0 0 42px rgba(214, 173, 76, 0.5),
+      0 5px 18px rgba(0, 0, 0, 0.74);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .recommendation-card:not(.touch-open) .poster-frame,
+  .recommendation-card.touch-open .poster-frame {
+    height: 100%;
+    aspect-ratio: auto;
+    min-height: 0;
+    transform: none;
+  }
+
+  .recommendation-card.touch-open:not(.rated) {
+    border-color: rgba(102, 126, 234, 0.9);
+    box-shadow: 0 0 42px rgba(102, 126, 234, 0.2);
+  }
+
+  .recommendation-card:not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
+    filter: saturate(1.08) contrast(1.05) brightness(0.78);
+  }
+
+  .recommendation-card.touch-open .poster-frame > img {
+    transform: translateZ(0) scale(1.1);
+    filter: saturate(1.12) contrast(1.08) brightness(0.56);
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-poster-shade {
+    opacity: 1;
+    background: linear-gradient(
+      180deg,
+      rgba(3, 6, 20, 0.02) 18%,
+      rgba(3, 6, 20, 0.14) 45%,
+      rgba(3, 6, 20, 0.42) 68%,
+      rgba(3, 6, 20, 0.74) 100%
+    );
+  }
+
+  .recommendation-card.touch-open .recommendation-poster-shade {
+    opacity: 1;
+    background: linear-gradient(
+      180deg,
+      rgba(3, 6, 20, 0.06) 18%,
+      rgba(3, 6, 20, 0.22) 45%,
+      rgba(3, 6, 20, 0.52) 68%,
+      rgba(3, 6, 20, 0.82) 100%
+    );
+  }
+
+  .recommendation-card:not(.touch-open) .poster-light {
+    opacity: 0;
+  }
+
+  .recommendation-card.touch-open .poster-light {
+    opacity: 1;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-overlay {
+    transform: none;
+    opacity: 1;
+    padding-right: 58px;
+    padding-bottom: 30px;
+  }
+
+  .recommendation-card.touch-open .recommendation-overlay {
+    transform: none;
+    opacity: 1;
+    padding-right: 16px;
+    padding-bottom: 18px;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-headline {
+    display: block;
+    max-height: 3.66em;
+    margin: 0;
+    overflow: hidden;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition-delay: 0s;
+  }
+
+  .recommendation-card.touch-open .recommendation-headline {
+    max-height: 0;
+    margin: 0;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition-delay: 0s, 0s, 0s, 180ms, 0s;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-interaction-panel {
+    max-height: 0;
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(16px);
+  }
+
+  .recommendation-card.touch-open .recommendation-interaction-panel {
+    max-height: 260px;
+    overflow: visible;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+
+  .recommendation-card:not(.touch-open) .recommendation-rank-badge {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: none;
+  }
+
+  .recommendation-card.touch-open .recommendation-rank-badge {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(8px) scale(0.88);
+    pointer-events: none;
+    transition-delay: 0s, 180ms, 0s;
+  }
+
+  .recommendation-card.touch-open .recommendation-rating-control {
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .recommendation-card .recommendation-overlay {
+    gap: 5px;
+    padding: 14px 58px 22px 16px;
+  }
+
+  .recommendation-card.touch-open .recommendation-overlay {
+    padding-right: 16px;
+  }
+
+  .recommendation-card .poster-title-block {
+    gap: 2px;
+  }
+
+  .recommendation-card .poster-title-block h3 {
+    min-height: 0;
+    font-size: 1.1rem;
+    line-height: 1.08;
+  }
+
+  .recommendation-card .recommendation-score-line {
+    gap: 6px;
+    padding: 5px 9px;
+  }
+
+  .recommendation-card .recommendation-headline {
+    font-size: 0.78rem;
+    line-height: 1.22;
+  }
+}
+
+/* ---------- Rating confirmation and exit animation ---------- */
+
+.recommendation-rating-confirmation {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  color: #ffffff;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(214, 173, 76, 0.28),
+      rgba(63, 83, 160, 0.25) 42%,
+      rgba(5, 8, 22, 0.84) 100%
+    );
+  backdrop-filter: blur(6px);
+  animation:
+    recommendation-rating-confirmation-enter
+    360ms
+    cubic-bezier(0.2, 1.25, 0.32, 1)
+    both;
+}
+
+.recommendation-rating-confirmation strong {
+  color: var(--sinbad-gold-soft);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1;
+  text-shadow:
+    0 0 22px rgba(214, 173, 76, 0.95),
+    0 0 56px rgba(214, 173, 76, 0.52);
+}
+
+.recommendation-rating-confirmation span {
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  font-weight: 950;
+  letter-spacing: -0.025em;
+  text-shadow: 0 5px 20px rgba(0, 0, 0, 0.72);
+}
+
+.recommendation-card--leaving {
+  z-index: 6;
+  pointer-events: none;
+  animation:
+    recommendation-card-rated-away
+    520ms
+    cubic-bezier(0.4, 0, 0.2, 1)
+    forwards;
+}
+
+.recommendation-card--leaving {
+  border-color: rgba(255, 241, 184, 0.72);
+  box-shadow:
+    0 0 0 2px rgba(255, 241, 184, 0.24),
+    0 0 54px rgba(214, 173, 76, 0.34),
+    0 32px 84px rgba(0, 0, 0, 0.46);
+}
+
+/* ---------- Keyboard ---------- */
+
+.recommendation-card:focus-visible {
+  outline: none;
+}
+
+.recommendation-card:not(.rated):focus-visible {
+  border-color: rgba(174, 188, 255, 0.7);
+  box-shadow:
+    0 0 0 3px rgba(174, 188, 255, 0.16);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 900px) {
+  .recommendation-refresh-banner {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .recommendation-refresh-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .recommendation-refresh-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .recommendation-refresh-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+}
+
+/*
+ * Touch devices cannot depend on hover.
+ * Explanation and rating interaction remain directly available.
+ */
+@media (hover: none), (pointer: coarse) {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame {
+    transform: none;
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-light {
+    opacity: 0;
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-overlay {
+    transform: translateY(58px);
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-actions {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(18px) scale(0.92);
+  }
+
+  .poster-card:not(.recommendation-card).touch-open .poster-overlay {
+    transform: translateY(0) scale(1);
+  }
+
+  .poster-card:not(.recommendation-card).touch-open .poster-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+
+  .poster-card.rated:not(.touch-open) .poster-rating-badge {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: none;
+    transform: translateY(0) scale(1);
+    transition-delay: 0s, 0s, 0s;
+  }
+
+  .poster-card.rated.touch-open .poster-rating-badge {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-6px) scale(0.86);
+    transition-delay: 0s, 0s, 190ms;
+  }
+}
+
+/* Hover-only card interaction is enabled only on precise pointing devices. */
+@media (hover: hover) and (pointer: fine) {
+  .poster-card:not(.recommendation-card):hover .poster-overlay,
+  .poster-card:not(.recommendation-card):focus-visible .poster-overlay,
+  .poster-card:not(.recommendation-card):has(:focus-visible) .poster-overlay,
+  .poster-card:not(.recommendation-card):hover .poster-actions,
+  .poster-card:not(.recommendation-card):focus-visible .poster-actions,
+  .poster-card:not(.recommendation-card):has(:focus-visible) .poster-actions {
+    transform: translateY(0);
+  }
+
+  .poster-card:not(.recommendation-card):hover .poster-actions,
+  .poster-card:not(.recommendation-card):focus-visible .poster-actions,
+  .poster-card:not(.recommendation-card):has(:focus-visible) .poster-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+
+  .poster-card.rated:hover .poster-rating-badge,
+  .poster-card.rated:focus-visible .poster-rating-badge,
+  .poster-card.rated:has(:focus-visible) .poster-rating-badge {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-6px) scale(0.86);
+    transition-delay: 0s, 0s, 190ms;
+  }
+
+  .poster-card:not(.recommendation-card):not(.rated):hover,
+  .poster-card:not(.recommendation-card):not(.rated):focus-visible,
+  .poster-card:not(.recommendation-card):not(.rated):has(:focus-visible) {
+    border-color: rgba(102, 126, 234, 0.9);
+    box-shadow: 0 0 42px rgba(102, 126, 234, 0.2);
+  }
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes recommendation-refresh-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.005);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes recommendation-rating-confirmation-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  65% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes recommendation-card-rated-away {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+    filter: blur(0);
+  }
+
+  34% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.025) rotate(0);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-42px) scale(0.84) rotate(-1deg);
+    filter: blur(2px);
+  }
+}
+
+/* =========================================================
+   Review profile toolbar
+   ========================================================= */
+
+.review-profile-toolbar {
+  position: static;
+
+  width: min(100%, 760px);
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  margin: 0 auto;
+  padding: 9px 10px 9px 15px;
+
+  border: 1px solid rgba(174, 188, 255, 0.26);
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(63, 83, 160, 0.27),
+      rgba(102, 126, 234, 0.1)
+    ),
+    rgba(11, 17, 43, 0.88);
+
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.28),
+    0 0 32px rgba(102, 126, 234, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  backdrop-filter: blur(18px);
+  animation:
+    review-profile-toolbar-enter
+    380ms
+    cubic-bezier(0.2, 1.15, 0.32, 1)
+    both;
+}
+
+.review-profile-summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.review-profile-summary-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+
+  border: 1px solid rgba(255, 241, 184, 0.22);
+  border-radius: 12px;
+
+  color: var(--sinbad-gold-soft);
+  font-size: 1.05rem;
+
+  background:
+    radial-gradient(
+      circle at 50% 25%,
+      rgba(255, 241, 184, 0.25),
+      transparent 65%
+    ),
+    rgba(214, 173, 76, 0.1);
+
+  box-shadow:
+    0 0 20px rgba(214, 173, 76, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.review-profile-summary strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: clamp(0.9rem, 1.1vw, 1.02rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clear-profile-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+
+  margin: 0;
+  border: 1px solid rgba(255, 132, 132, 0.3);
+  border-radius: 13px;
+  padding: 9px 13px;
+
+  color: rgba(255, 215, 215, 0.88);
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.01em;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(126, 32, 45, 0.22),
+      rgba(91, 21, 34, 0.1)
+    ),
+    rgba(255, 255, 255, 0.035);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  transition:
+    transform 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.clear-profile-button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.clear-profile-button:hover,
+.clear-profile-button:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255, 140, 140, 0.65);
+  color: #ffffff;
+  outline: none;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(164, 46, 60, 0.48),
+      rgba(112, 26, 40, 0.3)
+    ),
+    rgba(255, 255, 255, 0.05);
+
+  box-shadow:
+    0 12px 28px rgba(90, 16, 30, 0.25),
+    0 0 0 3px rgba(255, 120, 120, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.clear-profile-button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+@media (max-width: 640px) {
+  .review-profile-toolbar {
+    min-height: 52px;
+    gap: 8px;
+    margin-bottom: 0;
+    padding: 7px 8px 7px 11px;
+    border-radius: 16px;
+  }
+
+  .review-profile-summary {
+    gap: 8px;
+  }
+
+  .review-profile-summary-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 0.92rem;
+  }
+
+  .review-profile-summary strong {
+    font-size: 0.78rem;
+  }
+
+  .clear-profile-button {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+
+  .clear-profile-button svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@media (max-width: 420px) {
+  .clear-profile-button span {
+    display: none;
+  }
+
+  .clear-profile-button {
+    width: 38px;
+    padding: 0;
+  }
+}
+
+@keyframes review-profile-toolbar-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.005);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* One document-like scroll surface for the active SINBAD² view. */
+:root {
+  --app-header-row-gap: 10px;
+}
+
+.game-shell::-webkit-scrollbar {
+  width: 10px;
+}
+
+.game-shell::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.game-shell::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(102, 126, 234, 0.9), rgba(214, 173, 76, 0.78));
+}
+
+.app-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 16;
+  padding: 10px 0 12px;
+  background:
+    linear-gradient(180deg, rgba(9, 15, 40, 0.98), rgba(6, 10, 27, 0.95)),
+    rgba(5, 8, 22, 0.94);
+  box-shadow: 0 12px 24px rgba(2, 6, 22, 0.24);
+  backdrop-filter: blur(18px);
+}
+
+.game-header {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.active-section-controls {
+  min-width: 0;
+  margin-top: var(--app-header-row-gap);
+}
+
+.recommendation-top-area {
+  margin: var(--app-header-row-gap) 0;
+}
+
+.game-state {
+  min-height: max(52vh, calc(100dvh - 220px));
+}
+
+.section-top-button {
+  position: fixed;
+  z-index: 20;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(174, 208, 255, 0.5);
+  border-radius: 50%;
+  padding: 0;
+  color: #edf4ff;
+  font-size: 1.65rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px) scale(0.92);
+  background: linear-gradient(145deg, rgba(56, 101, 183, 0.88), rgba(25, 53, 117, 0.82));
+  box-shadow: 0 14px 30px rgba(3, 11, 35, 0.38), 0 0 24px rgba(102, 158, 255, 0.18);
+  backdrop-filter: blur(14px);
+  transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.section-top-button.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.section-top-button:hover,
+.section-top-button:focus-visible {
+  transform: translateY(-3px) scale(1.04);
+  border-color: rgba(220, 235, 255, 0.9);
+  box-shadow: 0 18px 38px rgba(3, 11, 35, 0.46), 0 0 28px rgba(117, 173, 255, 0.32);
+  outline: none;
+}
+
+.section-top-button:focus-visible {
+  outline: 3px solid rgba(191, 219, 255, 0.58);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --app-header-row-gap: 8px;
+  }
+
+  .app-sticky-header {
+    padding-top: 8px;
+    padding-bottom: 10px;
+  }
+
+  .game-catalog-panel,
+  .scroll-panel {
+    padding-bottom: 18px;
+  }
+
+  .section-top-button {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(70px, env(safe-area-inset-bottom));
+    width: 52px;
+    height: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-shell {
+    scroll-behavior: auto;
+  }
+
+  .section-top-button {
+    transition: none;
+  }
+}
+
+/* =========================================================
+   Final header alignment and shared control surfaces
+   ========================================================= */
+
+/*
+ * .game-shell sigue siendo el único elemento con scroll,
+ * pero ocupa toda la ventana para que la barra quede pegada
+ * al borde derecho.
+ *
+ * El padding conserva exactamente el margen visual interior.
+ */
+.game-shell {
+  width: 100%;
+  margin: 0;
+  padding-right: max(12px, calc((100vw - 2560px) / 2));
+  padding-left: max(12px, calc((100vw - 2560px) / 2));
+}
+
+/*
+ * Ya no existe el contador de valoradas en esta fila.
+ * Eliminamos la columna vacía y el gap que quedaba a la derecha.
+ */
+.game-search-row {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.game-search {
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Misma superficie visual que utiliza el buscador.
+ */
+.review-profile-toolbar {
+  border-color: rgba(174, 188, 255, 0.2);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.095),
+      rgba(255, 255, 255, 0.04)
+    ),
+    rgba(10, 16, 43, 0.52);
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * El selector cerrado utiliza también la superficie del buscador,
+ * en lugar del azul más intenso que tenía hasta ahora.
+ */
+.recommendation-algorithm-trigger {
+  border-color: rgba(174, 188, 255, 0.2);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.095),
+      rgba(255, 255, 255, 0.04)
+    ),
+    rgba(10, 16, 43, 0.52);
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.recommendation-algorithm-trigger:hover,
+.recommendation-algorithm-trigger:focus-visible,
+.recommendation-algorithm-trigger[aria-expanded="true"] {
+  border-color: rgba(174, 188, 255, 0.58);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.13),
+      rgba(255, 255, 255, 0.055)
+    ),
+    rgba(18, 26, 62, 0.62);
+
+  outline: none;
+
+  box-shadow:
+    0 18px 42px rgba(63, 83, 160, 0.2),
+    0 0 0 3px rgba(102, 126, 234, 0.13),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+/*
+ * En tablet y móvil mantenemos aproximadamente los márgenes
+ * que ya tenía la aplicación.
+ */
+@media (max-width: 1200px) {
+  .game-shell {
+    width: 100%;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-shell {
+    width: 100%;
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+}
+
+/* Ancho completo para que el scrollbar quede pegado al navegador */
+.game-shell {
+  --app-inline-gutter: max(12px, calc((100vw - 2560px) / 2));
+
+  width: 100%;
+  margin: 0;
+  padding-right: var(--app-inline-gutter);
+  padding-left: var(--app-inline-gutter);
+}
+
+/*
+ * El contenido del header conserva el mismo margen que el grid,
+ * pero su fondo y borde llegan hasta ambos extremos del scroll.
+ */
+.app-sticky-header {
+  width: auto;
+  margin-right: calc(-1 * var(--app-inline-gutter));
+  margin-left: calc(-1 * var(--app-inline-gutter));
+  padding-right: var(--app-inline-gutter);
+  padding-left: var(--app-inline-gutter);
+}
+
+@media (max-width: 1200px) {
+  .game-shell {
+    --app-inline-gutter: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-shell {
+    --app-inline-gutter: 7px;
+  }
+}
+
+/* =========================================================
+   Auto-hide sticky application header
+   ========================================================= */
+
+.app-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 16;
+
+  transform: translateY(0);
+  will-change: transform;
+
+  transition:
+    transform 250ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    box-shadow 180ms ease;
+}
+
+.app-sticky-header.is-hidden {
+  transform: translateY(calc(-100% - 2px));
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sticky-header {
+    transition-duration: 0.001ms;
+  }
+}
+
+/* =========================================================
+   Predictable responsive grids and centred responsive logo
+   ========================================================= */
+
+/*
+ * Catálogo y Review Profile:
+ *
+ * ≥ 2200px      6 columnas
+ * 1501–2199px   5 columnas
+ * 821–1500px    4 columnas
+ * 641–820px     3 columnas
+ * ≤ 640px       2 columnas
+ */
+
+.grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(16px, 1.5vw, 30px);
+}
+
+@media (min-width: 2200px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1500px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(16px, 1.7vw, 24px);
+  }
+}
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+/*
+ * Las recomendaciones necesitan algo más de anchura porque
+ * muestran puntuación, explicación, razones y valoración.
+ *
+ * ≥ 2200px      5 columnas
+ * 1201–2199px   4 columnas
+ * 821–1200px    3 columnas
+ * 641–820px     2 columnas
+ * ≤ 640px       1 columna
+ */
+
+.recommendation-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(18px, 1.5vw, 28px);
+}
+
+@media (min-width: 2200px) {
+  .recommendation-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .recommendation-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (max-width: 820px) {
+  .recommendation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .recommendation-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+}
+
+/* Recommendation card layout without stretching their cards. */
+.recommendation-grid {
+  --recommendation-grid-gap: clamp(18px, 1.5vw, 28px);
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-start;
+  align-content: flex-start;
+  align-items: start;
+  gap: var(--recommendation-grid-gap);
+}
+
+.recommendation-grid > .recommendation-card {
+  flex: 0 0 calc((100% - (var(--recommendation-grid-gap) * 3)) / 4);
+  min-width: 0;
+}
+
+@media (min-width: 2200px) {
+  .recommendation-grid {
+    --recommendation-grid-gap: clamp(18px, 1.5vw, 28px);
+  }
+
+  .recommendation-grid > .recommendation-card {
+    flex-basis: calc((100% - (var(--recommendation-grid-gap) * 4)) / 5);
+  }
+}
+
+@media (max-width: 1200px) {
+  .recommendation-grid {
+    --recommendation-grid-gap: 20px;
+  }
+
+  .recommendation-grid > .recommendation-card {
+    flex-basis: calc((100% - (var(--recommendation-grid-gap) * 2)) / 3);
+  }
+}
+
+@media (max-width: 820px) {
+  .recommendation-grid {
+    --recommendation-grid-gap: 16px;
+  }
+
+  .recommendation-grid > .recommendation-card {
+    flex-basis: calc((100% - var(--recommendation-grid-gap)) / 2);
+  }
+}
+
+@media (max-width: 640px) {
+  .recommendation-grid {
+    --recommendation-grid-gap: 14px;
+  }
+
+  .recommendation-grid > .recommendation-card {
+    flex-basis: 100%;
+  }
+}
+
+/* ---------- Logo ---------- */
+
+/* Algo más compacto también en escritorio. */
+.game-brand-logo {
+  width: clamp(135px, 8vw, 180px);
+}
+
+/*
+ * Cuando el header pasa a una columna, game-brand todavía heredaba
+ * width: max-content. Por eso justify-content: center no lo centraba
+ * realmente respecto a toda la aplicación.
+ */
+@media (max-width: 1200px) {
+  .game-brand {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: center;
+  }
+
+  .game-brand-logo {
+    width: clamp(125px, 16vw, 155px);
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-brand-logo {
+    width: clamp(105px, 25vw, 125px);
+  }
+}
+
+/* Compact mobile labels and touch-friendly recommendation controls. */
+.game-step-title-short,
+.game-step-title-narrow,
+.game-strategy-label-short {
+  display: none;
+}
+
+.game-search input,
+.generate-button {
+  animation:
+    review-profile-toolbar-enter
+    380ms
+    cubic-bezier(0.2, 1.15, 0.32, 1)
+    both;
+}
+
+.recommendation-algorithm-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .game-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .game-step {
+    min-width: 0;
+  }
+
+  .game-step-copy {
+    min-width: 0;
+  }
+
+  .game-step-copy strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .game-strategy-tabs {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    border-radius: 16px;
+  }
+
+  .game-strategy-button {
+    min-width: 0;
+    width: 100%;
+    min-height: 40px;
+    border-radius: 16px;
+    padding: 9px 8px;
+    text-align: center;
+  }
+
+  .game-strategy-label-full,
+  .game-step-title-full {
+    display: none;
+  }
+
+  .game-strategy-label-short,
+  .game-step-title-short {
+    display: inline;
+  }
+
+  .compact-recommend-toolbar {
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .compact-recommend-toolbar .game-strategy-tabs,
+  .compact-recommend-toolbar .recommendation-algorithm-selector,
+  .compact-recommend-toolbar .generate-button {
+    min-width: 0;
+  }
+
+  .recommendation-algorithm-trigger {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    border-radius: 16px;
+  }
+
+}
+
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .app-sticky-header {
+    padding-top: 6px;
+    padding-bottom: 7px;
+  }
+
+  .game-header {
+    gap: 6px;
+  }
+
+  .game-brand-logo {
+    width: clamp(110px, 27vw, 120px);
+  }
+
+  .game-step {
+    min-height: 42px;
+    gap: 6px;
+    padding: 7px 6px;
+  }
+
+  .game-step-number {
+    width: 25px;
+    height: 25px;
+    border-radius: 9px;
+    font-size: 0.76rem;
+  }
+
+  .game-step-copy strong {
+    font-size: 0.82rem;
+  }
+
+  .game-step-copy small {
+    display: none;
+  }
+
+  .game-step-title-short {
+    display: inline;
+  }
+
+  .compact-recommend-toolbar.content-only .generate-button {
+    width: 100%;
+    min-height: 44px;
+    grid-column: 1 / -1;
+  }
+}
+
+@media (hover: none) and (min-width: 360px) and (max-width: 640px),
+  (pointer: coarse) and (min-width: 360px) and (max-width: 640px) {
+  .compact-recommend-toolbar.has-algorithm {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .compact-recommend-toolbar.has-algorithm .game-strategy-tabs {
+    grid-column: 1 / -1;
+  }
+
+  .compact-recommend-toolbar.has-algorithm .recommendation-algorithm-selector,
+  .compact-recommend-toolbar.has-algorithm .generate-button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (hover: none) and (max-width: 359px),
+  (pointer: coarse) and (max-width: 359px) {
+  .compact-recommend-toolbar.has-algorithm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .compact-recommend-toolbar.has-algorithm .game-strategy-tabs,
+  .compact-recommend-toolbar.has-algorithm .recommendation-algorithm-selector,
+  .compact-recommend-toolbar.has-algorithm .generate-button {
+    grid-column: 1;
+    width: 100%;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame {
+    transform: none;
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-shade {
+    opacity: 0.96;
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-light {
+    opacity: 0;
+  }
+
+}
+
+/* Final recommendation-header sizing and narrow-screen step layout. */
+.game-strategy-tabs,
+.game-strategy-button,
+.recommendation-algorithm-trigger {
+  border-radius: var(--recommend-control-radius);
+}
+
+.recommendation-algorithm-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .game-strategy-tabs {
+    gap: 3px;
+    padding: 1px;
+    border-radius: var(--recommend-control-radius-mobile);
+  }
+
+  .game-strategy-button {
+    min-height: 40px;
+    padding: 6px 8px;
+    border-radius: var(--recommend-control-radius-mobile);
+  }
+
+  .recommendation-algorithm-trigger {
+    min-height: 40px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    border-radius: var(--recommend-control-radius-mobile);
+  }
+}
+
+@media (max-width: 410px) {
+  .game-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .game-step {
+    min-width: 0;
+    justify-content: center;
+    gap: 0;
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .game-step-number {
+    display: none;
+  }
+
+  .game-step-copy {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .game-step-title-full,
+  .game-step-title-narrow {
+    display: none;
+  }
+
+  .game-step-title-short {
+    display: inline;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .game-step-copy strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+}
+
+/* Shared recommendation-toolbar control dimensions. */
+.game-strategy-tabs,
+.recommendation-algorithm-selector,
+.recommendation-algorithm-selector select,
+.generate-button {
+  height: var(--recommend-control-height);
+  min-height: var(--recommend-control-height);
+}
+
+.game-strategy-tabs {
+  align-items: stretch;
+  padding: 3px;
+}
+
+.game-strategy-button {
+  height: 100%;
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.recommendation-algorithm-selector {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.recommendation-algorithm-trigger,
+.recommendation-algorithm-selector select {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.recommendation-algorithm-trigger {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.generate-button {
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .game-strategy-tabs,
+  .recommendation-algorithm-selector,
+  .recommendation-algorithm-selector select,
+  .generate-button {
+    height: var(--recommend-control-height);
+    min-height: var(--recommend-control-height);
+  }
+
+  .game-strategy-tabs {
+    padding: 3px;
+  }
+
+  .game-strategy-button {
+    min-height: 0;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+}
+
+/* Sliding segmented-control indicator for recommendation strategies. */
+.game-strategy-tabs {
+  --strategy-gap: 6px;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--strategy-gap);
+  isolation: isolate;
+}
+
+.game-strategy-tabs::before {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  z-index: 0;
+  width: calc((100% - 6px - var(--strategy-gap)) / 2);
+  border-radius: calc(var(--recommend-control-radius) - 3px);
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, #ffffff, #cfd7ff),
+    #ffffff;
+  box-shadow:
+    0 12px 28px rgba(63, 83, 160, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.game-strategy-tabs[data-strategy="collaborative"]::before {
+  transform: translateX(calc(100% + var(--strategy-gap)));
+}
+
+.game-strategy-button,
+.game-strategy-button.active,
+.game-strategy-button.active:hover,
+.game-strategy-button.active:focus-visible,
+.game-strategy-button.active:active {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  box-shadow: none;
+}
+
+.game-strategy-button.active {
+  color: #11183c;
+}
+
+@media (max-width: 640px) {
+  .game-strategy-tabs {
+    --strategy-gap: 3px;
+    display: grid;
+  }
+
+  .game-strategy-tabs::before {
+    border-radius: calc(var(--recommend-control-radius-mobile) - 3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-strategy-tabs::before {
+    transition: none;
+  }
+}
+
+/* Let the sticky header dissolve into the application background. */
+.app-sticky-header {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(9, 15, 40, 0.98) 0%,
+      rgba(6, 10, 27, 0.62) 50%,
+      rgba(6, 10, 27, 0) 100%
+    );
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .app-sticky-header {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(9, 15, 40, 0.98) 0%,
+        rgba(6, 10, 27, 0.56) 48%,
+        rgba(6, 10, 27, 0) 100%
+      );
+    box-shadow: none;
+  }
+}
+
+/* Keep the header on the same continuous background as the application. */
+.app-sticky-header {
+  position: sticky;
+  isolation: isolate;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.app-sticky-header::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 11, 29, 0.82) 0%,
+    rgba(7, 11, 29, 0.58) 52%,
+    rgba(7, 11, 29, 0.24) 100%
+  );
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+
+.app-sticky-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.game-header,
+.active-section-controls,
+.game-search-row {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .compact-recommend-toolbar {
+    --recommend-control-height: 40px;
+    gap: 6px;
+  }
+
+  .poster-card:not(.recommendation-card):not(.touch-open) .poster-frame > img {
+    transform: translateZ(0) scale(1.04);
+  }
+
+  .poster-card:not(.recommendation-card):not(.rated):not(.touch-open) .poster-frame > img {
+    filter: none;
+  }
+
+  .poster-card:not(.recommendation-card).rated:not(.touch-open) .poster-frame > img {
+    filter: saturate(1.12) contrast(1.06) brightness(0.76);
+  }
+
+  .poster-card:not(.recommendation-card).touch-open .poster-frame > img {
+    transform: translateZ(0) scale(1.12);
+    filter: saturate(1.18) contrast(1.08) brightness(0.62);
+  }
+
+  .recommendation-algorithm-menu {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: min(320px, 50vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    z-index: 30;
+  }
+
+  .recommendation-algorithm-option {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (hover: none) and (max-width: 640px),
+  (pointer: coarse) and (max-width: 640px) {
+  .app-sticky-header {
+    padding-top: 4px;
+    padding-bottom: 5px;
+  }
+
+  .game-header {
+    gap: 4px;
+  }
+
+  .game-brand-logo {
+    width: clamp(100px, 24vw, 112px);
+  }
+
+  .active-section-controls {
+    margin-top: 5px;
+  }
+
+}
+
+@media (hover: none) and (max-width: 359px),
+  (pointer: coarse) and (max-width: 359px) {
+  .game-step-number {
+    display: none;
+  }
+
+  .game-step-title-short {
+    display: none;
+  }
+
+  .game-step-title-narrow {
+    display: inline;
+  }
+
+  .game-step {
+    justify-content: center;
+    padding-inline: 4px;
+  }
+
+  .game-step-copy {
+    width: 100%;
+    text-align: center;
   }
 }

@@ -1,4 +1,5 @@
 import json
+import shutil
 from collections import defaultdict
 from html import escape
 from pathlib import Path
@@ -23,6 +24,7 @@ from app.catalog.constants import (
     PUBLIC_STAND_LOW_ACCESSIBILITY_MAX_TMDB_POPULARITY,
     SENSITIVE_GENRES,
 )
+from app.catalog.filtering import PUBLIC_EXCLUSION_REASON_LABELS
 from app.project_paths.dataset_paths import (
     OFFLINE_DATASET_AUDIT_CHARTS_DIR,
     OFFLINE_DATASET_AUDIT_DASHBOARD_PATH,
@@ -174,6 +176,11 @@ EXPLANATIONS = {
 
 def main() -> None:
     _ensure_required_inputs()
+    # Audit outputs are a derived view of the two catalogue partitions.  Clear
+    # stale tables/charts before rebuilding so a policy reconfiguration cannot
+    # leave files that describe the previous public catalogue.
+    if OFFLINE_DATASET_AUDIT_DIR.exists():
+        shutil.rmtree(OFFLINE_DATASET_AUDIT_DIR)
     _ensure_output_dirs()
 
     manifest = json.loads(OFFLINE_DATASET_MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -764,6 +771,11 @@ def _build_summary_tables(
         combined_df,
         field_name="publicExclusionReasons",
         value_column="publicExclusionReason",
+    )
+    public_exclusion_reasons_by_partition["publicExclusionReason"] = (
+        public_exclusion_reasons_by_partition["publicExclusionReason"].replace(
+            PUBLIC_EXCLUSION_REASON_LABELS
+        )
     )
     excluded_reasons = _explode_pipe_field(
         excluded_df,

@@ -1,22 +1,28 @@
 from math import ceil
 
-from fastapi import APIRouter, Query
+import logging
 
-from app.catalog.catalog_repository import catalog_repository
+from fastapi import APIRouter, HTTPException, Query
+
+from app.catalog.catalog_repository import (
+    OfflineCatalogDataUnavailableError,
+    catalog_repository,
+)
 from app.schemas.catalog_schemas import CatalogStatus, PaginatedMovieCatalogResponse, PublicMovieRecord
 
 
 router = APIRouter(tags=["catalog"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/catalog/status", response_model=CatalogStatus)
 def get_catalog_status() -> CatalogStatus:
-    return catalog_repository.get_status()
+    return _catalog_call(lambda: catalog_repository.get_status())
 
 
 @router.get("/movies/featured", response_model=list[PublicMovieRecord])
 def get_featured_movies() -> list[PublicMovieRecord]:
-    return catalog_repository.get_featured_movies()
+    return _catalog_call(lambda: catalog_repository.get_featured_movies())
 
 
 @router.get("/movies/public-catalog", response_model=PaginatedMovieCatalogResponse)
@@ -26,11 +32,13 @@ def get_public_catalog(
     search: str | None = None,
     genre: str | None = None,
 ) -> PaginatedMovieCatalogResponse:
-    items, total_items = catalog_repository.get_public_catalog_page(
-        page=page,
-        page_size=pageSize,
-        search=search,
-        genre=genre,
+    items, total_items = _catalog_call(
+        lambda: catalog_repository.get_public_catalog_page(
+            page=page,
+            page_size=pageSize,
+            search=search,
+            genre=genre,
+        )
     )
     total_pages = 0 if total_items == 0 else ceil(total_items / pageSize)
     return PaginatedMovieCatalogResponse(
@@ -40,3 +48,17 @@ def get_public_catalog(
         totalItems=total_items,
         totalPages=total_pages,
     )
+
+
+def _catalog_call(operation):
+    try:
+        return operation()
+    except OfflineCatalogDataUnavailableError as exc:
+        logger.warning("catalog_unavailable: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "catalog_unavailable",
+                "message": "Offline catalog data is unavailable.",
+            },
+        ) from exc

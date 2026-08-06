@@ -1,57 +1,205 @@
+import { useEffect, useRef, useState } from 'react'
+
+import MovieRatingControl from '../../movies/components/MovieRatingControl'
 import { getMovieDisplayTitle } from '../../movies/movieDisplay'
 
-function RecommendationCard({ item, rank }) {
-  const movieTitle = getMovieDisplayTitle(item.movie)
-  const affinityLabel = `${item.matchPercentage.toFixed(1)}%`
-  const scoreLabel = item.score.toFixed(3)
-  const reasons = item.explanation.reasons.slice(0, 2)
+const EXIT_ANIMATION_MS = 520
+
+function RecommendationCard({
+  item,
+  rank,
+  rating,
+  onRate,
+  isTouchOpen = false,
+  onToggleTouch,
+}) {
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [exitRating, setExitRating] = useState(null)
+  const exitTimeoutRef = useRef(null)
+
+  const movie = item.movie
+  const movieTitle = getMovieDisplayTitle(movie)
+
+  const numericScore = Number(item.score)
+  const scoreLabel = Number.isFinite(numericScore)
+    ? numericScore.toFixed(3)
+    : '0.000'
+
+  const explanation = item.explanation || {}
+
+  const summary = typeof explanation.summary === 'string'
+    ? explanation.summary.trim()
+    : ''
+
+  const reasons = Array.isArray(explanation.reasons)
+    ? explanation.reasons
+        .filter((reason) => typeof reason === 'string' && reason.trim())
+        .slice(0, 2)
+    : []
+
+  const hasReasons = reasons.length > 0
+  const isRated = Boolean(rating)
+
+  function canToggleTouchCard() {
+    return (
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(hover: none), (pointer: coarse)').matches
+    )
+  }
+
+  function handleCardClick(event) {
+    if (event.target.closest('button')) return
+    if (!canToggleTouchCard()) return
+    onToggleTouch?.()
+  }
+
+  function handleCardKeyDown(event) {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    if (!canToggleTouchCard()) return
+
+    event.preventDefault()
+    onToggleTouch?.()
+  }
+
+  useEffect(() => {
+    return () => {
+      if (exitTimeoutRef.current !== null) {
+        window.clearTimeout(exitTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  function handleRateRecommendedMovie(ratedMovie, selectedRating) {
+    if (isLeaving) return
+
+    setExitRating(selectedRating)
+    setIsLeaving(true)
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+    exitTimeoutRef.current = window.setTimeout(
+      () => {
+        onRate(ratedMovie, selectedRating)
+      },
+      prefersReducedMotion ? 30 : EXIT_ANIMATION_MS,
+    )
+  }
+
+  const cardClassName = [
+    'poster-card',
+    'recommendation-card',
+    'visible',
+    isRated ? 'rated' : '',
+    isLeaving ? 'recommendation-card--leaving' : '',
+    isTouchOpen ? 'touch-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <article
-      className="poster-card recommendation-card visible"
+      className={cardClassName}
       style={{ '--card-order': rank % 16 }}
+      tabIndex={0}
+      aria-expanded={isTouchOpen}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
     >
       <div className="poster-frame recommendation-frame">
-        {item.movie.posterUrl ? (
-          <img src={item.movie.posterUrl} alt={`${movieTitle} poster`} loading="lazy" />
+        {movie.posterUrl ? (
+          <img
+            src={movie.posterUrl}
+            alt={`${movieTitle} póster`}
+            loading="lazy"
+          />
         ) : (
-          <span className="poster-fallback">{movieTitle.slice(0, 1)}</span>
+          <span className="poster-fallback">
+            {movieTitle.slice(0, 1)}
+          </span>
         )}
 
-        <div className="poster-shade recommendation-poster-shade" aria-hidden="true" />
+        <div
+          className="poster-shade recommendation-poster-shade"
+          aria-hidden="true"
+        />
+
         <div className="poster-light" aria-hidden="true" />
 
         <div className="poster-overlay recommendation-overlay">
           <div className="poster-title-block">
             <h3>{movieTitle}</h3>
-            {item.movie.year ? <span>{item.movie.year}</span> : null}
+
+            {movie.year ? (
+              <span>{movie.year}</span>
+            ) : null}
           </div>
 
           <div className="recommendation-score-line">
-            <span>Afinidad</span>
-            <strong>{affinityLabel}</strong>
+            <span>Puntuación</span>
+            <strong>{scoreLabel}</strong>
           </div>
 
-          {item.explanation.summary ? (
+          {summary ? (
             <p className="recommendation-headline">
-              {item.explanation.summary}
+              {summary}
             </p>
           ) : null}
 
-          <span className="recommendation-raw-score">Puntuación: {scoreLabel}</span>
-
-          {reasons.length ? (
-            <div className="recommendation-hover-details">
-              <ul>
+          <div
+            className={[
+              'recommendation-interaction-panel',
+              hasReasons ? 'has-reasons' : 'rating-only',
+            ].join(' ')}
+          >
+            {hasReasons ? (
+              <ul className="recommendation-reasons">
                 {reasons.map((reason) => (
-                  <li key={`${item.movie.movieId || item.movie.id}-${reason}`}>{reason}</li>
+                  <li
+                    key={`${movie.movieId || movie.id}-${reason}`}
+                  >
+                    {reason}
+                  </li>
                 ))}
               </ul>
+            ) : null}
+
+            <div className="recommendation-rating-action">
+              <span>¿Ya la has visto? Valórala</span>
+
+              <MovieRatingControl
+                movie={movie}
+                rating={rating}
+                onRate={handleRateRecommendedMovie}
+                className="recommendation-rating-control"
+                disabled={isLeaving}
+              />
             </div>
-          ) : null}
+          </div>
         </div>
 
-        <div className="recommendation-rank-badge">#{rank}</div>
+        {isRated ? (
+          <div className="poster-rating-badge" aria-label={`${rating} estrellas`}>
+            {rating}★
+          </div>
+        ) : null}
+
+        <div className="recommendation-rank-badge">
+          #{rank}
+        </div>
+
+        {isLeaving ? (
+          <div
+            className="recommendation-rating-confirmation"
+            role="status"
+            aria-live="polite"
+          >
+            <strong>{exitRating}★</strong>
+            <span>¡Valorada!</span>
+          </div>
+        ) : null}
       </div>
     </article>
   )
