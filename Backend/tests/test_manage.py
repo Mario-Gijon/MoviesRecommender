@@ -421,14 +421,22 @@ class ManageTests(unittest.TestCase):
         runtime = Runtime(ROOT, packaged=True)
         manager = DatasetManager(self.configuration, runtime, Mock(spec=Console))
         self.assertEqual(15000, RECOMMENDED_VALUES["candidate_limit"])
-        self.assertEqual("family_and_teen", RECOMMENDED_VALUES["public_audience_policy"])
+        self.assertEqual(2000, RECOMMENDED_VALUES["public_min_year"])
+        self.assertEqual("family_only", RECOMMENDED_VALUES["public_audience_policy"])
         command = manager._generation_command("download", DatasetOptions(), "candidates", "reuse", True, True, False, None)
         self.assertEqual(["run", "--rm", "dataset"], command[:3])
         self.assertIn("--source", command)
         self.assertIn("download", command)
         self.assertIn("--audit", command)
+        self.assertIn("--family-only", command)
         self.assertNotIn("api", command)
         self.assertNotIn("frontend", command)
+
+        family_and_teen = DatasetOptions(public_audience_policy="family_and_teen")
+        self.assertIn(
+            "--no-family-only",
+            manager._generation_command("download", family_and_teen, "candidates", "reuse", True, True, False, None),
+        )
 
     def test_dataset_zip_is_resolved_read_only_and_supports_spaces(self) -> None:
         with tempfile.TemporaryDirectory(prefix="zip con espacios ") as temporary:
@@ -461,9 +469,20 @@ class ManageTests(unittest.TestCase):
         self.assertIn("--action", generation[service_index + 1:])
         self.assertIn("--source", generation[service_index + 1:])
 
-    def test_advanced_dataset_configuration_is_spanish_and_not_raw_json(self) -> None:
+    def test_dataset_configuration_menu_only_offers_recommended_and_custom(self) -> None:
         console = Mock(spec=Console)
-        console.menu.side_effect = ["3", "2"]
+        console.menu.return_value = "0"
+        manager = DatasetManager(self.configuration, Runtime(ROOT, packaged=True), console)
+
+        self.assertIsNone(manager._configuration())
+        self.assertEqual(
+            ("Configuración del dataset", {"1": "Recomendada", "2": "Personalizada", "0": "Volver"}),
+            console.menu.call_args.args,
+        )
+
+    def test_custom_dataset_configuration_is_spanish_and_not_raw_json(self) -> None:
+        console = Mock(spec=Console)
+        console.menu.side_effect = ["2", "1"]
         manager = DatasetManager(self.configuration, Runtime(ROOT, packaged=True), console)
         output = io.StringIO()
         with redirect_stdout(output), patch("builtins.input", side_effect=[""] * 12):
@@ -475,6 +494,12 @@ class ManageTests(unittest.TestCase):
         self.assertNotIn("candidate_limit", rendered)
         self.assertNotIn("public_limit", rendered)
         self.assertNotIn("{\"candidate_limit\"", rendered)
+        self.assertEqual("family_only", options.public_audience_policy)
+        self.assertEqual(2000, options.public_min_year)
+        self.assertEqual(
+            ("Política de audiencia", {"1": "Solo público familiar", "2": "Público familiar y adolescente", "0": "Volver"}),
+            console.menu.call_args.args,
+        )
 
     def test_dataset_resume_cleanup_and_model_change_detection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

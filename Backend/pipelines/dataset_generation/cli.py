@@ -44,7 +44,7 @@ RECOMMENDED_VALUES = {
     "candidate_limit": 15000, "candidate_min_ratings": 100, "candidate_min_year": 1990,
     "candidate_max_year": None, "candidate_min_tags": 0, "max_tags_per_movie": 35, "public_limit": None,
     "collaborative_core_limit": 15000, "catalog_min_ratings": 100,
-    "public_min_year": 2000, "collaborative_min_year": 1990, "family_only": False,
+    "public_min_year": 2000, "collaborative_min_year": 1990, "family_only": True,
 }
 PRESETS = {"defaults": {}, "recommended": RECOMMENDED_VALUES, "custom": {}}
 NUMERIC_FIELDS = (
@@ -68,7 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stop-after", choices=("candidates", "enrich", "catalog", "ratings", "export", "posters", "audit"))
     for field in NUMERIC_FIELDS:
         parser.add_argument("--" + field.replace("_", "-"), type=int)
-    parser.add_argument("--family-only", action="store_true", default=None)
+    audience = parser.add_mutually_exclusive_group()
+    audience.add_argument("--family-only", dest="family_only", action="store_true", default=None)
+    audience.add_argument("--no-family-only", dest="family_only", action="store_false")
     parser.add_argument("--display-language")
     tmdb = parser.add_mutually_exclusive_group()
     tmdb.add_argument("--resume-tmdb", action="store_true", default=None)
@@ -204,7 +206,7 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
     selected_action = _resolve_interactive_action(args)
     # Keep direct callers of the pre-action helper compatible: older tests and
     # integrations may supply a configuration-mode value as the first choice.
-    legacy_mode = selected_action if selected_action in {"recommended", "custom", "advanced"} else None
+    legacy_mode = selected_action if selected_action in {"recommended", "custom"} else None
     action = "generate" if legacy_mode else selected_action
     args.configuration_action = action
     if action == "reconfigure":
@@ -213,12 +215,10 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
 
     mode = legacy_mode or _ask_configuration_mode()
     args.configuration_mode = mode
-    args.preset = "recommended" if mode in {"recommended", "custom"} else "defaults"
+    args.preset = "recommended"
     config = resolve_config(args)
     if mode == "custom":
         config = _ask_custom_config(config)
-    elif mode == "advanced":
-        config = _ask_advanced_config(config)
     else:
         _print_recommended_settings(config)
     source = "existing"
@@ -244,17 +244,6 @@ def _interactive_configuration(args: argparse.Namespace) -> tuple[DatasetPipelin
 
 
 def _ask_custom_config(config: DatasetPipelineConfig) -> DatasetPipelineConfig:
-    values = asdict(config)
-    prompts = (("Maximum movies to process\nThis limits how many eligible movies are enriched with TMDB.", "candidate_limit", False, False), ("Minimum ratings per movie\nMovies with fewer MovieLens ratings are excluded.", "candidate_min_ratings", False, False), ("Oldest release year\nMovies released before this year are excluded.", "candidate_min_year", False, False), ("Newest release year\nLeave blank for no upper limit.", "candidate_max_year", True, False), ("Minimum distinct user tags\nUse 0 to keep movies with no user tags.", "candidate_min_tags", False, True))
-    for prompt, field, optional, allow_zero in prompts:
-        print(prompt); values[field] = _ask_integer("Value", values[field], optional=optional, allow_zero=allow_zero)
-    values["catalog_min_ratings"] = values["candidate_min_ratings"]
-    values["public_min_year"] = values["candidate_min_year"]
-    values["collaborative_min_year"] = values["candidate_min_year"]
-    return DatasetPipelineConfig(**values)
-
-
-def _ask_advanced_config(config: DatasetPipelineConfig) -> DatasetPipelineConfig:
     values = asdict(config)
     for field in NUMERIC_FIELDS:
         values[field] = _ask_integer(field.replace("_", " "), values[field], optional=field in {"candidate_max_year", "public_limit"}, allow_zero=field == "candidate_min_tags")
@@ -282,11 +271,13 @@ def _resolve_token(config: DatasetPipelineConfig, *, interactive: bool, dry_run:
 
 def _print_plan(config: DatasetPipelineConfig, source: str, zip_path: Path | None, *, mode: str | None = None, cleanup: str = "none") -> None:
     print("\nDataset installation summary")
-    print(f"Persistent data directory: {DATA_DIR}\nConfiguration mode: {_preset_label(mode)}\nMovieLens source: {_source_label(source)}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nPublic minimum runtime: 70 minutes\nPublic documentaries: Excluded\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nDownload posters: {'No' if config.skip_posters else 'Yes'}\nGenerate audit: {'Yes' if config.audit else 'No'}\nTMDB behavior: {'Fresh enrichment' if config.force_tmdb else 'Resume completed enrichment'}\nCleanup mode: {_cleanup_label(cleanup)}\nCleanup effect: {_cleanup_effect(cleanup)}")
+    audience = "Family friendly only" if config.family_only else "Family friendly and teen"
+    print(f"Persistent data directory: {DATA_DIR}\nConfiguration mode: {_preset_label(mode)}\nMovieLens source: {_source_label(source)}\nMaximum movies considered: {config.candidate_limit}\nMinimum ratings per movie: {config.candidate_min_ratings}\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum tags stored per movie: {config.max_tags_per_movie}\nCatalog minimum ratings: {config.catalog_min_ratings}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nPublic minimum year: {config.public_min_year}\nCollaborative minimum year: {config.collaborative_min_year}\nPublic audience policy: {audience}\nPublic minimum runtime: 70 minutes\nPublic documentaries: Excluded\nCollaborative core limit: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nDownload posters: {'No' if config.skip_posters else 'Yes'}\nGenerate audit: {'Yes' if config.audit else 'No'}\nTMDB behavior: {'Fresh enrichment' if config.force_tmdb else 'Resume completed enrichment'}\nCleanup mode: {_cleanup_label(cleanup)}\nCleanup effect: {_cleanup_effect(cleanup)}")
 
 
 def _print_recommended_settings(config: DatasetPipelineConfig) -> None:
-    print("Recommended settings\nMaximum movies considered: " + str(config.candidate_limit) + "\nMinimum ratings required per movie: " + str(config.candidate_min_ratings) + f"\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum user tags stored per movie: {config.max_tags_per_movie}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nCollaborative core size: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nFamily-only mode: {'Enabled' if config.family_only else 'Disabled'}\nThe movie count is a maximum; the final catalogue may contain fewer movies after filtering and TMDB validation. A minimum-tag value of 0 disables the tag requirement.")
+    audience = "Family friendly only" if config.family_only else "Family friendly and teen"
+    print("Recommended settings\nMaximum movies considered: " + str(config.candidate_limit) + "\nMinimum ratings required per movie: " + str(config.candidate_min_ratings) + f"\nRelease year range: {config.candidate_min_year} to {config.candidate_max_year or 'No upper limit'}\nMinimum distinct user tags: {config.candidate_min_tags}\nMaximum user tags stored per movie: {config.max_tags_per_movie}\nCatalog minimum ratings: {config.catalog_min_ratings}\nPublic catalogue limit: {config.public_limit or 'All eligible movies'}\nPublic minimum year: {config.public_min_year}\nCollaborative minimum year: {config.collaborative_min_year}\nPublic audience policy: {audience}\nCollaborative core size: {config.collaborative_core_limit}\nDisplay language: {config.display_language}\nThe movie count is a maximum; the final catalogue may contain fewer movies after filtering and TMDB validation. A minimum-tag value of 0 disables the tag requirement.")
 
 
 def _print_cleanup_summary(mode: str, paths: DatasetPaths, removed: tuple[Path, ...], skipped: tuple[Path, ...]) -> None:
@@ -332,8 +323,8 @@ def _ask_choice(question: str, choices: tuple[str, ...], default: str) -> str:
 
 
 def _ask_configuration_mode() -> str:
-    print("How would you like to configure the dataset?\n\n1. Recommended\n   Balanced settings suitable for most installations.\n   The exact values will be shown before continuing.\n\n2. Custom\n   Choose the main catalogue size and filtering rules.\n\n3. Advanced\n   Configure all dataset and pipeline parameters.")
-    return _ask_choice("Configuration", ("recommended", "custom", "advanced"), "recommended")
+    print("How would you like to configure the dataset?\n\n1. Recommended\n   Balanced settings suitable for most installations.\n   The exact values will be shown before continuing.\n\n2. Custom\n   Configure all dataset and pipeline parameters.")
+    return _ask_choice("Configuration", ("recommended", "custom"), "recommended")
 
 
 def _ask_source(default: str) -> str:
@@ -396,7 +387,7 @@ def _ask_explained_yes_no(question: str, explanation: str, *, default: bool) -> 
 
 
 def _preset_label(value: str | None) -> str:
-    return {"recommended": "Recommended", "custom": "Custom", "advanced": "Advanced", "defaults": "Defaults"}.get(value or "recommended", "Recommended")
+    return {"recommended": "Recommended", "custom": "Custom", "defaults": "Defaults"}.get(value or "recommended", "Recommended")
 
 
 def _source_label(value: str) -> str:

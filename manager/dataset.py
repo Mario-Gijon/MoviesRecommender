@@ -19,7 +19,7 @@ RECOMMENDED_VALUES = {
     "candidate_max_year": None, "candidate_min_tags": 0, "max_tags_per_movie": 35,
     "public_limit": None, "collaborative_core_limit": 15000, "catalog_min_ratings": 100,
     "public_min_year": 2000, "collaborative_min_year": 1990, "display_language": "es-ES",
-    "public_audience_policy": "family_and_teen",
+    "public_audience_policy": "family_only",
 }
 POLICIES = ("family_only", "family_and_teen", "all_classified")
 POLICY_LABELS = {"family_only": "Solo público familiar", "family_and_teen": "Público familiar y adolescente", "all_classified": "Todas las categorías clasificadas"}
@@ -53,7 +53,7 @@ class DatasetOptions:
     public_min_year: int = 2000
     collaborative_min_year: int = 1990
     display_language: str = "es-ES"
-    public_audience_policy: str = "family_and_teen"
+    public_audience_policy: str = "family_only"
 
 
 class DatasetManager:
@@ -121,30 +121,19 @@ class DatasetManager:
         return {"1": "download", "2": "existing", "3": "zip"}.get(choice)
 
     def _configuration(self) -> DatasetOptions | None:
-        mode = self.console.menu("Configuración del dataset", {"1": "Recomendada", "2": "Personalizada", "3": "Avanzada", "0": "Volver"})
+        mode = self.console.menu("Configuración del dataset", {"1": "Recomendada", "2": "Personalizada", "0": "Volver"})
         if mode in {None, "0"}: return None
         values = dict(RECOMMENDED_VALUES)
         if mode == "2":
-            for key, label, none in (("candidate_limit", "Máximo de películas a procesar", False), ("candidate_min_ratings", "Mínimo de valoraciones por película", False), ("candidate_min_year", "Año mínimo de estreno", False), ("candidate_max_year", "Año máximo", True), ("candidate_min_tags", "Mínimo de etiquetas distintas", False)):
-                value = self._number(label, values[key], optional=none, zero=key == "candidate_min_tags")
-                if value is None and not none: return None
-                values[key] = value
-            policy = self._policy()
-            if policy is None: return None
-            values["public_audience_policy"] = policy
-            values["catalog_min_ratings"] = values["candidate_min_ratings"]
-            values["public_min_year"] = values["candidate_min_year"]
-            values["collaborative_min_year"] = values["candidate_min_year"]
-        elif mode == "3":
             for key in RECOMMENDED_VALUES:
                 if key in {"display_language", "public_audience_policy"}: continue
-                value = self._number(key.replace("_", " "), values[key], optional=key in {"candidate_max_year", "public_limit"}, zero=key == "candidate_min_tags")
+                value = self._number(CONFIG_LABELS[key], values[key], optional=key in {"candidate_max_year", "public_limit"}, zero=key == "candidate_min_tags")
                 if value is None and key not in {"candidate_max_year", "public_limit"}: return None
                 values[key] = value
             language = self._text("Idioma de visualización", values["display_language"])
             if language is None: return None
             values["display_language"] = language
-            policy = self._policy()
+            policy = self._policy(generation=True)
             if policy is None: return None
             values["public_audience_policy"] = policy
         options = DatasetOptions(**values)
@@ -153,9 +142,12 @@ class DatasetManager:
         print("Reglas fijas: duración pública mínima 70 minutos; documentales y audiencia desconocida excluidos.")
         return options
 
-    def _policy(self) -> str | None:
-        choice = self.console.menu("Política de audiencia", {"1": POLICY_LABELS["family_only"], "2": POLICY_LABELS["family_and_teen"], "3": POLICY_LABELS["all_classified"], "0": "Volver"})
-        return {"1": "family_only", "2": "family_and_teen", "3": "all_classified"}.get(choice)
+    def _policy(self, *, generation: bool = False) -> str | None:
+        policies = POLICIES[:2] if generation else POLICIES
+        choices = {str(index): POLICY_LABELS[policy] for index, policy in enumerate(policies, start=1)}
+        choices["0"] = "Volver"
+        choice = self.console.menu("Política de audiencia", choices)
+        return {str(index): policy for index, policy in enumerate(policies, start=1)}.get(choice)
 
     def _generation_command(self, source: str, options: DatasetOptions, start: str, tmdb: str, posters: bool, audit: bool, cleanup: bool, zip_path: Path | None) -> list[str]:
         command = ["run", "--rm"]
@@ -165,6 +157,7 @@ class DatasetManager:
         for key, value in asdict(options).items():
             if key == "public_audience_policy": continue
             if value is not None: command += ["--" + key.replace("_", "-"), str(value)]
+        command.append("--family-only" if options.public_audience_policy == "family_only" else "--no-family-only")
         command += ["--resume-tmdb" if tmdb == "reuse" else "--force-tmdb"]
         if not posters: command.append("--skip-posters")
         if audit: command.append("--audit")

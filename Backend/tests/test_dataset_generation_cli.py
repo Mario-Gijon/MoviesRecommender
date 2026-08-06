@@ -54,8 +54,18 @@ class DatasetCliConfigurationTests(unittest.TestCase):
     def test_recommended_preset_values(self) -> None:
         config = cli.resolve_config(cli.build_parser().parse_args(["--preset", "recommended"]))
         self.assertEqual(15000, config.candidate_limit)
+        self.assertEqual(100, config.candidate_min_ratings)
         self.assertEqual(1990, config.candidate_min_year)
+        self.assertIsNone(config.candidate_max_year)
+        self.assertEqual(0, config.candidate_min_tags)
+        self.assertEqual(35, config.max_tags_per_movie)
+        self.assertIsNone(config.public_limit)
         self.assertEqual(15000, config.collaborative_core_limit)
+        self.assertEqual(100, config.catalog_min_ratings)
+        self.assertEqual(2000, config.public_min_year)
+        self.assertEqual(1990, config.collaborative_min_year)
+        self.assertEqual("es-ES", config.display_language)
+        self.assertTrue(config.family_only)
 
     def test_defaults_preset_uses_orchestrator_defaults(self) -> None:
         config = cli.resolve_config(cli.build_parser().parse_args(["--preset", "defaults"]))
@@ -63,9 +73,10 @@ class DatasetCliConfigurationTests(unittest.TestCase):
 
     def test_explicit_flags_override_preset(self) -> None:
         config = cli.resolve_config(cli.build_parser().parse_args([
-            "--preset", "recommended", "--candidate-limit", "123", "--skip-posters", "--audit",
+            "--preset", "recommended", "--candidate-limit", "123", "--no-family-only", "--skip-posters", "--audit",
         ]))
         self.assertEqual(123, config.candidate_limit)
+        self.assertFalse(config.family_only)
         self.assertTrue(config.skip_posters)
         self.assertTrue(config.audit)
 
@@ -127,22 +138,24 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         raw.assert_called_once()
         self.assertEqual("MovieLens source", choice.call_args_list[1].args[0])
 
-    def test_custom_stop_after_uses_explicit_default(self) -> None:
+    def test_custom_configuration_exposes_all_dataset_parameters(self) -> None:
         config = DatasetPipelineConfig(stop_after="export")
-        with patch("pipelines.dataset_generation.cli._ask_integer", side_effect=lambda _q, value, **_k: value), patch(
+        with patch("pipelines.dataset_generation.cli._ask_integer", side_effect=lambda _q, value, **_k: value) as ask_integer, patch(
             "pipelines.dataset_generation.cli._ask_yes_no", return_value=False
         ), patch("pipelines.dataset_generation.cli._ask_text", side_effect=lambda _q, default=None, **_k: default), patch(
             "pipelines.dataset_generation.cli._ask_choice", side_effect=lambda _q, _choices, default: default
         ) as choice:
-            cli._ask_advanced_config(config)
+            cli._ask_custom_config(config)
+        self.assertEqual(len(cli.NUMERIC_FIELDS), ask_integer.call_count)
+        self.assertEqual(cli.NUMERIC_FIELDS, tuple(call.args[0].replace(" ", "_") for call in ask_integer.call_args_list))
         self.assertEqual("export", choice.call_args_list[-1].args[2])
 
     def test_configuration_mode_menu_accepts_number_and_text(self) -> None:
         with patch("builtins.input", return_value="1"):
             self.assertEqual(cli._ask_configuration_mode(), "recommended")
 
-        with patch("builtins.input", return_value="advanced"):
-            self.assertEqual(cli._ask_configuration_mode(), "advanced")
+        with patch("builtins.input", return_value="custom"):
+            self.assertEqual(cli._ask_configuration_mode(), "custom")
 
     def test_explained_prompt_uses_the_actual_decision_question(self) -> None:
         question = "Download missing movie posters?"
@@ -169,14 +182,16 @@ class DatasetCliConfigurationTests(unittest.TestCase):
                 config,
                 "download",
                 None,
-                mode="advanced",
+                mode="custom",
                 cleanup="minimal",
             )
 
         summary = output.getvalue()
-        self.assertIn("Configuration mode: Advanced", summary)
+        self.assertIn("Configuration mode: Custom", summary)
         self.assertIn("MovieLens source: Download automatically", summary)
         self.assertIn("Download posters: Yes", summary)
+        self.assertIn("Public minimum year: 2000", summary)
+        self.assertIn("Public audience policy: Family friendly and teen", summary)
         self.assertIn("Generate audit: Yes", summary)
         self.assertIn("TMDB behavior: Resume completed enrichment", summary)
         self.assertIn("Cleanup mode: Minimal runtime files", summary)
@@ -279,6 +294,13 @@ class DatasetCliConfigurationTests(unittest.TestCase):
         command = build_stage_command("enrich", DatasetPipelineConfig(force_tmdb=True, resume_tmdb=False))
         self.assertIn("--force", command)
         self.assertNotIn("--resume", command)
+
+    def test_recommended_family_only_reaches_the_catalogue_stage(self) -> None:
+        config = cli.resolve_config(cli.build_parser().parse_args(["--preset", "recommended"]))
+        command = build_stage_command("catalog", config)
+        self.assertIn("--family-only", command)
+        self.assertIn("--public-min-year", command)
+        self.assertEqual("2000", command[command.index("--public-min-year") + 1])
 
     def test_minimum_tags_is_optional_and_reaches_candidate_command(self) -> None:
         config = DatasetPipelineConfig(candidate_min_tags=0)

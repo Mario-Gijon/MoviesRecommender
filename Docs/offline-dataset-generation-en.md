@@ -42,6 +42,7 @@ python -m app.scripts.run_movielens_32m_pipeline \
 | `--candidate-min-ratings` | Minimum number of MovieLens ratings required for a movie to become a candidate. | `100` |
 | `--candidate-min-year` | Minimum year for initial candidate movies. | `1990` |
 | `--candidate-max-year` | Maximum year for initial candidate movies. | Optional |
+| `--candidate-min-tags` | Minimum number of distinct user tags. | `0` |
 | `--max-tags-per-movie` | Maximum number of user tags stored per movie. | Default `35` |
 | `--resume-tmdb` | Reuses the existing TMDB cache. | Default |
 | `--no-resume-tmdb` | Does not reuse the existing TMDB cache. | Only if you need to force it |
@@ -50,7 +51,8 @@ python -m app.scripts.run_movielens_32m_pipeline \
 | `--catalog-min-ratings` | Minimum number of ratings used in the catalog stage. | Default `100` |
 | `--public-min-year` | Minimum year for movies visible in the public catalog. | `2000` |
 | `--collaborative-min-year` | Minimum year for movies used as collaborative support. | `1990` |
-| `--family-only` | Generates a public catalog containing only family-friendly movies. | Usually not used |
+| `--family-only` | Generates a public catalog containing only family-friendly movies. | Used by the Recommended preset |
+| `--display-language` | Language used for generated display text. | `es-ES` |
 | `--skip-posters` | Skips poster download/reuse. | Optional |
 | `--audit` | Generates the audit dashboard. | Optional |
 | `--dry-run` | Shows which stages would run without executing them. | Optional |

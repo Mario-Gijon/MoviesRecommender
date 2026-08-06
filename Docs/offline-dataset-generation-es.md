@@ -42,6 +42,7 @@ python -m app.scripts.run_movielens_32m_pipeline \
 | `--candidate-min-ratings` | Mínimo de ratings MovieLens para considerar una película candidata. | `100` |
 | `--candidate-min-year` | Año mínimo para las candidatas iniciales. | `1990` |
 | `--candidate-max-year` | Año máximo para candidatas iniciales. | Opcional |
+| `--candidate-min-tags` | Mínimo de etiquetas de usuario distintas. | `0` |
 | `--max-tags-per-movie` | Máximo de tags de usuario guardados por película. | Por defecto `35` |
 | `--resume-tmdb` | Reutiliza el cache existente de TMDB. | Por defecto |
 | `--no-resume-tmdb` | No reutiliza el cache de TMDB. | Solo si quieres forzar |
@@ -50,7 +51,8 @@ python -m app.scripts.run_movielens_32m_pipeline \
 | `--catalog-min-ratings` | Mínimo de ratings usado en la fase de catálogo. | Por defecto `100` |
 | `--public-min-year` | Año mínimo para películas visibles en catálogo público. | `2000` |
 | `--collaborative-min-year` | Año mínimo para películas usadas en soporte colaborativo. | `1990` |
-| `--family-only` | Genera un catálogo público solo con películas familiares. | No usar normalmente |
+| `--family-only` | Genera un catálogo público solo con películas familiares. | Lo usa la configuración recomendada |
+| `--display-language` | Idioma usado para el texto de visualización generado. | `es-ES` |
 | `--skip-posters` | Omite descarga/reutilización de pósteres. | Opcional |
 | `--audit` | Genera el dashboard de auditoría. | Opcional |
 | `--dry-run` | Muestra qué etapas se ejecutarían sin ejecutarlas. | Opcional |
