@@ -1,8 +1,171 @@
 # Movies Recommender
 
-Explainable movie recommender web app for a public science outreach event. The project is designed to teach recommendation systems in a white-box way, starting with simple deterministic placeholders before real catalog and recommendation logic is added.
+Aplicación web de recomendación de películas orientada a divulgación científica y demostraciones públicas. El proyecto permite generar un dataset offline, construir varios modelos de recomendación, ejecutar la API y utilizar una interfaz web mediante Docker.
 
-## Local development
+## Funcionalidades principales
+
+- Generación de un dataset offline a partir de MovieLens 32M.
+- Enriquecimiento de películas mediante TMDB.
+- Descarga y almacenamiento local de pósteres.
+- Catálogo público configurable.
+- Modelos de recomendación basados en contenido y filtrado colaborativo.
+- Backend HTTP para integraciones externas, incluida una interfaz desarrollada en Unity.
+- Frontend web para valorar películas y consultar recomendaciones.
+- Gestor interactivo para controlar la instalación sin ejecutar manualmente comandos de Docker Compose.
+
+## Arquitectura
+
+El proyecto está dividido en cuatro partes principales:
+
+```text
+MoviesRecommender/
+├── Backend/
+├── Frontend/
+├── manager/
+├── Docs/
+├── compose.yaml
+├── compose.dev.yaml
+└── manage.py
+```
+
+### Backend
+
+API desarrollada con Python y FastAPI.
+
+Se encarga de:
+
+- Servir el catálogo de películas.
+- Recibir valoraciones del usuario.
+- Ejecutar los algoritmos de recomendación.
+- Exponer los resultados mediante HTTP.
+- Servir los datos y pósteres del dataset offline.
+
+### Frontend
+
+Aplicación web desarrollada con React y Vite.
+
+Permite:
+
+- Explorar el catálogo.
+- Valorar películas.
+- Seleccionar estrategias y algoritmos.
+- Generar y consultar recomendaciones.
+- Mantener temporalmente el estado de la sesión en el navegador.
+
+### Dataset offline
+
+El dataset se genera a partir de MovieLens 32M y se enriquece con información de TMDB.
+
+Los datos persistentes se guardan en el directorio configurado mediante `DATA_DIR`. Por defecto:
+
+```text
+./data
+```
+
+Dentro de este directorio se almacenan:
+
+```text
+data/
+├── offline_dataset/
+├── recommender_models/
+└── logs/
+```
+
+### Modelos de recomendación
+
+La aplicación incluye los siguientes algoritmos:
+
+- TF-IDF.
+- Popularidad.
+- Item KNN.
+- User KNN.
+- Biased Matrix Factorization.
+
+La generación del dataset y la construcción de los modelos son procesos separados. Después de generar o modificar el dataset, los modelos deben reconstruirse para asegurar su compatibilidad.
+
+## Gestor interactivo
+
+El gestor permite configurar y controlar la instalación desde un menú interactivo.
+
+Desde el repositorio:
+
+```bash
+python manage.py
+```
+
+Desde el paquete autónomo:
+
+```bash
+python manage.pyz
+```
+
+En Linux también puede utilizarse:
+
+```bash
+python3 manage.pyz
+```
+
+El gestor permite:
+
+- Configurar el directorio de datos, los puertos y el acceso de red.
+- Guardar el token bearer de TMDB.
+- Generar, reconstruir y reanudar el dataset offline.
+- Validar y consultar el dataset.
+- Construir y validar los modelos.
+- Iniciar, detener, reiniciar y actualizar el Backend.
+- Iniciar, detener, reiniciar y actualizar el Frontend.
+- Consultar el estado y los registros de los servicios.
+
+## Paquete de despliegue autónomo
+
+El paquete de producción se genera con:
+
+```bash
+python scripts/build_deployment_package.py
+```
+
+El resultado se crea en:
+
+```text
+dist/MoviesRecommender/
+├── manage.pyz
+└── compose.yaml
+```
+
+Este paquete no incluye el dataset, los modelos ni el código fuente. El gestor descarga las imágenes publicadas en Docker Hub y crea durante la primera ejecución:
+
+```text
+.env
+data/
+```
+
+## Imágenes Docker
+
+La instalación de producción utiliza:
+
+```text
+mariogijon/movies-recommender-api:latest
+mariogijon/movies-recommender-dataset:latest
+mariogijon/movies-recommender-frontend:latest
+```
+
+El archivo `compose.yaml` utiliza estas imágenes para ejecutar el Backend, generar el dataset, construir los modelos y servir el Frontend.
+
+## Documentación
+
+La documentación de uso se encuentra en `Docs/`:
+
+- [`Docs/guia-cli-es.md`](Docs/guia-cli-es.md): explicación de las opciones disponibles en el gestor.
+- [`Docs/configuracion-recomendada-es.md`](Docs/configuracion-recomendada-es.md): recorrido recomendado para generar el dataset, construir los modelos e iniciar el Backend.
+
+## Desarrollo local
+
+### Backend
+
+```bash
+cd Backend
+python -m uvicorn app.main:app --reload --port 8014
+```
 
 ### Frontend
 
@@ -12,135 +175,63 @@ bun install
 bun dev
 ```
 
-### Backend
+### Docker Compose de desarrollo
 
 ```bash
-cd Backend
-uvicorn app.main:app --reload --port 8014
+docker compose -f compose.dev.yaml up
 ```
 
-## Docker and deployment
+## Despliegue con Docker Compose
 
-Production Compose uses image references and keeps all generated runtime data on the
-host through `DATA_DIR` (default `./Backend/data`). This includes both the shared
-`offline_dataset/` and recommender-specific `recommender_models/` directories, so
-they survive `stop`, `down`, image pulls, and restarts.
+La configuración de producción se encuentra en `compose.yaml`.
 
-Docker users configure `DATA_DIR` in `.env`; the interactive manager supplies the
-appropriate Compose environment internally. `MOVIES_RECOMMENDER_DATA_DIR=/app/data`
-is used inside backend containers. It is only relevant when running Python directly
-outside Docker, where its default remains `Backend/data`.
+Los puertos, el directorio de datos y el acceso de red se configuran mediante `.env`.
 
-The backend is available by itself on `${BACKEND_BIND_HOST}:${BACKEND_PORT}`. The
-optional production frontend is served on `${FRONTEND_BIND_HOST}:${FRONTEND_PORT}`
-and proxies `/api/`, `/offline/`, and `/audit/` to the backend internally. Defaults
-bind to `127.0.0.1`; set either bind host to `0.0.0.0` only when LAN/server access is
-intended. Image names, ports, bind hosts, and `DATA_DIR` are configurable in `.env`.
+Variables principales:
 
-El gestor selecciona Desarrollo con código montado o Producción con imágenes
-publicadas. El Frontend de Desarrollo mantiene `VITE_API_URL=http://localhost:8014`;
-el Frontend de Producción usa rutas relativas `/api` mediante Nginx.
-
-## Dataset generation
-
-The opt-in `dataset` service generates `offline_dataset/` from MovieLens 32M and
-TMDB metadata. It reuses valid raw files and cached work where possible, but
-regenerates the selected candidate, enrichment, catalogue, ratings, export, poster,
-and audit outputs. It never rebuilds `recommender_models/`.
-
-El menú Dataset del gestor permite generar, reconstruir, reanudar, reconfigurar,
-validar, inspeccionar y limpiar el dataset mediante el servicio Compose `dataset`.
-En el paquete autónomo usa siempre la imagen publicada; en el repositorio permite
-escoger entre código local e imagen publicada. La imagen de Docker Hub debe incluir
-el contrato `pipelines.dataset_generation.cli --non-interactive` para estas operaciones.
-
-The `recommended` profile creates the broad 15,000-item configuration; choose
-`custom` in the wizard for individual limits, years, language, stages, poster and
-audit options. Deterministic installation-style use is available with, for example:
-
-```bash
-MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN='...' \
-  .venv/bin/python -m pipelines.dataset_generation.cli \
-  --non-interactive --yes --source download --preset recommended --audit
+```text
+COMPOSE_PROJECT_NAME
+DATA_DIR
+BACKEND_PORT
+FRONTEND_PORT
+BACKEND_BIND_HOST
+FRONTEND_BIND_HOST
+MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN
 ```
 
-The imported raw CSVs are written under persistent `DATA_DIR`; the original host ZIP
-is not modified. Enrichment requires `MOVIES_RECOMMENDER_TMDB_BEARER_TOKEN`; set it
-in the environment (or enter it through the existing interactive prompt). Dataset
-source selection, resume behavior, poster download, audit generation and cleanup are
-se rediseñarán en la siguiente fase.
+Los valores predeterminados del paquete autónomo se solicitan durante la primera ejecución del gestor.
 
-## Gestor interactivo
+## Acceso al Backend
 
-Solo se necesitan Python, Docker y Docker Compose. Configura un `DATA_DIR` con
-permisos de escritura y ejecuta el gestor con:
+Desde el mismo equipo:
 
-```bash
-python manage.py
+```text
+http://localhost:<puerto-backend>
 ```
 
-El gestor guía las operaciones de la aplicación sin exigir comandos de Compose,
-perfiles, flags ni selección de algoritmos. Desarrollo usa el código local con reload
-y HMR; Producción usa las imágenes publicadas. La reconstrucción de modelos usa siempre
-las variantes activas declaradas en `.env` y mantiene `DATA_DIR` persistente.
+Desde otro equipo de la red local:
 
-Dataset conserva sus datos, registros y artefactos de modelos separados bajo
-`DATA_DIR`; al cambiar su huella, los modelos existentes deben reconstruirse.
-Configuración se implementará en la siguiente fase.
-
-### Paquete de despliegue autónomo
-
-Quien mantenga el proyecto puede generar el paquete de producción con:
-
-```bash
-python scripts/build_deployment_package.py
+```text
+http://<IP-del-equipo>:<puerto-backend>
 ```
 
-Se distribuyen inicialmente solo `manage.pyz` y `compose.yaml` desde
-`dist/MoviesRecommender/`. En el primer arranque, `python manage.pyz` crea mediante
-un asistente `.env` y el directorio persistente `data/`; por tanto la instalación
-contiene después `manage.pyz`, `compose.yaml`, `.env` y `data/`. El código de la
-aplicación procede de las imágenes publicadas en Docker Hub. Ni el dataset ni los
-modelos se incluyen en el paquete.
+La ruta principal para solicitar recomendaciones es:
 
-## Reconstrucción de artefactos de recomendación
-
-Generar `offline_dataset/` no reconstruye `recommender_models/`. Reconstruir
-`recommender_models/` no regenera `offline_dataset/`. El gestor reconstruye los
-artefactos actuales manteniendo esa separación.
-
-```bash
-cd Backend
-.venv/bin/python -m pipelines.recommender_build.cli --yes
-.venv/bin/python -m pipelines.recommender_build.cli --algorithm item_knn --algorithm biased --yes
-.venv/bin/python -m pipelines.recommender_build.cli --algorithm item_knn --clean --yes
+```text
+POST /recommendations
 ```
 
-El proceso de mantenimiento construye cada objetivo seleccionado bajo
-`DATA_DIR/tmp`, lo valida, puede retirar artefactos no necesarios para ejecución con
-`--clean` y después instala ese objetivo bajo `recommender_models/`.
-Para despliegues Compose, copia el `.env.example` raíz a `.env`; para ejecutar el
-Backend directamente con Python, copia `Backend/.env.example` a `Backend/.env`. Las
-solicitudes de la API seleccionan algoritmos, nunca variantes. Cada reemplazo usa una
-copia de seguridad hermana en el mismo sistema de archivos; si la recuperación falla,
-el error identifica esa copia para su revisión manual. Un fallo posterior no deshace
-los objetivos ya instalados.
-Las variantes son internas al despliegue. Item KNN usa por defecto
-`top_k_100_min_support_25`; `top_k_50_min_support_25` también es compatible. El perfil
-de despliegue BMF es `factors_128_epochs_100_lr_0_005_reg_0_02`. La API y el
-mantenimiento comparten las variantes activas de `.env`; el gestor usa solo perfiles
-compatibles. El Dataset offline no se regenera durante esta operación ni se crean
-auditorías.
+## Estado del proyecto
 
-El gestor interactivo ejecuta este proceso con el entorno y el perfil adecuados; no es
-necesario invocar Docker Compose directamente.
+El proyecto dispone actualmente de:
 
-## Alcance actual
-
-- Datos persistentes de ejecución configurables y base de despliegue Docker.
-- Sin autenticación ni cuentas de usuario.
-- Sin paquete de instalación externo ni flujo de publicación en Docker Hub.
-
-## Fases posteriores
-
-- Paquete de instalación externo y flujo de publicación en Docker Hub.
+- Backend funcional.
+- Frontend funcional.
+- Generación offline del dataset.
+- Enriquecimiento con TMDB.
+- Descarga de pósteres.
+- Cinco algoritmos de recomendación.
+- Gestión de compatibilidad entre dataset y modelos.
+- Despliegue mediante Docker.
+- Paquete autónomo basado en `manage.pyz`.
+- Documentación de instalación y uso.
