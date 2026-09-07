@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 import csv
+import errno
 import json
 import os
 import shutil
 import sqlite3
+import stat
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -338,10 +341,13 @@ def validate_staged(algorithm: str, plan: ResolvedBuildPlan, content_root: Path,
 def _sqlite_has_row(path: Path) -> None:
     if not path.is_file() or path.stat().st_size == 0:
         raise RuntimeError("Required SQLite artifact is missing or empty.")
-    with sqlite3.connect(path) as connection:
+    connection = sqlite3.connect(path)
+    try:
         tables = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         if not tables or not any(connection.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone() for (name,) in tables):
             raise RuntimeError("SQLite artifact has no rows.")
+    finally:
+        connection.close()
 
 
 def _csv_has_row(path: Path) -> bool:
@@ -353,44 +359,174 @@ def _csv_has_row(path: Path) -> bool:
         raise RuntimeError("CSV artifact is unreadable.") from exc
 
 
+_REPLACE_RETRIES = 3
+_REPLACE_BACKOFF_SECONDS = 0.05
+
+
+def _filesystem_error_details(exc: OSError, *, operation: str, source: Path, destination: Path) -> str:
+    """Return actionable, path-safe diagnostics for a filesystem operation."""
+    details = [
+        f"operation={operation}",
+        f"source={source}",
+        f"destination={destination}",
+        f"exception={type(exc).__name__}",
+    ]
+    if exc.errno is not None:
+        details.append(f"errno={exc.errno}")
+    if getattr(exc, "winerror", None) is not None:
+        details.append(f"winerror={exc.winerror}")
+    message = exc.strerror or str(exc)
+    if message:
+        details.append(f"message={message}")
+    return "; ".join(details)
+
+
+def _replace_with_retries(source: Path, destination: Path, *, operation: str) -> None:
+    """Use rename as the fast path, retrying only briefly for transient filesystem locks."""
+    last_error: OSError | None = None
+    for attempt in range(_REPLACE_RETRIES):
+        try:
+            os.replace(source, destination)
+            return
+        except OSError as exc:
+            last_error = exc
+            # These are common on Windows/Docker Desktop, but a bounded retry is
+            # also safe for other short-lived filesystem races.
+            transient = isinstance(exc, PermissionError) or exc.errno in {
+                errno.EACCES, errno.EPERM, errno.EBUSY, errno.EAGAIN,
+                getattr(errno, "ETXTBSY", errno.EBUSY),
+            }
+            transient = transient or getattr(exc, "winerror", None) in {32, 33}
+            if not transient or attempt == _REPLACE_RETRIES - 1:
+                break
+            time.sleep(_REPLACE_BACKOFF_SECONDS * (attempt + 1))
+    assert last_error is not None
+    raise last_error
+
+
+def _remove_target(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def _verify_copied_tree(staged: Path, production: Path) -> None:
+    """Verify copied regular files without hashing potentially large artifacts."""
+    for source in staged.rglob("*"):
+        if source.is_dir():
+            continue
+        if not stat.S_ISREG(source.stat().st_mode):
+            raise OSError(f"Staged artifact is not a regular file: {source}")
+        destination = production / source.relative_to(staged)
+        if not destination.is_file() or not stat.S_ISREG(destination.stat().st_mode):
+            raise OSError(f"Copied artifact is missing or not regular: {destination}")
+        if source.stat().st_size != destination.stat().st_size:
+            raise OSError(f"Copied artifact size differs: {destination}")
+
+
+def _copy_staged_target(staged: Path, production: Path) -> None:
+    if production.exists() or production.is_symlink():
+        raise OSError(f"Cannot copy into an existing production target: {production}")
+    shutil.copytree(staged, production)
+    _verify_copied_tree(staged, production)
+
+
+def _restore_backup(backup: Path, production: Path) -> None:
+    """Restore the previous target, using a verified copy only if rename is unavailable."""
+    if production.exists() or production.is_symlink():
+        _remove_target(production)
+    try:
+        _replace_with_retries(backup, production, operation="restore backup to production")
+    except OSError:
+        _copy_staged_target(backup, production)
+
+
 def replace_target(staged: Path, production: Path) -> None:
-    """Install one validated target and restore only that target on replacement failure."""
+    """Install a validated target without sacrificing the previous recoverable target."""
     if not staged.is_dir():
         raise RecommenderPromotionError(f"Staged target is missing or not a directory: {staged}")
     backup = production.parent / f".{production.name}.recommender-build-backup"
-    if backup.exists() or backup.is_symlink():
-        raise RecommenderPromotionError(
-            f"Cannot replace {production}; stale recovery backup exists at {backup}. "
-            "Resolve that backup before retrying."
-        )
     original_existed = production.exists() or production.is_symlink()
+    if backup.exists() or backup.is_symlink():
+        situation = (
+            f"both production and a recovery backup exist" if original_existed
+            else f"production is absent and the recovery backup may be its only recoverable copy"
+        )
+        raise RecommenderPromotionError(
+            f"Cannot replace {production}: {situation}. Backup retained at {backup}; "
+            "inspect or recover it before retrying."
+        )
     backup_created = False
     try:
         production.parent.mkdir(parents=True, exist_ok=True)
         if original_existed:
-            os.replace(production, backup)
+            _replace_with_retries(production, backup, operation="move production to recovery backup")
             backup_created = True
-        os.replace(staged, production)
+        try:
+            _replace_with_retries(staged, production, operation="move staged target to production")
+        except OSError as rename_error:
+            # A failed rename is expected to leave the destination absent.  Do
+            # not delete an unexpectedly present target: preserve recovery data
+            # and fail instead of making an ambiguous state worse.
+            if production.exists() or production.is_symlink():
+                raise OSError(
+                    "staged rename failed but production unexpectedly exists; "
+                    "refusing copy fallback"
+                ) from rename_error
+            try:
+                _copy_staged_target(staged, production)
+            except OSError as copy_error:
+                raise OSError(
+                    "copy fallback failed: "
+                    + _filesystem_error_details(
+                        copy_error, operation="copy staged target to production", source=staged, destination=production
+                    )
+                    + "; prior rename failure: "
+                    + _filesystem_error_details(
+                        rename_error, operation="move staged target to production", source=staged, destination=production
+                    )
+                ) from copy_error
     except OSError as exc:
+        cleanup_error: OSError | None = None
+        try:
+            if production.exists() or production.is_symlink():
+                _remove_target(production)
+        except OSError as remove_exc:
+            cleanup_error = remove_exc
         if backup_created:
             try:
-                os.replace(backup, production)
+                _restore_backup(backup, production)
             except OSError as restore_exc:
                 raise RecommenderPromotionError(
-                    f"Replacement failed for {production}; restoration also failed. "
-                    f"Recover the previous target from {backup}."
+                    f"Replacement failed and restoration also failed; recover the previous target from {backup}. "
+                    + _filesystem_error_details(
+                        restore_exc, operation="restore recovery backup", source=backup, destination=production
+                    )
                 ) from restore_exc
+        if cleanup_error is not None and not backup_created:
+            raise RecommenderPromotionError(
+                f"Replacement failed and a partial target could not be removed: {production}. "
+                + _filesystem_error_details(
+                    cleanup_error, operation="remove partial production", source=production, destination=production
+                )
+            ) from cleanup_error
         raise RecommenderPromotionError(
-            f"Replacement failed for {production}; the previous target was preserved."
+            f"Replacement failed for {production}; the previous target was preserved when present. "
+            + _filesystem_error_details(
+                exc, operation="install staged target", source=staged, destination=production
+            )
         ) from exc
     if backup_created:
         try:
             shutil.rmtree(backup)
         except OSError as exc:
-            raise RecommenderPromotionError(
-                f"Installed {production}, but could not remove recovery backup {backup}. "
-                "Remove it before the next rebuild."
-            ) from exc
+            print(
+                f"Warning: installed {production}, but could not remove recovery backup {backup}. "
+                "The new model remains valid; remove the retained backup after checking it. "
+                + _filesystem_error_details(exc, operation="remove recovery backup", source=backup, destination=backup),
+                file=sys.stderr,
+            )
 
 
 def print_plan(plan: ResolvedBuildPlan, paths: BuildPaths, *, clean: bool = False) -> None:

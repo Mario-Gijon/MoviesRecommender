@@ -1,8 +1,10 @@
 import tempfile
 import unittest
 import os
+import errno
+from io import StringIO
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from app.core.config import settings
 from app.recommenders.artifact_policy import (
@@ -185,6 +187,162 @@ class RecommenderBuildCliTests(unittest.TestCase):
             with self.assertRaises(cli.RecommenderPromotionError):
                 cli.replace_target(staged, production)
             self.assertEqual("old", (production / "value").read_text(encoding="utf-8"))
+
+    def test_windows_like_staged_rename_uses_verified_copy_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "nested").mkdir()
+            (staged / "nested" / "artifact").write_text("new", encoding="utf-8")
+            real_replace = os.replace
+
+            def windows_lock(source, target):
+                if Path(source) == staged and Path(target) == production:
+                    raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=windows_lock), patch(
+                "pipelines.recommender_build.cli.time.sleep"
+            ):
+                cli.replace_target(staged, production)
+            self.assertEqual("new", (production / "nested" / "artifact").read_text(encoding="utf-8"))
+
+    def test_copy_fallback_preserves_old_model_until_new_model_is_installed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "value").write_text("new", encoding="utf-8")
+            real_replace = os.replace
+
+            def windows_lock(source, target):
+                if Path(source) == staged:
+                    raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=windows_lock), patch(
+                "pipelines.recommender_build.cli.time.sleep"
+            ):
+                cli.replace_target(staged, production)
+            self.assertEqual("new", (production / "value").read_text(encoding="utf-8"))
+            self.assertFalse((root / ".target.recommender-build-backup").exists())
+
+    def test_failed_copy_fallback_restores_old_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "value").write_text("new", encoding="utf-8")
+            real_replace = os.replace
+
+            def windows_lock(source, target):
+                if Path(source) == staged:
+                    raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            def incomplete_copy(source, target, *args, **kwargs):
+                Path(target).mkdir()
+                (Path(target) / "value").write_text("partial", encoding="utf-8")
+                raise OSError("copy interrupted")
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=windows_lock), patch(
+                "pipelines.recommender_build.cli.shutil.copytree", side_effect=incomplete_copy
+            ), patch("pipelines.recommender_build.cli.time.sleep"):
+                with self.assertRaises(cli.RecommenderPromotionError):
+                    cli.replace_target(staged, production)
+            self.assertEqual("old", (production / "value").read_text(encoding="utf-8"))
+
+    def test_failed_copy_without_old_model_leaves_no_partial_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "value").write_text("new", encoding="utf-8")
+
+            def incomplete_copy(source, target, *args, **kwargs):
+                Path(target).mkdir()
+                raise OSError("copy interrupted")
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=PermissionError(errno.EACCES, "locked")), patch(
+                "pipelines.recommender_build.cli.shutil.copytree", side_effect=incomplete_copy
+            ), patch("pipelines.recommender_build.cli.time.sleep"):
+                with self.assertRaises(cli.RecommenderPromotionError):
+                    cli.replace_target(staged, production)
+            self.assertFalse(production.exists())
+
+    def test_sqlite_validation_explicitly_closes_connection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "artifact.sqlite"
+            database.write_bytes(b"x")
+            connection = MagicMock()
+            connection.execute.side_effect = [Mock(fetchall=Mock(return_value=[("ratings",)])), Mock(fetchone=Mock(return_value=(1,)))]
+            with patch("pipelines.recommender_build.cli.sqlite3.connect", return_value=connection):
+                cli._sqlite_has_row(database)
+            connection.close.assert_called_once_with()
+
+    def test_promotion_error_includes_filesystem_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            staged = root / "staged"
+            staged.mkdir()
+            error = OSError(errno.EIO, "input/output failure")
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=error):
+                with self.assertRaises(cli.RecommenderPromotionError) as raised:
+                    cli.replace_target(staged, production)
+            self.assertIn("exception=OSError", str(raised.exception))
+            self.assertIn("errno=5", str(raised.exception))
+            self.assertIn(str(production), str(raised.exception))
+
+    def test_residual_backup_after_success_is_warning_not_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "value").write_text("new", encoding="utf-8")
+            backup = root / ".target.recommender-build-backup"
+            real_rmtree = cli.shutil.rmtree
+
+            def cannot_remove_backup(path, *args, **kwargs):
+                if Path(path) == backup:
+                    raise PermissionError(errno.EACCES, "locked")
+                return real_rmtree(path, *args, **kwargs)
+
+            stderr = StringIO()
+            with patch("pipelines.recommender_build.cli.shutil.rmtree", side_effect=cannot_remove_backup), patch(
+                "pipelines.recommender_build.cli.sys.stderr", stderr
+            ):
+                cli.replace_target(staged, production)
+            self.assertEqual("new", (production / "value").read_text(encoding="utf-8"))
+            self.assertTrue(backup.exists())
+            self.assertIn("Warning: installed", stderr.getvalue())
+
+    def test_recovery_backup_without_production_is_never_deleted_automatically(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            staged = root / "staged"
+            staged.mkdir()
+            backup = root / ".target.recommender-build-backup"
+            backup.mkdir()
+            (backup / "value").write_text("recoverable", encoding="utf-8")
+            with self.assertRaises(cli.RecommenderPromotionError) as raised:
+                cli.replace_target(staged, production)
+            self.assertIn("production is absent", str(raised.exception))
+            self.assertEqual("recoverable", (backup / "value").read_text(encoding="utf-8"))
 
     def test_sequential_build_keeps_completed_target_when_later_build_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
