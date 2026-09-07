@@ -5,6 +5,7 @@ import {
   canonicalMovieId,
   clearSession,
   createDefaultSession,
+  DEFAULT_COLLABORATIVE_ALGORITHM,
   loadSession,
   mergeMovieSnapshot,
   ratingsFingerprint,
@@ -73,7 +74,9 @@ function App() {
   const [recommendationError, setRecommendationError] = useState(null)
   const catalogRequestIdRef = useRef(0)
   const skipNextPersistRef = useRef(false)
-  const selectedAlgorithm = selectedStrategy === 'content' ? 'tfidf' : selectedCollaborativeAlgorithm
+  const selectedAlgorithm = selectedStrategy === 'content'
+    ? 'tfidf'
+    : DEFAULT_COLLABORATIVE_ALGORITHM
   const currentRatingsFingerprint = useMemo(() => ratingsFingerprint(ratings), [ratings])
 
   useEffect(() => {
@@ -270,13 +273,6 @@ function App() {
     setRecommendationError(null)
   }
 
-  function handleSelectAlgorithm(algorithm) {
-    if (selectedStrategy === 'collaborative') {
-      setSelectedCollaborativeAlgorithm(algorithm)
-    }
-    setRecommendationError(null)
-  }
-
   function handleNextStep() {
     setActiveStep((currentStep) => Math.min(currentStep + 1, STEPS.length))
   }
@@ -386,8 +382,6 @@ function App() {
     <RecommendationControls
       selectedStrategy={selectedStrategy}
       onSelectStrategy={handleSelectStrategy}
-      selectedAlgorithm={selectedAlgorithm}
-      onSelectAlgorithm={handleSelectAlgorithm}
       onGenerateRecommendations={handleGenerateRecommendations}
       isLoadingRecommendations={isLoadingRecommendations}
       ratedMoviesCount={ratedMoviesCount}

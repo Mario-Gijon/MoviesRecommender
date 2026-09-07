@@ -1,12 +1,9 @@
 import { isStrategyEnabled } from '../strategies'
-import AlgorithmSelector from './AlgorithmSelector'
 import StrategySelector from './StrategySelector'
 
 function RecommendationControls({
   selectedStrategy,
   onSelectStrategy,
-  selectedAlgorithm,
-  onSelectAlgorithm,
   onGenerateRecommendations,
   isLoadingRecommendations,
   ratedMoviesCount,
@@ -17,20 +14,8 @@ function RecommendationControls({
     !isLoadingRecommendations
 
   return (
-    <div
-      className={`recommend-toolbar compact-recommend-toolbar ${
-        selectedStrategy === 'collaborative' ? 'has-algorithm' : 'content-only'
-      }`}
-    >
+    <div className="recommend-toolbar compact-recommend-toolbar">
       <StrategySelector value={selectedStrategy} onChange={onSelectStrategy} />
-
-      {selectedStrategy === 'collaborative' ? (
-        <AlgorithmSelector
-          strategy={selectedStrategy}
-          value={selectedAlgorithm}
-          onChange={onSelectAlgorithm}
-        />
-      ) : null}
 
       <button
         type="button"

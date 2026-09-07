@@ -27,7 +27,7 @@ afterEach(() => {
   delete globalThis.window
 })
 
-test('restores ratings, snapshots, selections, and independent recommendation caches', () => {
+test('restores ratings and snapshots while normalizing collaborative selection to Item KNN', () => {
   const session = createDefaultSession()
   session.ratings = { 1: 4 }
   session.ratedMovieSnapshots = { 1: { id: 1, movieId: 1, title: 'Example' } }
@@ -43,8 +43,18 @@ test('restores ratings, snapshots, selections, and independent recommendation ca
   expect(restored.ratings).toEqual({ 1: 4 })
   expect(restored.ratedMovieSnapshots[1]).toMatchObject({ id: 1, movieId: 1, title: 'Example' })
   expect(restored.selectedStrategy).toBe('collaborative')
-  expect(restored.selectedCollaborativeAlgorithm).toBe('user_knn')
-  expect(Object.keys(restored.recommendationsByAlgorithm).sort()).toEqual(['tfidf', 'user_knn'])
+  expect(restored.selectedCollaborativeAlgorithm).toBe('item_knn')
+  expect(Object.keys(restored.recommendationsByAlgorithm).sort()).toEqual(['tfidf'])
+})
+
+test('migrates an old user KNN session to Item KNN', () => {
+  values.set(SESSION_KEY, JSON.stringify({
+    ...createDefaultSession(),
+    selectedStrategy: 'collaborative',
+    selectedCollaborativeAlgorithm: 'user_knn',
+  }))
+
+  expect(loadSession().selectedCollaborativeAlgorithm).toBe('item_knn')
 })
 
 test('corrupt and unsupported sessions safely use defaults', () => {

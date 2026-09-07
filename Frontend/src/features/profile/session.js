@@ -62,9 +62,9 @@ export function validateOrMigrateSession(value) {
   session.ratings = normalizeRatings(value.ratings)
   session.ratedMovieSnapshots = normalizeSnapshots(value.ratedMovieSnapshots)
   session.selectedStrategy = value.selectedStrategy === 'collaborative' ? 'collaborative' : DEFAULT_STRATEGY
-  session.selectedCollaborativeAlgorithm = validCollaborativeAlgorithm(value.selectedCollaborativeAlgorithm)
-    ? value.selectedCollaborativeAlgorithm
-    : DEFAULT_COLLABORATIVE_ALGORITHM
+  // Collaborative recommendations are intentionally fixed to Item KNN in this UI.
+  // This also migrates sessions saved by older versions that exposed other algorithms.
+  session.selectedCollaborativeAlgorithm = DEFAULT_COLLABORATIVE_ALGORITHM
   session.recommendationsByAlgorithm = normalizeRecommendationCaches(value.recommendationsByAlgorithm)
   return session
 }
@@ -122,10 +122,6 @@ function normalizeRecommendationCaches(value) {
     if (!ALGORITHMS.includes(algorithm) || !entry || typeof entry !== 'object' || !Array.isArray(entry.response?.recommendations)) return []
     return [[algorithm, { response: entry.response, ratingsFingerprint: stringOrEmpty(entry.ratingsFingerprint), generatedAt: stringOrEmpty(entry.generatedAt) }]]
   }))
-}
-
-function validCollaborativeAlgorithm(algorithm) {
-  return RECOMMENDER_OPTIONS.collaborative.some((option) => option.value === algorithm)
 }
 
 function stringOrEmpty(value) { return typeof value === 'string' ? value : '' }
