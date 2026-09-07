@@ -381,6 +381,14 @@ def _filesystem_error_details(exc: OSError, *, operation: str, source: Path, des
     return "; ".join(details)
 
 
+def _is_transient_filesystem_error(exc: OSError) -> bool:
+    return (
+        isinstance(exc, PermissionError)
+        or exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY, errno.EAGAIN, getattr(errno, "ETXTBSY", errno.EBUSY)}
+        or getattr(exc, "winerror", None) in {32, 33}
+    )
+
+
 def _replace_with_retries(source: Path, destination: Path, *, operation: str) -> None:
     """Use rename as the fast path, retrying only briefly for transient filesystem locks."""
     last_error: OSError | None = None
@@ -392,12 +400,7 @@ def _replace_with_retries(source: Path, destination: Path, *, operation: str) ->
             last_error = exc
             # These are common on Windows/Docker Desktop, but a bounded retry is
             # also safe for other short-lived filesystem races.
-            transient = isinstance(exc, PermissionError) or exc.errno in {
-                errno.EACCES, errno.EPERM, errno.EBUSY, errno.EAGAIN,
-                getattr(errno, "ETXTBSY", errno.EBUSY),
-            }
-            transient = transient or getattr(exc, "winerror", None) in {32, 33}
-            if not transient or attempt == _REPLACE_RETRIES - 1:
+            if not _is_transient_filesystem_error(exc) or attempt == _REPLACE_RETRIES - 1:
                 break
             time.sleep(_REPLACE_BACKOFF_SECONDS * (attempt + 1))
     assert last_error is not None
@@ -405,10 +408,22 @@ def _replace_with_retries(source: Path, destination: Path, *, operation: str) ->
 
 
 def _remove_target(path: Path) -> None:
-    if path.is_symlink() or path.is_file():
-        path.unlink()
-    elif path.exists():
-        shutil.rmtree(path)
+    """Remove a target with the same short retry policy used for renames."""
+    last_error: OSError | None = None
+    for attempt in range(_REPLACE_RETRIES):
+        try:
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.exists():
+                shutil.rmtree(path)
+            return
+        except OSError as exc:
+            last_error = exc
+            if not _is_transient_filesystem_error(exc) or attempt == _REPLACE_RETRIES - 1:
+                break
+            time.sleep(_REPLACE_BACKOFF_SECONDS * (attempt + 1))
+    assert last_error is not None
+    raise last_error
 
 
 def _verify_copied_tree(staged: Path, production: Path) -> None:
@@ -425,11 +440,11 @@ def _verify_copied_tree(staged: Path, production: Path) -> None:
             raise OSError(f"Copied artifact size differs: {destination}")
 
 
-def _copy_staged_target(staged: Path, production: Path) -> None:
-    if production.exists() or production.is_symlink():
-        raise OSError(f"Cannot copy into an existing production target: {production}")
-    shutil.copytree(staged, production)
-    _verify_copied_tree(staged, production)
+def _copy_target(source: Path, destination: Path) -> None:
+    if destination.exists() or destination.is_symlink():
+        raise OSError(f"Cannot copy into an existing target: {destination}")
+    shutil.copytree(source, destination)
+    _verify_copied_tree(source, destination)
 
 
 def _restore_backup(backup: Path, production: Path) -> None:
@@ -439,7 +454,7 @@ def _restore_backup(backup: Path, production: Path) -> None:
     try:
         _replace_with_retries(backup, production, operation="restore backup to production")
     except OSError:
-        _copy_staged_target(backup, production)
+        _copy_target(backup, production)
 
 
 def replace_target(staged: Path, production: Path) -> None:
@@ -457,12 +472,40 @@ def replace_target(staged: Path, production: Path) -> None:
             f"Cannot replace {production}: {situation}. Backup retained at {backup}; "
             "inspect or recover it before retrying."
         )
-    backup_created = False
+    # State machine: the former target must be protected before any operation
+    # may remove production.  This prevents a failed backup move from being
+    # mistaken for a partially-installed staged target.
+    backup_protected = False
+    staged_install_started = False
     try:
         production.parent.mkdir(parents=True, exist_ok=True)
         if original_existed:
-            _replace_with_retries(production, backup, operation="move production to recovery backup")
-            backup_created = True
+            try:
+                _replace_with_retries(production, backup, operation="move production to recovery backup")
+                backup_protected = True
+            except OSError as rename_error:
+                # Docker Desktop/Windows can reject a directory rename even
+                # when ordinary copies work.  Do not remove production until a
+                # sibling backup has been copied and verified.
+                if not _is_transient_filesystem_error(rename_error):
+                    raise
+                try:
+                    _copy_target(production, backup)
+                    backup_protected = True
+                except OSError as copy_error:
+                    raise OSError(
+                        "could not protect production before installation: "
+                        + _filesystem_error_details(
+                            copy_error, operation="copy production to recovery backup", source=production, destination=backup
+                        )
+                        + "; prior rename failure: "
+                        + _filesystem_error_details(
+                            rename_error, operation="move production to recovery backup", source=production, destination=backup
+                        )
+                    ) from copy_error
+                _remove_target(production)
+
+        staged_install_started = True
         try:
             _replace_with_retries(staged, production, operation="move staged target to production")
         except OSError as rename_error:
@@ -475,7 +518,7 @@ def replace_target(staged: Path, production: Path) -> None:
                     "refusing copy fallback"
                 ) from rename_error
             try:
-                _copy_staged_target(staged, production)
+                _copy_target(staged, production)
             except OSError as copy_error:
                 raise OSError(
                     "copy fallback failed: "
@@ -490,11 +533,13 @@ def replace_target(staged: Path, production: Path) -> None:
     except OSError as exc:
         cleanup_error: OSError | None = None
         try:
-            if production.exists() or production.is_symlink():
+            # Only remove production if it is known to be a staged partial, or
+            # the old production is already protected by a verified backup.
+            if (backup_protected or not original_existed) and (production.exists() or production.is_symlink()):
                 _remove_target(production)
         except OSError as remove_exc:
             cleanup_error = remove_exc
-        if backup_created:
+        if backup_protected:
             try:
                 _restore_backup(backup, production)
             except OSError as restore_exc:
@@ -504,20 +549,26 @@ def replace_target(staged: Path, production: Path) -> None:
                         restore_exc, operation="restore recovery backup", source=backup, destination=production
                     )
                 ) from restore_exc
-        if cleanup_error is not None and not backup_created:
+        if cleanup_error is not None and not backup_protected:
             raise RecommenderPromotionError(
                 f"Replacement failed and a partial target could not be removed: {production}. "
                 + _filesystem_error_details(
                     cleanup_error, operation="remove partial production", source=production, destination=production
                 )
             ) from cleanup_error
+        phase = "install staged target" if staged_install_started else "protect production before installation"
+        preservation = (
+            "the previous target was restored or remains intact."
+            if original_existed else "no previous target existed."
+        )
         raise RecommenderPromotionError(
-            f"Replacement failed for {production}; the previous target was preserved when present. "
+            f"Replacement failed for {production} while attempting to {phase}; {preservation} "
             + _filesystem_error_details(
-                exc, operation="install staged target", source=staged, destination=production
+                exc, operation=phase, source=staged if staged_install_started else production,
+                destination=production if staged_install_started else backup,
             )
         ) from exc
-    if backup_created:
+    if backup_protected:
         try:
             shutil.rmtree(backup)
         except OSError as exc:

@@ -175,6 +175,118 @@ class RecommenderBuildCliTests(unittest.TestCase):
                     cli.replace_target(staged, paths.content_root)
             self.assertEqual("old", (paths.content_root / "value").read_text(encoding="utf-8"))
 
+    def test_transient_backup_rename_retries_and_then_installs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "value").write_text("new", encoding="utf-8")
+            real_replace = os.replace
+            attempts = 0
+
+            def transient_backup_lock(source, target):
+                nonlocal attempts
+                if Path(source) == production and Path(target).name.startswith(".target"):
+                    attempts += 1
+                    if attempts == 1:
+                        raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=transient_backup_lock), patch(
+                "pipelines.recommender_build.cli.time.sleep"
+            ):
+                cli.replace_target(staged, production)
+            self.assertEqual(2, attempts)
+            self.assertEqual("new", (production / "value").read_text(encoding="utf-8"))
+
+    def test_backup_copy_is_verified_before_production_is_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            (staged / "value").write_text("new", encoding="utf-8")
+            backup = root / ".target.recommender-build-backup"
+            real_replace = os.replace
+            real_copytree = cli.shutil.copytree
+
+            def reject_backup_rename(source, target):
+                if Path(source) == production and Path(target) == backup:
+                    raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            def copy_backup(source, target, *args, **kwargs):
+                result = real_copytree(source, target, *args, **kwargs)
+                if Path(source) == production:
+                    self.assertTrue(production.exists())
+                    self.assertEqual("old", (target / "value").read_text(encoding="utf-8"))
+                return result
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=reject_backup_rename), patch(
+                "pipelines.recommender_build.cli.shutil.copytree", side_effect=copy_backup
+            ), patch("pipelines.recommender_build.cli.time.sleep"):
+                cli.replace_target(staged, production)
+            self.assertEqual("new", (production / "value").read_text(encoding="utf-8"))
+
+    def test_failed_backup_copy_leaves_original_model_intact(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            backup = root / ".target.recommender-build-backup"
+            real_replace = os.replace
+
+            def reject_backup_rename(source, target):
+                if Path(source) == production:
+                    raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=reject_backup_rename), patch(
+                "pipelines.recommender_build.cli.shutil.copytree", side_effect=OSError("copy failure")
+            ), patch("pipelines.recommender_build.cli.time.sleep"):
+                with self.assertRaises(cli.RecommenderPromotionError):
+                    cli.replace_target(staged, production)
+            self.assertEqual("old", (production / "value").read_text(encoding="utf-8"))
+            self.assertFalse(backup.exists())
+
+    def test_verified_backup_is_retained_when_production_cannot_be_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "target"
+            production.mkdir()
+            (production / "value").write_text("old", encoding="utf-8")
+            staged = root / "staged"
+            staged.mkdir()
+            backup = root / ".target.recommender-build-backup"
+            real_replace = os.replace
+
+            def reject_backup_rename(source, target):
+                if Path(source) == production:
+                    raise PermissionError(errno.EACCES, "sharing violation")
+                return real_replace(source, target)
+
+            def cannot_remove_production(path):
+                if path == production:
+                    raise PermissionError(errno.EACCES, "still locked")
+                raise AssertionError("unexpected removal")
+
+            with patch("pipelines.recommender_build.cli.os.replace", side_effect=reject_backup_rename), patch(
+                "pipelines.recommender_build.cli._remove_target", side_effect=cannot_remove_production
+            ), patch("pipelines.recommender_build.cli.time.sleep"):
+                with self.assertRaises(cli.RecommenderPromotionError) as raised:
+                    cli.replace_target(staged, production)
+            self.assertIn(str(backup), str(raised.exception))
+            self.assertEqual("old", (production / "value").read_text(encoding="utf-8"))
+            self.assertEqual("old", (backup / "value").read_text(encoding="utf-8"))
+
     def test_stale_backup_blocks_replacement_without_touching_original(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
