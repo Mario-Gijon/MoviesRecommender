@@ -20,8 +20,13 @@ import RecommendationsStep from './features/recommendations/components/Recommend
 import RecommendationControls from './features/recommendations/components/RecommendationControls'
 import {
   createRecommendationRequestId,
+  RecommendationRequestError,
   requestRecommendations,
 } from './features/recommendations/recommendations.api'
+import {
+  getRecommendationRatingGuidance,
+  hasMinimumRecommendationRatings,
+} from './features/recommendations/strategies'
 import AppLayout from './shared/components/AppLayout'
 import StepNavigation from './shared/components/StepNavigation'
 import StepShell from './shared/components/StepShell'
@@ -72,6 +77,7 @@ function App() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [catalogError, setCatalogError] = useState('')
   const [recommendationError, setRecommendationError] = useState(null)
+  const [recommendationNotice, setRecommendationNotice] = useState('')
   const catalogRequestIdRef = useRef(0)
   const skipNextPersistRef = useRef(false)
   const selectedAlgorithm = selectedStrategy === 'content'
@@ -110,6 +116,7 @@ function App() {
       setSelectedCollaborativeAlgorithm(session.selectedCollaborativeAlgorithm)
       setRecommendationsByAlgorithm(session.recommendationsByAlgorithm)
       setRecommendationError(null)
+      setRecommendationNotice('')
     }
     window.addEventListener('storage', syncSession)
     return () => window.removeEventListener('storage', syncSession)
@@ -249,6 +256,7 @@ function App() {
   function handleRate(movie, rating) {
     const movieId = canonicalMovieId(movie)
     if (!movieId) return
+    setRecommendationNotice('')
     setRatings((currentRatings) => {
       const nextRatings = { ...currentRatings }
 
@@ -271,6 +279,7 @@ function App() {
   function handleSelectStrategy(strategy) {
     setSelectedStrategy(strategy)
     setRecommendationError(null)
+    setRecommendationNotice('')
   }
 
   function handleNextStep() {
@@ -281,10 +290,21 @@ function App() {
     setActiveStep((currentStep) => Math.max(currentStep - 1, 1))
   }
 
+  function handleNavigateToRating() {
+    setActiveStep(1)
+  }
+
   async function handleGenerateRecommendations() {
+    if (!hasMinimumRecommendationRatings(ratedMoviesCount)) {
+      setRecommendationError(null)
+      setRecommendationNotice(getRecommendationRatingGuidance(ratedMoviesCount))
+      return
+    }
+
     try {
       setIsLoadingRecommendations(true)
       setRecommendationError(null)
+      setRecommendationNotice('')
 
       const response = await requestRecommendations({
         requestId: createRecommendationRequestId(),
@@ -306,6 +326,15 @@ function App() {
         },
       }))
     } catch (error) {
+      if (
+        error instanceof RecommendationRequestError &&
+        error.code === 'insufficient_ratings'
+      ) {
+        setRecommendationError(null)
+        setRecommendationNotice(getRecommendationRatingGuidance(ratedMoviesCount))
+        return
+      }
+
       setRecommendationError(
         error instanceof Error
           ? error
@@ -369,10 +398,14 @@ function App() {
     setSelectedCollaborativeAlgorithm(session.selectedCollaborativeAlgorithm)
     setRecommendationsByAlgorithm(session.recommendationsByAlgorithm)
     setRecommendationError(null)
+    setRecommendationNotice('')
     setActiveStep(1)
   }
 
   const ratedMoviesCount = ratedMovies.length
+  const recommendationGuidance = hasMinimumRecommendationRatings(ratedMoviesCount)
+    ? recommendationNotice
+    : getRecommendationRatingGuidance(ratedMoviesCount)
   const hasMoreCatalogPages = catalogPage < catalogTotalPages
   const canGoBack = activeStep > 1
   const canGoNext = activeStep < STEPS.length
@@ -446,6 +479,8 @@ function App() {
             ratings={ratings}
             onRate={handleRate}
             isStale={recommendationsAreStale}
+            guidanceMessage={recommendationGuidance}
+            onNavigateToRating={handleNavigateToRating}
           />
         ) : null}
       </StepShell>

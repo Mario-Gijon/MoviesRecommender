@@ -1,6 +1,10 @@
 import { useState } from 'react'
 
-import { isStrategyEnabled } from '../strategies'
+import {
+  getRecommendationRatingCta,
+  hasMinimumRecommendationRatings,
+  isStrategyEnabled,
+} from '../strategies'
 import RecommendationCard from './RecommendationCard'
 
 function RecommendationsStep({
@@ -12,51 +16,78 @@ function RecommendationsStep({
   ratings,
   onRate,
   isStale,
+  guidanceMessage,
+  onNavigateToRating,
 }) {
   const [openRecommendationId, setOpenRecommendationId] = useState(null)
+  const needsMoreRatings = !hasMinimumRecommendationRatings(ratedMoviesCount)
+  const staleBannerNeedsRatings = isStale && needsMoreRatings
+  const showStandaloneGuidance = Boolean(
+    guidanceMessage && recommendations && !isStale,
+  )
 
   const canGenerate =
-    ratedMoviesCount > 0 &&
+    hasMinimumRecommendationRatings(ratedMoviesCount) &&
     isStrategyEnabled(selectedStrategy) &&
     !isLoadingRecommendations
 
   return (
     <div className="recommend-game-step compact-recommend-step">
-      {isStale ? (
+      {isStale || showStandaloneGuidance ? (
         <div className="recommendation-top-area">
-          <div
-            className="recommendation-refresh-banner"
-            role="status"
-            aria-live="polite"
-          >
-            <span
-              className="recommendation-refresh-icon"
-              aria-hidden="true"
-            >
-              ✦
-            </span>
-
-            <div className="recommendation-refresh-copy">
-              <strong>
-                Puedo mejorar la recomendación
-              </strong>
-
-              <span>
-                Tendré en cuenta tus nuevas valoraciones.
+          {showStandaloneGuidance ? (
+            <div className="recommendation-minimum-guidance" role="status" aria-live="polite">
+              <span className="recommendation-minimum-guidance-icon" aria-hidden="true">
+                ✦
               </span>
-            </div>
 
-            <button
-              type="button"
-              className="recommendation-refresh-button"
-              onClick={onGenerateRecommendations}
-              disabled={!canGenerate}
+              <span>{guidanceMessage}</span>
+            </div>
+          ) : null}
+
+          {isStale ? (
+            <div
+              className="recommendation-refresh-banner"
+              role="status"
+              aria-live="polite"
             >
-              {isLoadingRecommendations
-                ? 'Mejorando...'
-                : 'Mejorar'}
-            </button>
-          </div>
+              <span
+                className="recommendation-refresh-icon"
+                aria-hidden="true"
+              >
+                ✦
+              </span>
+
+              <div className="recommendation-refresh-copy">
+                <strong>
+                  {staleBannerNeedsRatings
+                    ? 'Necesito alguna valoración más'
+                    : 'Puedo mejorar la recomendación'}
+                </strong>
+
+                <span>
+                  {staleBannerNeedsRatings
+                    ? getRecommendationRatingCta(ratedMoviesCount)
+                    : 'Tendré en cuenta tus nuevas valoraciones.'}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="recommendation-refresh-button"
+                onClick={staleBannerNeedsRatings
+                  ? onNavigateToRating
+                  : onGenerateRecommendations}
+                disabled={staleBannerNeedsRatings ? false : !canGenerate}
+              >
+                {staleBannerNeedsRatings
+                  ? 'Valorar películas'
+                  : isLoadingRecommendations
+                    ? 'Mejorando...'
+                    : 'Mejorar'}
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -101,10 +132,14 @@ function RecommendationsStep({
         ) : (
           <div className="game-state">
             <strong>
-              {ratedMoviesCount
-                ? 'Listo para recomendar'
-                : 'Valora algunas películas primero'}
+              {guidanceMessage
+                ? 'Completa tu perfil de gustos'
+                : ratedMoviesCount
+                  ? 'Listo para recomendar'
+                  : 'Valora algunas películas primero'}
             </strong>
+
+            {guidanceMessage ? <span>{guidanceMessage}</span> : null}
           </div>
         )}
       </section>

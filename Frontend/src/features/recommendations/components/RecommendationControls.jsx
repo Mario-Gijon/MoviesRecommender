@@ -1,4 +1,7 @@
-import { isStrategyEnabled } from '../strategies'
+import {
+  hasMinimumRecommendationRatings,
+  isStrategyEnabled,
+} from '../strategies'
 import StrategySelector from './StrategySelector'
 
 function RecommendationControls({
@@ -9,7 +12,7 @@ function RecommendationControls({
   ratedMoviesCount,
 }) {
   const canGenerate =
-    ratedMoviesCount > 0 &&
+    hasMinimumRecommendationRatings(ratedMoviesCount) &&
     isStrategyEnabled(selectedStrategy) &&
     !isLoadingRecommendations
 

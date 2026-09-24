@@ -18,6 +18,44 @@ export const RECOMMENDATION_STRATEGIES = Object.freeze([
   }),
 ])
 
+export const MIN_RECOMMENDATION_RATINGS = 4
+
+export function getRemainingRecommendationRatings(ratedMoviesCount) {
+  const normalizedCount = Number.isFinite(Number(ratedMoviesCount))
+    ? Math.max(0, Math.trunc(Number(ratedMoviesCount)))
+    : 0
+
+  return Math.max(MIN_RECOMMENDATION_RATINGS - normalizedCount, 0)
+}
+
+export function hasMinimumRecommendationRatings(ratedMoviesCount) {
+  return getRemainingRecommendationRatings(ratedMoviesCount) === 0
+}
+
+export function getRecommendationRatingGuidance(ratedMoviesCount) {
+  const remainingRatings = getRemainingRecommendationRatings(ratedMoviesCount)
+  const introduction = `Para darte una buena recomendación, necesito que valores al menos ${MIN_RECOMMENDATION_RATINGS} películas.`
+
+  if (remainingRatings === 0) return introduction
+
+  if (remainingRatings === 1) {
+    return `${introduction} Te queda solo 1 película más 😊`
+  }
+
+  const remainingMessage = remainingRatings === MIN_RECOMMENDATION_RATINGS
+    ? `Te quedan ${remainingRatings} películas por valorar 😊`
+    : `Te quedan ${remainingRatings} películas más 😊`
+
+  return `${introduction} ${remainingMessage}`
+}
+
+export function getRecommendationRatingCta(ratedMoviesCount) {
+  const remainingRatings = getRemainingRecommendationRatings(ratedMoviesCount)
+  const movieLabel = remainingRatings === 1 ? 'película' : 'películas'
+
+  return `Para darte una buena recomendación, valora ${remainingRatings} ${movieLabel} más 😊`
+}
+
 export function isStrategyEnabled(strategy) {
   const strategyConfig = RECOMMENDATION_STRATEGIES.find((item) => item.value === strategy)
 
