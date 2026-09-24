@@ -508,7 +508,7 @@ button:disabled {
     filter 220ms ease;
 }
 
-.poster-card:not(.recommendation-card) .poster-frame::after {
+.poster-card .poster-frame::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -1842,8 +1842,9 @@ button:disabled {
 
 .recommendation-card {
   position: relative;
-  aspect-ratio: 4 / 5.25;
-  border: 1px solid rgba(7, 11, 29, 0.95);
+  min-height: 460px;
+  aspect-ratio: 4 / 5.65;
+  border: 1px solid transparent;
   border-radius: 38px;
   box-shadow: none;
 }
@@ -1868,8 +1869,11 @@ button:disabled {
 }
 
 .poster-card.recommendation-card.rated {
-  border-color: rgba(214, 173, 76, 0.9);
   box-shadow: 0 0 58px rgba(214, 173, 76, 0.24);
+}
+
+.poster-card.recommendation-card.rated .recommendation-frame::after {
+  border-color: rgba(214, 173, 76, 0.9);
 }
 
 .recommendation-card .poster-frame > img {
@@ -2320,9 +2324,14 @@ button:disabled {
   .recommendation-card:not(.rated):hover,
   .recommendation-card:not(.rated):focus-visible,
   .recommendation-card:not(.rated):has(:focus-visible) {
-    border-color: rgba(102, 126, 234, 0.9);
     box-shadow:
       0 0 42px rgba(102, 126, 234, 0.2);
+  }
+
+  .recommendation-card:not(.rated):hover .recommendation-frame::after,
+  .recommendation-card:not(.rated):focus-visible .recommendation-frame::after,
+  .recommendation-card:not(.rated):has(:focus-visible) .recommendation-frame::after {
+    border-color: rgba(102, 126, 234, 0.9);
   }
 
   .recommendation-card:hover .poster-frame > img,
@@ -2405,8 +2414,11 @@ button:disabled {
   }
 
   .recommendation-card.touch-open:not(.rated) {
-    border-color: rgba(102, 126, 234, 0.9);
     box-shadow: 0 0 42px rgba(102, 126, 234, 0.2);
+  }
+
+  .recommendation-card.touch-open:not(.rated) .recommendation-frame::after {
+    border-color: rgba(102, 126, 234, 0.9);
   }
 
   .recommendation-card:not(.touch-open) .poster-frame > img {
@@ -2611,11 +2623,14 @@ button:disabled {
 }
 
 .recommendation-card--leaving {
-  border-color: rgba(255, 241, 184, 0.72);
   box-shadow:
     0 0 0 2px rgba(255, 241, 184, 0.24),
     0 0 54px rgba(214, 173, 76, 0.34),
     0 32px 84px rgba(0, 0, 0, 0.46);
+}
+
+.recommendation-card--leaving .recommendation-frame::after {
+  border-color: rgba(255, 241, 184, 0.72);
 }
 
 /* ---------- Keyboard ---------- */
@@ -2625,9 +2640,12 @@ button:disabled {
 }
 
 .recommendation-card:not(.rated):focus-visible {
-  border-color: rgba(174, 188, 255, 0.7);
   box-shadow:
     0 0 0 3px rgba(174, 188, 255, 0.16);
+}
+
+.recommendation-card:not(.rated):focus-visible .recommendation-frame::after {
+  border-color: rgba(174, 188, 255, 0.7);
 }
 
 /* ---------- Responsive ---------- */
@@ -3345,49 +3363,15 @@ button:disabled {
 }
 
 /*
- * Las recomendaciones necesitan algo más de anchura porque
- * muestran puntuación, explicación, razones y valoración.
+ * Recommendations need enough width for the score, explanation, and rating
+ * interaction. This final flex layout is the effective card architecture.
  *
- * ≥ 2200px      5 columnas
- * 1201–2199px   4 columnas
- * 821–1200px    3 columnas
- * 641–820px     2 columnas
- * ≤ 640px       1 columna
+ * ≥ 2200px      5 columns
+ * 1361–2199px   4 columns
+ * 1101–1360px   3 columns
+ * 641–1100px    2 columns
+ * ≤ 640px       1 column
  */
-
-.recommendation-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(18px, 1.5vw, 28px);
-}
-
-@media (min-width: 2200px) {
-  .recommendation-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1200px) {
-  .recommendation-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px;
-  }
-}
-
-@media (max-width: 820px) {
-  .recommendation-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-  }
-}
-
-@media (max-width: 640px) {
-  .recommendation-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-  }
-}
-
-/* Recommendation card layout without stretching their cards. */
 .recommendation-grid {
   --recommendation-grid-gap: clamp(18px, 1.5vw, 28px);
   display: flex;
@@ -3414,9 +3398,9 @@ button:disabled {
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1360px) {
   .recommendation-grid {
-    --recommendation-grid-gap: 20px;
+    --recommendation-grid-gap: 22px;
   }
 
   .recommendation-grid > .recommendation-card {
@@ -3424,13 +3408,18 @@ button:disabled {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1100px) {
   .recommendation-grid {
-    --recommendation-grid-gap: 16px;
+    --recommendation-grid-gap: 18px;
   }
 
   .recommendation-grid > .recommendation-card {
     flex-basis: calc((100% - var(--recommendation-grid-gap)) / 2);
+  }
+
+  .recommendation-card {
+    min-height: 480px;
+    aspect-ratio: 4 / 5.8;
   }
 }
 
@@ -3441,6 +3430,9 @@ button:disabled {
 
   .recommendation-grid > .recommendation-card {
     flex-basis: 100%;
+    min-height: 0;
+    height: clamp(540px, 145vw, 620px);
+    aspect-ratio: auto;
   }
 }
 

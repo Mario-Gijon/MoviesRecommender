@@ -330,11 +330,28 @@ function App() {
   const cachedRecommendation = recommendationsByAlgorithm[selectedAlgorithm]
   const visibleRecommendations = useMemo(() => {
     if (!cachedRecommendation?.response) return null
+
+    const filteredRecommendations = cachedRecommendation.response.recommendations.filter(
+      (item) => !ratings[canonicalMovieId(item.movie)],
+    )
+    const sortedRecommendations = [...filteredRecommendations].sort((left, right) => {
+      const leftScore = Number(left.score)
+      const rightScore = Number(right.score)
+      const leftHasValidScore = Number.isFinite(leftScore)
+      const rightHasValidScore = Number.isFinite(rightScore)
+
+      if (leftHasValidScore && rightHasValidScore) {
+        return rightScore - leftScore
+      }
+
+      if (leftHasValidScore) return -1
+      if (rightHasValidScore) return 1
+      return 0
+    })
+
     return {
       ...cachedRecommendation.response,
-      recommendations: cachedRecommendation.response.recommendations.filter(
-        (item) => !ratings[canonicalMovieId(item.movie)],
-      ),
+      recommendations: sortedRecommendations,
     }
   }, [cachedRecommendation, ratings])
   const recommendationsAreStale = Boolean(
