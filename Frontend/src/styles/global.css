@@ -470,7 +470,7 @@ button:disabled {
 .poster-card {
   position: relative;
   overflow: visible;
-  border: 1px solid rgba(7, 11, 29, 0.95);
+  border: 1px solid transparent;
   border-radius: 38px;
   background: transparent;
   box-shadow: none;
@@ -508,24 +508,41 @@ button:disabled {
     filter 220ms ease;
 }
 
+.poster-card:not(.recommendation-card) .poster-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: border-color 220ms ease;
+}
+
 .poster-card:hover .poster-frame {
   transform: translateY(-14px) scale(1.045);
   box-shadow: 0 42px 110px rgba(0, 0, 0, 0.56);
 }
 
-.poster-card.rated {
-  border-color: rgba(214, 173, 76, 0.9);
+.poster-card:not(.recommendation-card).rated {
   box-shadow:
     0 0 58px rgba(214, 173, 76, 0.24);
 }
 
-.poster-card.touch-open:not(.rated) {
-  border-color: rgba(102, 126, 234, 0.9);
+.poster-card:not(.recommendation-card).rated .poster-frame::after {
+  border-color: rgba(214, 173, 76, 0.9);
+}
+
+.poster-card:not(.recommendation-card).touch-open:not(.rated) {
   box-shadow: 0 0 42px rgba(102, 126, 234, 0.2);
 }
 
-.poster-card:not(.rated):focus-visible {
+.poster-card:not(.recommendation-card).touch-open:not(.rated) .poster-frame::after,
+.poster-card:not(.recommendation-card):not(.rated):focus-visible .poster-frame::after {
   border-color: rgba(102, 126, 234, 0.9);
+}
+
+.poster-card:not(.recommendation-card):not(.rated):focus-visible {
   box-shadow: 0 0 0 3px rgba(174, 188, 255, 0.16);
 }
 
@@ -2731,8 +2748,13 @@ button:disabled {
   .poster-card:not(.recommendation-card):not(.rated):hover,
   .poster-card:not(.recommendation-card):not(.rated):focus-visible,
   .poster-card:not(.recommendation-card):not(.rated):has(:focus-visible) {
-    border-color: rgba(102, 126, 234, 0.9);
     box-shadow: 0 0 42px rgba(102, 126, 234, 0.2);
+  }
+
+  .poster-card:not(.recommendation-card):not(.rated):hover .poster-frame::after,
+  .poster-card:not(.recommendation-card):not(.rated):focus-visible .poster-frame::after,
+  .poster-card:not(.recommendation-card):not(.rated):has(:focus-visible) .poster-frame::after {
+    border-color: rgba(102, 126, 234, 0.9);
   }
 }
 
